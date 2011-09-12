@@ -27,23 +27,23 @@ Parts taken from http://www.geoastro.de/elevaz/basics/index.htm
 import datetime
 import numpy as np
 
-def _jdays2000(current_time):
+def jdays2000(current_time):
     """Get the days since 2000.
     """
     return _days(current_time - datetime.datetime(2000, 1, 1, 12, 0))
     
 
-def _jdays(current_time):
+def jdays(current_time):
     """Get the julian day of *current_time*.
     """
-    return _jdays2000(current_time) + 2451545
+    return jdays2000(current_time) + 2451545
 
-def _days(d_t):
+def _days(dt):
     """Get the days (floating point) from *d_t*.
     """
-    return (d_t.days +
-            (d_t.seconds +
-             d_t.microseconds / (1000000.0)) / (24 * 3600.0))
+    return (dt.days +
+            (dt.seconds +
+             dt.microseconds / (1000000.0)) / (24 * 3600.0))
 
 def gmst(current_time):
     """Greenwich mean sidereal current_time, in radians.
@@ -73,7 +73,7 @@ def lmst(current_time, longitude):
 def sun_ecliptic_longitude(current_time):
     """Ecliptic longitude of the sun at *current_time*.
     """
-    jdate = _jdays2000(current_time) / 36525.0
+    jdate = jdays2000(current_time) / 36525.0
     # mean anomaly, rad
     m_a = np.deg2rad(357.52910 +
                      35999.05030*jdate -
@@ -90,7 +90,7 @@ def sun_ecliptic_longitude(current_time):
 def sun_ra_dec(current_time):
     """Right ascension and declination of the sun at *current_time*.
     """
-    jdate = _jdays2000(current_time) / 36525.0
+    jdate = jdays2000(current_time) / 36525.0
     eps = np.deg2rad(23.0 + 26.0/60.0 + 21.448/3600.0 -
                      (46.8150*jdate + 0.00059*jdate*jdate -
                       0.001813*jdate*jdate*jdate) / 3600)
@@ -127,6 +127,26 @@ def cos_zen(current_time, lon, lat):
     r_a, dec = sun_ra_dec(current_time)
     h__ = local_hour_angle(current_time, lon, r_a)
     return (np.sin(lat)*np.sin(dec) + np.cos(lat) * np.cos(dec) * np.cos(h__))
+
+def observer_position(time, lon, lat, alt):
+    """Calculate observer ECI position.
+    http://celestrak.com/columns/v02n02/
+    """
+    theta = (gmst(time) + lon)%(2*np.pi)
+    c = 1/np.sqrt(1 + F*(F-2)*np.sin(lat)**2)
+    sq = c*(1 - F)**2
+
+    achcp = (XKMPER*c + alt)*np.cos(lat)
+    x = achcp*np.cos(theta)  # kilometers
+    y = achcp*np.sin(theta)
+    z = (XKMPER*sq + alt)*np.sin(lat)
+
+    vx = -MFACTOR*y  # kilometers/second
+    vy = MFACTOR*x
+    vz = 0
+
+    return (x, y, z), (vx, vy, vz)
     
+        
 if __name__ == '__main__':
     pass

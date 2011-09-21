@@ -27,16 +27,16 @@ Parts taken from http://www.geoastro.de/elevaz/basics/index.htm
 import datetime
 import numpy as np
 
-def jdays2000(current_time):
+def jdays2000(utc_time):
     """Get the days since 2000.
     """
-    return _days(current_time - datetime.datetime(2000, 1, 1, 12, 0))
+    return _days(utc_time - datetime.datetime(2000, 1, 1, 12, 0))
     
 
-def jdays(current_time):
-    """Get the julian day of *current_time*.
+def jdays(utc_time):
+    """Get the julian day of *utc_time*.
     """
-    return jdays2000(current_time) + 2451545
+    return jdays2000(utc_time) + 2451545
 
 def _days(dt):
     """Get the days (floating point) from *d_t*.
@@ -45,12 +45,11 @@ def _days(dt):
             (dt.seconds +
              dt.microseconds / (1000000.0)) / (24 * 3600.0))
 
-def gmst(current_time):
-    """Greenwich mean sidereal current_time, in radians.
+def gmst_old(utc_time):
+    """Greenwich mean sidereal utc_time, in radians.
     http://celestrak.com/columns/v02n02/
     """
-    now = current_time
-    #now = datetime.datetime(1995, 10, 1, 9, 0)
+    now = utc_time
     now0 = datetime.datetime(now.year, now.month, now.day)
     epoch = datetime.datetime(2000, 1, 1, 12, 0)
     du2 = _days(now - epoch)
@@ -63,17 +62,29 @@ def gmst(current_time):
     theta_g = (theta_g_0 + dus * 1.00273790934) % 86400
     return (theta_g / 86400.0) * 2 * np.pi
 
-def lmst(current_time, longitude):
-    """Local mean sidereal time, computed from *current_time* and *longitude*.
+def gmst(utc_time):
+    """Greenwich mean sidereal utc_time, in radians.
+    
+    Used the AIAA 2006 implementation:
+    http://www.celestrak.com/publications/AIAA/2006-6753/
+    """
+    ut1 = jdays2000(utc_time) / 36525.0
+    theta = 67310.54841 + ut1 * (876600 * 3600 + 8640184.812866 + ut1 *
+                                 (0.093104 - ut1 * 6.2 * 10e-6))
+    return np.deg2rad(theta / 240.0) % (2 * np.pi)
+
+
+def lmst(utc_time, longitude):
+    """Local mean sidereal time, computed from *utc_time* and *longitude*.
     In radians.
     """
-    return gmst(current_time) + longitude
+    return gmst(utc_time) + longitude
 
 
-def sun_ecliptic_longitude(current_time):
-    """Ecliptic longitude of the sun at *current_time*.
+def sun_ecliptic_longitude(utc_time):
+    """Ecliptic longitude of the sun at *utc_time*.
     """
-    jdate = jdays2000(current_time) / 36525.0
+    jdate = jdays2000(utc_time) / 36525.0
     # mean anomaly, rad
     m_a = np.deg2rad(357.52910 +
                      35999.05030*jdate -
@@ -87,14 +98,14 @@ def sun_ecliptic_longitude(current_time):
     l__ = l_0 + d_l
     return np.deg2rad(l__)
 
-def sun_ra_dec(current_time):
-    """Right ascension and declination of the sun at *current_time*.
+def sun_ra_dec(utc_time):
+    """Right ascension and declination of the sun at *utc_time*.
     """
-    jdate = jdays2000(current_time) / 36525.0
+    jdate = jdays2000(utc_time) / 36525.0
     eps = np.deg2rad(23.0 + 26.0/60.0 + 21.448/3600.0 -
                      (46.8150*jdate + 0.00059*jdate*jdate -
                       0.001813*jdate*jdate*jdate) / 3600)
-    eclon = sun_ecliptic_longitude(current_time)
+    eclon = sun_ecliptic_longitude(utc_time)
     x__ = np.cos(eclon)
     y__ = np.cos(eps) * np.sin(eclon)
     z__ = np.sin(eps) * np.sin(eclon)
@@ -105,27 +116,27 @@ def sun_ra_dec(current_time):
     right_ascension = 2 * np.arctan2(y__, (x__ + r__))
     return right_ascension, declination
 
-def local_hour_angle(current_time, longitude, right_ascension):
-    """Hour angle at *current_time* for the given *longitude* and
+def local_hour_angle(utc_time, longitude, right_ascension):
+    """Hour angle at *utc_time* for the given *longitude* and
     *right_ascension*
     """
-    return lmst(current_time, longitude) - right_ascension
+    return lmst(utc_time, longitude) - right_ascension
 
-def get_alt_az(current_time, lon, lat):
-    """Return sun altitude and azimuth from *current_time*, *lon*, and *lat*.
+def get_alt_az(utc_time, lon, lat):
+    """Return sun altitude and azimuth from *utc_time*, *lon*, and *lat*.
     """
-    ra_, dec = sun_ra_dec(current_time)
-    h__ = local_hour_angle(current_time, lon, ra_)
+    ra_, dec = sun_ra_dec(utc_time)
+    h__ = local_hour_angle(utc_time, lon, ra_)
     return (np.arcsin(np.sin(lat)*np.sin(dec) +
                       np.cos(lat) * np.cos(dec) * np.cos(h__)),
             np.arctan2(-np.sin(h__), (np.cos(lat)*np.tan(dec) -
                                     np.sin(lat)*np.cos(h__))))
 
-def cos_zen(current_time, lon, lat):
-    """Cosine of the sun-zenith angle for *lon*, *lat* at *current_time*.
+def cos_zen(utc_time, lon, lat):
+    """Cosine of the sun-zenith angle for *lon*, *lat* at *utc_time*.
     """
-    r_a, dec = sun_ra_dec(current_time)
-    h__ = local_hour_angle(current_time, lon, r_a)
+    r_a, dec = sun_ra_dec(utc_time)
+    h__ = local_hour_angle(utc_time, lon, r_a)
     return (np.sin(lat)*np.sin(dec) + np.cos(lat) * np.cos(dec) * np.cos(h__))
 
 def observer_position(time, lon, lat, alt):

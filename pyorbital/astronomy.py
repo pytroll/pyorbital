@@ -158,6 +158,21 @@ def observer_position(time, lon, lat, alt):
 
     return (x, y, z), (vx, vy, vz)
     
+
+import unittest
+class TestAstronomy(unittest.TestCase):
+
+    def test_jdays(self):
+        """Test julian day functions.
+        """
+        
+        t = datetime.datetime(2000, 1, 1, 12, 0)
+        self.assertEqual(jdays(t), 2451545.0)
+        self.assertEqual(jdays2000(t), 0)
+        t = datetime.datetime(2009, 10, 8, 14, 30)
+        self.assertEqual(jdays(t), 2455113.1041666665)
+        self.assertEqual(jdays2000(t), 3568.1041666666665)
+
         
 if __name__ == '__main__':
-    pass
+    unittest.main()

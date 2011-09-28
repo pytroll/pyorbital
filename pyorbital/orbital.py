@@ -35,20 +35,36 @@ import tlefile
 import astronomy
 
 
+ECC_EPS = 1.0e-6	# Too low for computing further drops.
+ECC_LIMIT_HIGH = 1.0 - ECC_EPS	# Too close to 1 
+ECC_ALL = 1.0e-4
+
+EPS_COS = 1.5e-12
+
 CK2 = 5.413080e-4
 CK4 = 0.62098875e-6
 E6A = 1.0e-6
 QOMS2T = 1.88027916e-9
 S = 1.01222928
+S0 = 78.0
 XJ3 = -0.253881e-5
 XKE = 0.743669161e-1
-XKMPER = 6378.137
+XKMPER = 6378.135
 XMNPDA = 1440.0
-MFACTOR = 7.292115E-5
+#MFACTOR = 7.292115E-5
 AE = 1.0
-SECDAY = 8.6400E4
+#SECDAY = 8.6400E4
 # earth flattening
-F = 1/298.257223563
+#F = 1/298.257223563
+
+
+SGDP4_ZERO_ECC = 0
+SGDP4_DEEP_NORM = 1
+SGDP4_NEAR_SIMP = 2 
+SGDP4_NEAR_NORM = 3
+
+KS = AE * (1.0 + S0 / XKMPER)
+A3OVK2 = (-XJ3 / CK2) * AE**3
 
 class OrbitalError(Exception):
     pass
@@ -383,7 +399,210 @@ def _sgp4(orbit_elements, time):
 
     return (r_x, r_y, r_z), (rdot_x, rdot_y, rdot_z)
 
+class _SGDP4(object):
+    
 
+    def __init__(self, orbit_elements):
+        self.mode = None
+
+        perigee = orbit_elements.perigee
+        self.eo = orbit_elements.excentricity
+        self.i_0 = orbit_elements.inclination
+        self.xno = orbit_elements.original_mean_motion
+        k_2 = CK2
+        k_4 = CK4
+        k_e = XKE
+        self.bstar = orbit_elements.bstar
+        self.omegao = orbit_elements.arg_perigee
+        self.xmo = orbit_elements.mean_anomaly
+        self.xnodeo = orbit_elements.right_ascension
+        self.t_0 = orbit_elements.epoch
+        print self.t_0
+        self.xn_0 = orbit_elements.mean_motion
+        A30 = -XJ3 * AE**3
+
+        if not(0 < self.eo < ECC_LIMIT_HIGH):
+            raise OrbitalError('Eccentricity out of range: %e' % self.eo)
+        elif not((0.0035 * 2 * np.pi / XMNPDA) < self.xn_0 < (18 * 2 * np.pi / XMNPDA)):
+            raise OrbitalError('Mean motion out of range: %e' % self.xn_0)
+        elif not(0 < self.i_0 < np.pi):
+            raise OrbitalError('Inclination out of range: %e' % self.i_0)
+        
+        if self.eo < 0:
+            self.mode = self.SGDP4_ZERO_ECC
+            return
+
+        self.cosIO = np.cos(self.i_0)
+        self.sinIO = np.sin(self.i_0)
+        theta2 = self.cosIO**2
+        theta4 = theta2 ** 2 
+        self.x3thm1 = 3.0 * theta2 - 1.0;
+        self.x1mth2 = 1.0 - theta2;
+        self.x7thm1 = 7.0 * theta2 - 1.0;
+        print 'theta2', theta2  
+
+        a1 = (XKE / self.xn_0) ** (2. / 3)
+        betao2 = 1.0 - self.eo**2
+        betao = np.sqrt(betao2);
+        temp0 = 1.5 * CK2 * self.x3thm1 / (betao * betao2)
+        del1 = temp0 / (a1**2);
+        a0 = a1 * (1.0 - del1 * (1.0 / 3.0 + del1 * (1.0 + del1 * 134.0 / 81.0)))
+        del0 = temp0 / (a0**2)
+        self.xnodp = self.xn_0 / (1.0 + del0)
+        self.aodp = (a0 / (1.0 - del0))
+        self.perigee = (self.aodp * (1.0 - self.eo) - AE) * XKMPER
+        self.apogee = (self.aodp * (1.0 + self.eo) - AE) * XKMPER
+        self.period = (2 * np.pi * 1440.0 / XMNPDA) / self.xnodp 
+     
+        if self.period >= 225:
+            # Deep-Space model
+            self.mode = SGDP4_DEEP_NORM
+        elif self.perigee < 220:
+            # Near-space, simplified equations
+            self.mode = SGDP4_NEAR_SIMP
+        else:
+            # Near-space, normal equations
+            self.mode = SGDP4_NEAR_NORM
+
+        if self.perigee < 156:
+            s4 = self.perigee - 78
+            if s4 < 20:
+                s4 = 20
+            
+            qoms24 = ((120 - s4) * (AE / XKMPER))**4
+            s4 = (s4 / XKMPER + AE)
+        else:
+            s4 = KS
+            qoms24 = QOMS2T
+
+        pinvsq = 1.0 / (self.aodp**2 * betao2**2)
+        print 'pinvsq', pinvsq
+        tsi = 1.0 / (self.aodp - s4)
+        self.eta = self.aodp * self.eo * tsi;
+        etasq = self.eta**2;
+        eeta = self.eo * self.eta;
+        psisq = np.abs(1.0 - etasq);
+        coef = qoms24 * tsi**4
+        coef_1 = coef / psisq**3.5
+
+        self.c2 = (coef_1 * self.xnodp * (self.aodp *
+             (1.0 + 1.5 * etasq + eeta * (4.0 + etasq)) +
+             (0.75 * CK2) * tsi / psisq * self.x3thm1 *
+             (8.0 + 3.0 * etasq * (8.0 + etasq))))
+
+        self.c1 = self.bstar * self.c2
+
+        self.c4 = (2.0 * self.xnodp * coef_1 * self.aodp * betao2 * (self.eta *
+             (2.0 + 0.5 * etasq) + self.eo * (0.5 + 2.0 *
+             etasq) - (2.0 * CK2) * tsi / (self.aodp * psisq) * (-3.0 *
+             self.x3thm1 * (1.0 - 2.0 * eeta + etasq *
+             (1.5 - 0.5 * eeta)) + 0.75 * self.x1mth2 * (2.0 *
+             etasq - eeta * (1.0 + etasq)) * np.cos(2.0 * self.omegao))))
+
+        self.c5, self.c3, self.omgcof = 0.0, 0.0, 0.0
+
+        print 'self.c1', self.c1
+        print 'self.c2', self.c2
+        print 'self.c4', self.c4
+        print 'A3OVK2', A3OVK2
+
+        if self.mode == SGDP4_NEAR_NORM:
+            self.c5 = (2.0 * coef_1 * self.aodp * betao2 *
+             (1.0 + 2.75 * (etasq + eeta) + eeta * etasq))
+            if self.eo > ECC_ALL:
+                self.c3 = coef * tsi * A3OVK2 * self.xnodp * AE * self.sinIO / self.eo
+            self.omgcof = self.bstar * self.c3 * np.cos(self.omegao)
+
+        temp1 = 3.0 * CK2 * pinvsq * self.xnodp
+        temp2 = temp1 * CK2 * pinvsq
+        temp3 = 1.25 * CK4 * pinvsq**2 * self.xnodp
+
+        self.xmdot = (self.xnodp + (0.5 * temp1 * betao * self.x3thm1 + 0.0625 *
+                temp2 * betao * (13.0 - 78.0 * theta2 +
+                137.0 * theta4)))
+
+        x1m5th = 1.0 - 5.0 * theta2;
+
+        self.omgdot = (-0.5 * temp1 * x1m5th + 0.0625 * temp2 *
+                 (7.0 - 114.0 * theta2 + 395.0 * theta4) +
+                 temp3 * (3.0 - 36.0 * theta2 + 49.0 * theta4))
+
+        xhdot1 = -temp1 * self.cosIO
+        self.xnodot = (xhdot1 + (0.5 * temp2 * (4.0 - 19.0 * theta2) +
+                 2.0 * temp3 * (3.0 - 7.0 * theta2)) * self.cosIO)
+
+        if self.eo > ECC_ALL:
+            self.xmcof = (-(2. / 3) * AE) * coef * self.bstar / eeta
+        else:    
+            self.xmcof = 0.0
+
+        self.xnodcf = 3.5 * betao2 * xhdot1 * self.c1
+        self.t2cof = 1.5 * self.c1
+        print 'self.xnodcf', self.xnodcf
+        
+        # Check for possible divide-by-zero for X/(1+cos(i_0)) when calculating xlcof */
+    	temp0 = 1.0 + self.cosIO
+    	if np.abs(temp0) < EPS_COS:
+    	    temp0 = np.sign(temp0) * EPS_COS
+    	    
+    	self.xlcof = 0.125 * A3OVK2 * self.sinIO * (3.0 + 5.0 * self.cosIO) / temp0
+
+        self.aycof = 0.25 * A3OVK2 * self.sinIO
+        
+        print 'self.xlcof', self.xlcof
+        print 'self.aycof', self.aycof
+        print self.mode
+        self.cosXMO = np.cos(self.xmo)
+        self.sinXMO = np.sin(self.xmo)
+        self.delmo = (1.0 + self.eta * self.cosXMO)**3
+        print 'self.delmo: %e' % self.delmo
+        
+        if self.mode == SGDP4_NEAR_NORM:        
+            c1sq = self.c1**2
+            self.d2 = 4.0 * self.aodp * tsi * c1sq
+            temp0 = self.d2 * tsi * self.c1 / 3.0
+            self.d3 = (17.0 * self.aodp + s4) * temp0
+            self.d4 = 0.5 * temp0 * self.aodp * tsi * (221.0 * self.aodp + 31.0 * s4) * self.c1
+            self.t3cof = self.d2 + 2.0 * c1sq
+            self.t4cof = 0.25 * (3.0 * self.d3 + self.c1 * (12.0 * self.d2 + 10.0 * c1sq))
+            self.t5cof = (0.2 * (3.0 * self.d4 + 12.0 * self.c1 * self.d3 + 6.0 * self.d2**2 + 
+                    15.0 * c1sq * (2.0 * self.d2 + c1sq)))
+            print 'self.t3cof %.8e' % self.t3cof
+            print 'self.t4cof %.8e' % self.t4cof
+            print 'self.t5cof %.8e' % self.t5cof
+        elif self.mode == SGDP4_DEEP_NORM:
+            raise Exception('Deep space calculations not supported')
+        
+    def propagate(self, utc_time):
+        ts = astronomy._days(utc_time - self.t_0) * XMNPDA
+        print 'tsi', ts
+        em = self.eo
+        xinc = self.i_0
+        
+        xmp   = self.xmo + self.xmdot * ts
+        xnode = self.xnodeo + ts * (self.xnodot + ts * self.xnodcf)
+        omega = self.omegao + self.omgdot * ts
+        
+        if self.mode == SGDP4_ZERO_ECC:
+            raise Exception('TODO')
+        elif self.mode == SGDP4_NEAR_SIMP:
+            raise Exception('TODO')
+        elif self.mode == SGDP4_NEAR_NORM:
+            delm  = self.xmcof * ((1.0 + self.eta * np.cos(xmp))**3 - self.delmo)
+            temp0 = ts * self.omgcof + delm
+            xmp += temp0
+            omega -= temp0
+            tempa = 1.0 - (ts * (self.c1 + ts * (self.d2 + ts * (self.d3 + ts * self.d4))))
+            tempe = self.bstar * (self.c4 * ts + self.c5 * (np.sin(xmp) - self.sinXMO))
+            templ = ts * ts * (self.t2cof + ts * (self.t3cof + ts * (self.t4cof + ts * self.t5cof)))
+            a = self.aodp * tempa**2
+            e = em - tempe
+            xl = xmp + omega + xnode + self.xnodp * templ;
+            print 'xl', xl
+        else:
+            raise Exception('No deep space')
+        
+        
 if __name__ == "__main__":
     obs_lon, obs_lat = np.deg2rad((12.4143, 55.9065))
     obs_alt = 0.02

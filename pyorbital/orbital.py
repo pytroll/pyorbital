@@ -36,10 +36,13 @@ import astronomy
 
 
 ECC_EPS = 1.0e-6	# Too low for computing further drops.
+ECC_LIMIT_LOW = -1.0e-3
 ECC_LIMIT_HIGH = 1.0 - ECC_EPS	# Too close to 1 
 ECC_ALL = 1.0e-4
 
 EPS_COS = 1.5e-12
+
+NR_EPS = 1.0e-12
 
 CK2 = 5.413080e-4
 CK4 = 0.62098875e-6
@@ -53,9 +56,9 @@ XKMPER = 6378.135
 XMNPDA = 1440.0
 #MFACTOR = 7.292115E-5
 AE = 1.0
-#SECDAY = 8.6400E4
+SECDAY = 8.6400E4
 # earth flattening
-#F = 1/298.257223563
+F = 1 / 298.257223563
 
 
 SGDP4_ZERO_ECC = 0
@@ -77,28 +80,26 @@ class Orbital(object):
         self.satellite_name = satellite
         self.tle = tlefile.read(satellite, tle_file)
         self.orbit_elements = OrbitElements(self.tle)
+        self._sgdp4 = _SGDP4(self.orbit_elements)
 
     def __str__(self):
         return self.satellite_name + " " + str(self.tle)
 
-    def get_position(self, time, normalize=True):
-        # for near earth orbits, period must be < 255 minutes
-
-        if self.orbit_elements.period < 255:
-            pos, vel = _sgp4(self.orbit_elements, time)
-        else:
-            raise NotImplementedError, "Currently only handles near earth orbits."
-
-        if not normalize:
-            pos = [v*XKMPER for v in pos]
-            vel = [v*(XKMPER*XMNPDA/SECDAY) for v in vel]
+    def get_position(self, utc_time, normalize=True):
+        
+        kep = self._sgdp4.propagate(utc_time)
+        pos, vel = kep2xyz(kep)
+        
+        if normalize:
+            pos = [v / XKMPER for v in pos]
+            vel = [v / (XKMPER*XMNPDA/SECDAY) for v in vel]
 
         return pos, vel
 
-    def get_lonlatalt(self, time):
-        (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(time, normalize=True)
-        del vel_x, vel_y, vel_z
-        lon = ((np.arctan2(pos_y * XKMPER, pos_x * XKMPER) - astronomy.gmst(time))
+    def get_lonlatalt(self, utc_time):
+        (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(utc_time, normalize=True)
+        
+        lon = ((np.arctan2(pos_y * XKMPER, pos_x * XKMPER) - astronomy.gmst(utc_time))
                % (2 * np.pi))
 
         if lon > np.pi:
@@ -223,182 +224,6 @@ class OrbitElements(object):
             self.right_ascension_lon -= 2 * np.pi    
 
 
-def _sgp4(orbit_elements, time):
-    # for near earth orbits
-    # see fx http://celestrak.com/
-
-    perigee = orbit_elements.perigee
-    a_0pp = orbit_elements.semi_major_axis
-    e_0 = orbit_elements.excentricity
-    i_0 = orbit_elements.inclination
-    n_0pp = orbit_elements.original_mean_motion
-    k_2 = CK2
-    k_4 = CK4
-    k_e = XKE
-    bstar = orbit_elements.bstar
-    w_0 = orbit_elements.arg_perigee
-    M_0 = orbit_elements.mean_anomaly
-    W_0 = orbit_elements.right_ascension
-    t_0 = orbit_elements.epoch
-    A30 = -XJ3 * AE**3
-
-    if perigee < 98:
-        s = 20/XKMPER + AE
-        qoms2t = (QOMS2T ** 0.25 + S - s) ** 4
-    elif perigee < 156:
-        s = a_0pp * (1 - e_0) - S + AE 
-        qoms2t = (QOMS2T ** 0.25 + S - s) ** 4
-    else:
-        qoms2t = QOMS2T
-        s = S
-
-    theta = np.cos(i_0)
-    xi = 1 / (a_0pp - s)
-    beta_0 = np.sqrt(1 - e_0 ** 2)
-    eta = a_0pp * e_0 * xi
-
-    C_2 = (qoms2t * xi**4 * n_0pp * (1 - eta**2)**(-3.5) *
-           (a_0pp * (1 + 1.5 * eta**2 + 4 * e_0 * eta + e_0 * eta**3) +
-            1.5 * (k_2 * xi) / (1 - eta**2) * (-0.5 + 1.5 * theta**2)*
-            (8 + 24 * eta**2 + 3 * eta**4)))
-
-    C_1 = bstar * C_2
-
-    C_3 = (qoms2t * xi ** 5 * A30 * n_0pp * AE * np.sin(i_0) / (k_2 * e_0))
-
-    coef = 2 * qoms2t * xi**4 * a_0pp * beta_0**2*(1-eta**2)**(-7/2.0)
-
-    C_4 = (coef * n_0pp *
-           ((2 * eta * (1 + e_0 * eta) + e_0/2.0 + (eta**3)/2.0) -
-            2 * k_2 * xi / (a_0pp * (1 - eta**2)) *
-            (3*(1-3*theta**2) * (1 + (3*eta**2)/2.0 - 2*e_0*eta - e_0*eta**3/2.0) +
-             3/4.0*(1-theta**2)*(2*eta**2 - e_0*eta - e_0*eta**3)*np.cos(2*w_0))))
-    
-    C_5 = coef * (1 + 11/4.0 * eta * (eta + e_0) + e_0 * eta**3)
-    D_2 = 4 * a_0pp * xi * C_1**2
-    D_3 = 4/3.0 * a_0pp * xi**2 * (17*a_0pp + s) * C_1**3
-    D_4 = 2/3.0 * a_0pp * xi**3 * (221*a_0pp + 31*s) * C_1**4
-
-    # Secular effects of atmospheric drag and gravitation
-    dt = astronomy._days(time - t_0) * XMNPDA
-
-    M_df = (M_0 + (1 +
-                   3*k_2*(-1 + 3*theta**2)/(2*a_0pp**2 * beta_0**3) +
-                   3*k_2**2*(13 - 78*theta**2 + 137*theta**4)/
-                   (16*a_0pp**4*beta_0**7))*
-            n_0pp*dt)
-    w_df = (w_0 + (-3*k_2*(1 - 5*theta**2)/(2*a_0pp**2*beta_0**4) +
-                    3 * k_2**2 * (7 - 114*theta**2 + 395*theta**4)/
-                    (16*a_0pp*beta_0**8) +
-                    5*k_4*(3-36*theta**2+49*theta**4)/(4*a_0pp**4*beta_0**8))*
-            n_0pp*dt)
-    W_df = (W_0 + (-3*k_2*theta/(a_0pp**2*beta_0**4) +
-                    3*k_2**2*(4*theta- 19*theta**3)/(2*a_0pp**4*beta_0**8) +
-                    5*k_4*theta*(3-7*theta**2)/(2*a_0pp**4*beta_0**8))*
-            n_0pp*dt)
-    deltaw = bstar * C_3 * np.cos(w_0)*dt
-    deltaM = (-2/3.0 * qoms2t * bstar * xi**4 * AE / (e_0*eta) *
-               ((1 + eta * np.cos(M_df))**3 - (1 + eta * np.cos(M_0))**3))
-    M_p = M_df + deltaw + deltaM
-    w = w_df - deltaw - deltaM
-    W = (W_df - 21/2.0 * (n_0pp * k_2 * theta)/(a_0pp**2 * beta_0**2) *
-         C_1 * dt**2)
-
-    e = (e_0 -
-         bstar * C_4 * dt -
-         bstar * C_5 * (np.sin(M_p) - np.sin(M_0)))
-
-    a = a_0pp * (1 - C_1 * dt - D_2 * dt**2 - D_3 * dt**3 - D_4 * dt**4)**2
-    L = M_p + w + W + n_0pp * (3/2.0 * C_1 * dt**2 +
-                               (D_2 + 2 * C_1 ** 2) * dt**3 +
-                               1/4.0 * (3*D_3 + 12*C_1*D_2 + 10*C_1**3)*dt**4 +
-                               1.0/5 * (3*D_4 + 12*C_1*D_3 + 6*D_2**2 +
-                                        30*C_1**2*D_2 + 15*C_1**4)*dt**5)
-    beta = np.sqrt(1 - e**2)
-    n = k_e / (a ** (3/2.0))
-    
-    # Long-period periodic terms
-    a_xN = e * np.cos(w)
-    a_yNL = A30 * np.sin(i_0) / (4.0 * k_2 * a * beta**2)
-    L_L = a_yNL/2 * a_xN * ((3 + 5 * theta) / (1 + theta))
-    L_T = L + L_L
-    a_yN = e * np.sin(w) + a_yNL
-    
-    U = (L_T - W) % (np.pi * 2)
-    
-    Epw = U
-    for i in range(10):
-        DeltaEpw = ((U - a_yN * np.cos(Epw) + a_xN  * np.sin(Epw) - Epw) /
-                    (-a_yN * np.sin(Epw) - a_xN * np.cos(Epw) + 1))
-        Epw = Epw + DeltaEpw
-        if DeltaEpw < 10e-12:
-            break
-
-    # preliminary quantities for short-period periodics
-    
-    ecosE = a_xN * np.cos(Epw) + a_yN * np.sin(Epw)
-    esinE = a_xN * np.sin(Epw) - a_yN * np.cos(Epw)
-
-    e_L = (a_xN**2 + a_yN**2)**(0.5)
-    p_L = a * (1 - e_L**2)
-    r = a * (1 - ecosE)
-    rdot = k_e * np.sqrt(a)/r * esinE
-    rfdot = k_e * np.sqrt(p_L) / r
-    cosu = a / r * (np.cos(Epw) - a_xN +
-                    (a_yN * (esinE) / (1 + np.sqrt(1 - e_L**2))))
-    sinu = a / r * (np.sin(Epw) - a_yN +
-                    (a_xN * (esinE) / (1 + np.sqrt(1 - e_L**2))))
-    u = np.arctan2(sinu, cosu)
-
-
-    cos2u = np.cos(2*u)
-    sin2u = np.sin(2*u)
-
-    Deltar = k_2/(2*p_L) * (1 - theta**2) * cos2u
-    Deltau = -k_2/(4*p_L**2) * (7*theta**2 - 1) * sin2u
-    DeltaW = 3*k_2 * theta / (2 * p_L**2) * sin2u
-    Deltai = 3*k_2 * theta / (2 * p_L**2) * cos2u * np.sin(i_0)
-    Deltardot = - k_2 * n / p_L * (1 - theta**2) * sin2u
-    Deltarfdot = k_2 * n / p_L * ((1 - theta**2) * cos2u -
-                                  3/2.0 * (1 - 3*theta**2))
-
-    # osculating quantities
-
-    r_k = r * (1 - 3/2.0 * k_2 * np.sqrt(1 - e_L**2)/p_L**2 *
-               (3 * theta**2 - 1)) + Deltar
-    u_k = u + Deltau
-    W_k = W + DeltaW
-    i_k = i_0 + Deltai
-    rdot_k = rdot + Deltardot
-    rfdot_k = rfdot + Deltarfdot
-
-    M_x = -np.sin(W_k) * np.cos(i_k)
-    M_y = np.cos(W_k) * np.cos(i_k)
-    M_z = np.sin(i_k)
-
-    N_x = np.cos(W_k)
-    N_y = np.sin(W_k)
-    N_z = 0
-    
-    U_x = M_x * np.sin(u_k) + N_x * np.cos(u_k)
-    U_y = M_y * np.sin(u_k) + N_y * np.cos(u_k)
-    U_z = M_z * np.sin(u_k) + N_z * np.cos(u_k)
-    
-    V_x = M_x * np.cos(u_k) - N_x * np.sin(u_k)
-    V_y = M_y * np.cos(u_k) - N_y * np.sin(u_k)
-    V_z = M_z * np.cos(u_k) - N_z * np.sin(u_k)
-
-
-    r_x = r_k * U_x
-    r_y = r_k * U_y
-    r_z = r_k * U_z
-    
-    rdot_x = rdot_k * U_x + rfdot_k * V_x
-    rdot_y = rdot_k * U_y + rfdot_k * V_y
-    rdot_z = rdot_k * U_z + rfdot_k * V_z
-
-    return (r_x, r_y, r_z), (rdot_x, rdot_y, rdot_z)
-
 class _SGDP4(object):
     
 
@@ -407,7 +232,7 @@ class _SGDP4(object):
 
         perigee = orbit_elements.perigee
         self.eo = orbit_elements.excentricity
-        self.i_0 = orbit_elements.inclination
+        self.xincl = orbit_elements.inclination
         self.xno = orbit_elements.original_mean_motion
         k_2 = CK2
         k_4 = CK4
@@ -425,15 +250,15 @@ class _SGDP4(object):
             raise OrbitalError('Eccentricity out of range: %e' % self.eo)
         elif not((0.0035 * 2 * np.pi / XMNPDA) < self.xn_0 < (18 * 2 * np.pi / XMNPDA)):
             raise OrbitalError('Mean motion out of range: %e' % self.xn_0)
-        elif not(0 < self.i_0 < np.pi):
-            raise OrbitalError('Inclination out of range: %e' % self.i_0)
+        elif not(0 < self.xincl < np.pi):
+            raise OrbitalError('Inclination out of range: %e' % self.xincl)
         
         if self.eo < 0:
             self.mode = self.SGDP4_ZERO_ECC
             return
 
-        self.cosIO = np.cos(self.i_0)
-        self.sinIO = np.sin(self.i_0)
+        self.cosIO = np.cos(self.xincl)
+        self.sinIO = np.sin(self.xincl)
         theta2 = self.cosIO**2
         theta4 = theta2 ** 2 
         self.x3thm1 = 3.0 * theta2 - 1.0;
@@ -540,7 +365,7 @@ class _SGDP4(object):
         self.t2cof = 1.5 * self.c1
         print 'self.xnodcf', self.xnodcf
         
-        # Check for possible divide-by-zero for X/(1+cos(i_0)) when calculating xlcof */
+        # Check for possible divide-by-zero for X/(1+cos(xincl)) when calculating xlcof */
     	temp0 = 1.0 + self.cosIO
     	if np.abs(temp0) < EPS_COS:
     	    temp0 = np.sign(temp0) * EPS_COS
@@ -574,10 +399,12 @@ class _SGDP4(object):
             raise Exception('Deep space calculations not supported')
         
     def propagate(self, utc_time):
+        kep = {}
+    
         ts = astronomy._days(utc_time - self.t_0) * XMNPDA
         print 'tsi', ts
         em = self.eo
-        xinc = self.i_0
+        xinc = self.xincl
         
         xmp   = self.xmo + self.xmdot * ts
         xnode = self.xnodeo + ts * (self.xnodot + ts * self.xnodcf)
@@ -601,7 +428,147 @@ class _SGDP4(object):
             print 'xl', xl
         else:
             raise Exception('No deep space')
+            
+        if a < 1:
+            raise Exception('Satellite crased at time %s', utc_time)
+        elif e < ECC_LIMIT_LOW:
+            raise Exception('Satellite modified eccentricity to low: %e < %e' % (e, ECC_LIMIT_LOW))
+        elif e < ECC_EPS:
+            e = ECC_EPS
+        elif e > ECC_LIMIT_HIGH:
+            e = ECC_LIMIT_HIGH
+            
+        beta2 = 1.0 - e**2
         
+        # Long period periodics
+        sinOMG = np.sin(omega)
+        cosOMG = np.cos(omega) 
+
+        temp0 = 1.0 / (a * beta2)
+        axn = e * cosOMG
+        ayn = e * sinOMG + temp0 * self.aycof
+        xlt = xl + temp0 * self.xlcof * axn
+
+        print 'axn', axn
+        print 'ayn', ayn
+
+        elsq = axn**2 + ayn**2
+        print 'elsq', elsq
+        
+        if elsq >= 1:
+            raise Exception('e**2 >= 1 at %s', utc_time)
+            
+        kep['ecc'] = np.sqrt(elsq)
+        
+        epw = np.fmod(xlt - xnode, 2 * np.pi)
+        capu = epw
+        print 'epw', epw
+        maxnr = kep['ecc']
+        
+        for i in range(10):
+            sinEPW = np.sin(epw)
+            cosEPW = np.cos(epw)
+
+            ecosE = axn * cosEPW + ayn * sinEPW
+            esinE = axn * sinEPW - ayn * cosEPW
+            print 'ecosE', ecosE
+            f = capu - epw + esinE
+            if np.abs(f) < NR_EPS:
+                break
+                
+            df = 1.0 - ecosE
+
+            # 1st order Newton-Raphson correction. 
+            nr = f / df;
+
+            if i == 0 and np.abs(nr) > 1.25 * maxnr:
+                nr = np.sign(nr) * maxnr
+            else:
+                # 2nd order Newton-Raphson correction.
+                nr = f / (df + 0.5*esinE*nr)
+                
+            epw += nr
+			
+        print 'sinEPW', i,  sinEPW	
+        print 'cosEPW', cosEPW
+        
+        # Short period preliminary quantities 
+        temp0 = 1.0 - elsq
+        betal = np.sqrt(temp0)
+        pl = a * temp0
+        r = a * (1.0 - ecosE)
+        invR = 1.0 / r
+        temp2 = a * invR
+        temp3 = 1.0 / (1.0 + betal)
+        cosu = temp2 * (cosEPW - axn + ayn * esinE * temp3)
+        sinu = temp2 * (sinEPW - ayn - axn * esinE * temp3)
+        u = np.arctan2(sinu, cosu)
+        sin2u = 2.0 * sinu * cosu
+        cos2u = 2.0 * cosu**2 - 1.0
+        temp0 = 1.0 / pl
+        temp1 = CK2 * temp0
+        temp2 = temp1 * temp0
+        
+        # Update for short term periodics to position terms. 
+
+        rk = r * (1.0 - 1.5 * temp2 * betal * self.x3thm1) + 0.5 * temp1 * self.x1mth2 * cos2u
+        uk = u - 0.25 * temp2 * self.x7thm1 * sin2u
+        xnodek = xnode + 1.5 * temp2 * self.cosIO * sin2u
+        xinck = xinc + 1.5 * temp2 * self.cosIO * self.sinIO * cos2u
+        
+        print 'xinck', xinck
+        
+        if rk < 1:
+            raise Exception('Satellite crased at time %s', utc_time)
+        
+        temp0 = np.sqrt(a)
+        temp2 = XKE / (a * temp0)
+        rdotk = ((XKE * temp0 * esinE * invR -temp2 * temp1 * self.x1mth2 * sin2u) * 
+                 (XKMPER / AE * XMNPDA / 86400.0))
+        rfdotk = ((XKE * np.sqrt(pl) * invR + temp2 * temp1 * 
+                  (self.x1mth2 * cos2u + 1.5 * self.x3thm1)) * 
+                  (XKMPER / AE * XMNPDA / 86400.0))
+            
+        kep['radius'] = rk * XKMPER / AE
+        kep['theta'] = uk
+        kep['eqinc'] = xinck
+        kep['ascn'] = xnodek 
+        kep['argp'] = omega 
+        kep['smjaxs'] = a * XKMPER / AE  
+        kep['rdotk'] = rdotk 
+        kep['rfdotk'] = rfdotk
+        print kep
+        return kep   
+
+
+def kep2xyz(kep):
+    sinT = np.sin(kep['theta'])
+    cosT = np.cos(kep['theta'])
+    sinI = np.sin(kep['eqinc'])
+    cosI = np.cos(kep['eqinc'])    
+    sinS = np.sin(kep['ascn'])
+    cosS = np.cos(kep['ascn'])
+    
+    xmx = -sinS * cosI
+    xmy = cosS * cosI
+
+    ux = xmx * sinT + cosS * cosT
+    uy = xmy * sinT + sinS * cosT
+    uz = sinI * sinT
+    
+    x = kep['radius'] * ux
+    y = kep['radius'] * uy
+    z = kep['radius'] * uz
+    
+    vx = xmx * cosT - cosS * sinT
+    vy = xmy * cosT - sinS * sinT
+    vz = sinI * cosT
+    
+    v_x = kep['rdotk'] * ux + kep['rfdotk'] * vx
+    v_y = kep['rdotk'] * uy + kep['rfdotk'] * vy;
+    v_z = kep['rdotk'] * uz + kep['rfdotk'] * vz;
+    
+    return (x, y, z), (v_x, v_y, v_z)
         
 if __name__ == "__main__":
     obs_lon, obs_lat = np.deg2rad((12.4143, 55.9065))

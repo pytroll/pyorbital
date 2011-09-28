@@ -6,36 +6,39 @@ import datetime
 tle_urls = ('http://celestrak.com/NORAD/elements/weather.txt',
             'http://celestrak.com/NORAD/elements/resource.txt')
 
-def read(satellite, tle_file=None):
-    return Tle(satellite, tle_file)
+def read(satellite, tle_file=None, line1=None, line2=None):
+    return Tle(satellite, tle_file=tle_file, line1=line1, line2=line2)
 
 class Tle(object):
 
-    def __init__(self, satellite, tle_file=None):
+    def __init__(self, satellite, tle_file=None, line1=None, line2=None):
         satellite = satellite.strip().upper()
 
-        if tle_file:
-            urls = (tle_file,)
-            open_func = open
+        if line1 is not None and line2 is not None:
+            tle = line1.strip() + "\n" + line2.strip()
         else:
-            import urllib2
-            urls = tle_urls
-            open_func = urllib2.urlopen
-        
-        tle = ""
-        for url in urls:
-            fp = open_func(url)
-            for l0 in fp:
-                l1, l2 = fp.next(), fp.next()
-                if l0.strip() == satellite:
-                    tle = l1.strip() + "\n" + l2.strip()
+            if tle_file:
+                urls = (tle_file,)
+                open_func = open
+            else:
+                import urllib2
+                urls = tle_urls
+                open_func = urllib2.urlopen
+            
+            tle = ""
+            for url in urls:
+                fp = open_func(url)
+                for l0 in fp:
+                    l1, l2 = fp.next(), fp.next()
+                    if l0.strip() == satellite:
+                        tle = l1.strip() + "\n" + l2.strip()
+                        break
+                fp.close()
+                if tle:
                     break
-            fp.close()
-            if tle:
-                break
-        
-        if not tle:
-            raise AttributeError, "Found no TLE entry for '%s'" % satellite
+            
+            if not tle:
+                raise AttributeError, "Found no TLE entry for '%s'" % satellite
 
         self._read_tle(tle)
 

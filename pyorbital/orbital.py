@@ -1,3 +1,25 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# Copyright (c) 2011.
+
+# Author(s):
+
+#   Esben S. Nielsen <esn@dmi.dk>
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 """
 Current Day Number: 11364.541666667 (10 February 2011, 13:00:00 UTC)
 
@@ -242,7 +264,6 @@ class _SGDP4(object):
         self.xmo = orbit_elements.mean_anomaly
         self.xnodeo = orbit_elements.right_ascension
         self.t_0 = orbit_elements.epoch
-        print self.t_0
         self.xn_0 = orbit_elements.mean_motion
         A30 = -XJ3 * AE**3
 
@@ -264,7 +285,6 @@ class _SGDP4(object):
         self.x3thm1 = 3.0 * theta2 - 1.0;
         self.x1mth2 = 1.0 - theta2;
         self.x7thm1 = 7.0 * theta2 - 1.0;
-        print 'theta2', theta2  
 
         a1 = (XKE / self.xn_0) ** (2. / 3)
         betao2 = 1.0 - self.eo**2
@@ -301,7 +321,6 @@ class _SGDP4(object):
             qoms24 = QOMS2T
 
         pinvsq = 1.0 / (self.aodp**2 * betao2**2)
-        print 'pinvsq', pinvsq
         tsi = 1.0 / (self.aodp - s4)
         self.eta = self.aodp * self.eo * tsi;
         etasq = self.eta**2;
@@ -326,10 +345,6 @@ class _SGDP4(object):
 
         self.c5, self.c3, self.omgcof = 0.0, 0.0, 0.0
 
-        print 'self.c1', self.c1
-        print 'self.c2', self.c2
-        print 'self.c4', self.c4
-        print 'A3OVK2', A3OVK2
 
         if self.mode == SGDP4_NEAR_NORM:
             self.c5 = (2.0 * coef_1 * self.aodp * betao2 *
@@ -363,7 +378,6 @@ class _SGDP4(object):
 
         self.xnodcf = 3.5 * betao2 * xhdot1 * self.c1
         self.t2cof = 1.5 * self.c1
-        print 'self.xnodcf', self.xnodcf
         
         # Check for possible divide-by-zero for X/(1+cos(xincl)) when calculating xlcof */
     	temp0 = 1.0 + self.cosIO
@@ -374,13 +388,9 @@ class _SGDP4(object):
 
         self.aycof = 0.25 * A3OVK2 * self.sinIO
         
-        print 'self.xlcof', self.xlcof
-        print 'self.aycof', self.aycof
-        print self.mode
         self.cosXMO = np.cos(self.xmo)
         self.sinXMO = np.sin(self.xmo)
         self.delmo = (1.0 + self.eta * self.cosXMO)**3
-        print 'self.delmo: %e' % self.delmo
         
         if self.mode == SGDP4_NEAR_NORM:        
             c1sq = self.c1**2
@@ -392,9 +402,7 @@ class _SGDP4(object):
             self.t4cof = 0.25 * (3.0 * self.d3 + self.c1 * (12.0 * self.d2 + 10.0 * c1sq))
             self.t5cof = (0.2 * (3.0 * self.d4 + 12.0 * self.c1 * self.d3 + 6.0 * self.d2**2 + 
                     15.0 * c1sq * (2.0 * self.d2 + c1sq)))
-            print 'self.t3cof %.8e' % self.t3cof
-            print 'self.t4cof %.8e' % self.t4cof
-            print 'self.t5cof %.8e' % self.t5cof
+
         elif self.mode == SGDP4_DEEP_NORM:
             raise Exception('Deep space calculations not supported')
         
@@ -402,7 +410,7 @@ class _SGDP4(object):
         kep = {}
     
         ts = astronomy._days(utc_time - self.t_0) * XMNPDA
-        print 'tsi', ts
+
         em = self.eo
         xinc = self.xincl
         
@@ -425,7 +433,7 @@ class _SGDP4(object):
             a = self.aodp * tempa**2
             e = em - tempe
             xl = xmp + omega + xnode + self.xnodp * templ;
-            print 'xl', xl
+
         else:
             raise Exception('No deep space')
             
@@ -449,11 +457,7 @@ class _SGDP4(object):
         ayn = e * sinOMG + temp0 * self.aycof
         xlt = xl + temp0 * self.xlcof * axn
 
-        print 'axn', axn
-        print 'ayn', ayn
-
         elsq = axn**2 + ayn**2
-        print 'elsq', elsq
         
         if elsq >= 1:
             raise Exception('e**2 >= 1 at %s', utc_time)
@@ -462,7 +466,6 @@ class _SGDP4(object):
         
         epw = np.fmod(xlt - xnode, 2 * np.pi)
         capu = epw
-        print 'epw', epw
         maxnr = kep['ecc']
         
         for i in range(10):
@@ -471,7 +474,6 @@ class _SGDP4(object):
 
             ecosE = axn * cosEPW + ayn * sinEPW
             esinE = axn * sinEPW - ayn * cosEPW
-            print 'ecosE', ecosE
             f = capu - epw + esinE
             if np.abs(f) < NR_EPS:
                 break
@@ -489,9 +491,6 @@ class _SGDP4(object):
                 
             epw += nr
 			
-        print 'sinEPW', i,  sinEPW	
-        print 'cosEPW', cosEPW
-        
         # Short period preliminary quantities 
         temp0 = 1.0 - elsq
         betal = np.sqrt(temp0)
@@ -516,8 +515,6 @@ class _SGDP4(object):
         xnodek = xnode + 1.5 * temp2 * self.cosIO * sin2u
         xinck = xinc + 1.5 * temp2 * self.cosIO * self.sinIO * cos2u
         
-        print 'xinck', xinck
-        
         if rk < 1:
             raise Exception('Satellite crased at time %s', utc_time)
         
@@ -537,7 +534,7 @@ class _SGDP4(object):
         kep['smjaxs'] = a * XKMPER / AE  
         kep['rdotk'] = rdotk 
         kep['rfdotk'] = rfdotk
-        print kep
+
         return kep   
 
 
@@ -574,7 +571,7 @@ if __name__ == "__main__":
     obs_lon, obs_lat = np.deg2rad((12.4143, 55.9065))
     obs_alt = 0.02
     o = Orbital(satellite="noaa 18") #, tle_file="/net/prodsat/datadb/sat/orbit/tle/tle_20110327.txt")
-    print o
+
 
     t_start = datetime.datetime(2011, 3, 28, 2, 15)
     t_stop = t_start + datetime.timedelta(minutes=17)
@@ -585,4 +582,4 @@ if __name__ == "__main__":
         lon, lat = np.rad2deg((lon, lat))
         az, el, rg, w = o.get_observer_look(t, obs_lon, obs_lat, obs_alt)
         az, el = np.rad2deg((az, el))
-        print str(t) + ': ', "%6.2f, %6.2f, %6.2f - %6.2f, %5.2f"%(lon, lat, alt, az, el), "%7.2f"%rg, "%7.4f"%w
+

@@ -28,7 +28,7 @@ import datetime
 import numpy as np
 
 def jdays2000(utc_time):
-    """Get the days since 2000.
+    """Get the days since year 2000.
     """
     return _days(utc_time - datetime.datetime(2000, 1, 1, 12, 0))
     
@@ -45,27 +45,10 @@ def _days(dt):
             (dt.seconds +
              dt.microseconds / (1000000.0)) / (24 * 3600.0))
 
-def gmst_old(utc_time):
-    """Greenwich mean sidereal utc_time, in radians.
-    http://celestrak.com/columns/v02n02/
-    """
-    now = utc_time
-    now0 = datetime.datetime(now.year, now.month, now.day)
-    epoch = datetime.datetime(2000, 1, 1, 12, 0)
-    du2 = _days(now - epoch)
-    d_u = _days(now0 - epoch)
-
-    dus = (du2 - d_u) * 86400
-    t_u = d_u / 36525.0
-    theta_g_0 = (24110.54841 + t_u * (8640184.812866 +
-                                      t_u * (0.093104 - t_u * 6.2 * 10e-6)))
-    theta_g = (theta_g_0 + dus * 1.00273790934) % 86400
-    return (theta_g / 86400.0) * 2 * np.pi
-
 def gmst(utc_time):
     """Greenwich mean sidereal utc_time, in radians.
     
-    Used the AIAA 2006 implementation:
+    As defined in the AIAA 2006 implementation:
     http://www.celestrak.com/publications/AIAA/2006-6753/
     """
     ut1 = jdays2000(utc_time) / 36525.0
@@ -139,11 +122,16 @@ def cos_zen(utc_time, lon, lat):
     h__ = local_hour_angle(utc_time, lon, r_a)
     return (np.sin(lat)*np.sin(dec) + np.cos(lat) * np.cos(dec) * np.cos(h__))
 
-def observer_position(time, lon, lat, alt):
+def sun_zenith_angle(utc_time, lon, lat):
+    """Sun-zenith angle for *lon*, *lat* at *utc_time*.
+    """
+    return np.arccos(cos_zen, utc_time, lon, lat)
+
+def observer_position(utc_time, lon, lat, alt):
     """Calculate observer ECI position.
     http://celestrak.com/columns/v02n02/
     """
-    theta = (gmst(time) + lon)%(2*np.pi)
+    theta = (gmst(utc_time) + lon)%(2*np.pi)
     c = 1/np.sqrt(1 + F*(F-2)*np.sin(lat)**2)
     sq = c*(1 - F)**2
 

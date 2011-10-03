@@ -20,41 +20,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""Module for computing the orbital parameters of satellites.
 """
-Current Day Number: 11364.541666667 (10 February 2011, 13:00:00 UTC)
-
-// SGP4 test
-
-NORAD Catalog No: 25544
-Satellite Name: ISS (ZARYA)
-TLE Line 1: 1 25544U 98067A   11036.41885377  .00015023  00000-0  11493-3 0  7736
-TLE Line 2: 2 25544  51.6463 116.5688 0003364 277.8443 128.8911 15.72389581700166
-
-SDP4: 0
-Period: 91.580357527185
-Age: 5.1228128965013
-Lat: -51.62128386358
-Lon: 18.52912756499
-Alt: 367.39281472872
-Range: 10318.551827092
-Range Rate: 1.2960949888636
-Azi: 168.25676645006
-Ele: -50.891962381116
-Velocity: 7.6898969280099
-Visible: 0
-Eclipsed: 0
-Eclipse Depth: -1.1299921383153
-"""
-TLE = """1 25544U 98067A   11036.41885377  .00015023  00000-0  11493-3 0  7736
-2 25544  51.6463 116.5688 0003364 277.8443 128.8911 15.72389581700166"""
-
-TLE = """1 27424U 02022A   11045.03153664  .00000197  00000-0  53804-4 0  8714
-2 27424  98.2146 347.6229 0001550  78.4076 281.7310 14.57100380467139"""
 
 import datetime
 import numpy as np
-import tlefile
-import astronomy
+from pyorbital import tlefile
+from pyorbital import astronomy
 
 
 ECC_EPS = 1.0e-6	# Too low for computing further drops.
@@ -96,6 +68,12 @@ class OrbitalError(Exception):
 
 
 class Orbital(object):
+    """Class for orbital computations.
+
+    The *satellite* parameter is the name of the satellite to work on and is
+    used to retreive the right TLE data for internet or from *tle_file* in case
+    it is provided.
+    """
 
     def __init__(self, satellite, tle_file=None):
         satellite = satellite.upper()
@@ -108,7 +86,8 @@ class Orbital(object):
         return self.satellite_name + " " + str(self.tle)
 
     def get_position(self, utc_time, normalize=True):
-        
+        """Get the cartesian position and velocity from the satellite.
+        """
         kep = self._sgdp4.propagate(utc_time)
         pos, vel = kep2xyz(kep)
         
@@ -119,6 +98,8 @@ class Orbital(object):
         return pos, vel
 
     def get_lonlatalt(self, utc_time):
+        """Get the longitute, latitude and altitude from the satellite.
+        """
         (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(utc_time, normalize=True)
         
         lon = ((np.arctan2(pos_y * XKMPER, pos_x * XKMPER) - astronomy.gmst(utc_time))
@@ -198,7 +179,9 @@ class Orbital(object):
         return orbit
 
 class OrbitElements(object):
-
+    """Class holding the orbital elements.
+    """
+    
     def __init__(self, tle):
         self.epoch = tle.epoch
         self.excentricity = tle.excentricity
@@ -247,7 +230,8 @@ class OrbitElements(object):
 
 
 class _SGDP4(object):
-    
+    """Class for the SGDP4 computations.
+    """
 
     def __init__(self, orbit_elements):
         self.mode = None

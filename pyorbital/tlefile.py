@@ -28,9 +28,14 @@ tle_urls = ('http://celestrak.com/NORAD/elements/weather.txt',
             'http://celestrak.com/NORAD/elements/resource.txt')
 
 def read(satellite, tle_file=None, line1=None, line2=None):
+    """Read TLE for *satellite* from *tle_file*, from *line1* and *line2*, or
+    from internet if none is provided.
+    """
     return Tle(satellite, tle_file=tle_file, line1=line1, line2=line2)
 
 class Tle(object):
+    """Class holding TLE objects.
+    """    
 
     def __init__(self, satellite, tle_file=None, line1=None, line2=None):
         satellite = satellite.strip().upper()

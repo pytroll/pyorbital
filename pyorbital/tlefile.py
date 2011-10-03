@@ -1,41 +1,70 @@
-#
-#
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# Copyright (c) 2011.
+
+# Author(s):
+
+#   Esben S. Nielsen <esn@dmi.dk>
+#   Martin Raspaud <martin.raspaud@smhi.se>
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 
 import datetime
 
 tle_urls = ('http://celestrak.com/NORAD/elements/weather.txt',
             'http://celestrak.com/NORAD/elements/resource.txt')
 
-def read(satellite, tle_file=None):
-    return Tle(satellite, tle_file)
+def read(satellite, tle_file=None, line1=None, line2=None):
+    """Read TLE for *satellite* from *tle_file*, from *line1* and *line2*, or
+    from internet if none is provided.
+    """
+    return Tle(satellite, tle_file=tle_file, line1=line1, line2=line2)
 
 class Tle(object):
+    """Class holding TLE objects.
+    """    
 
-    def __init__(self, satellite, tle_file=None):
+    def __init__(self, satellite, tle_file=None, line1=None, line2=None):
         satellite = satellite.strip().upper()
 
-        if tle_file:
-            urls = (tle_file,)
-            open_func = open
+        if line1 is not None and line2 is not None:
+            tle = line1.strip() + "\n" + line2.strip()
         else:
-            import urllib2
-            urls = tle_urls
-            open_func = urllib2.urlopen
-        
-        tle = ""
-        for url in urls:
-            fp = open_func(url)
-            for l0 in fp:
-                l1, l2 = fp.next(), fp.next()
-                if l0.strip() == satellite:
-                    tle = l1.strip() + "\n" + l2.strip()
+            if tle_file:
+                urls = (tle_file,)
+                open_func = open
+            else:
+                import urllib2
+                urls = tle_urls
+                open_func = urllib2.urlopen
+            
+            tle = ""
+            for url in urls:
+                fp = open_func(url)
+                for l0 in fp:
+                    l1, l2 = fp.next(), fp.next()
+                    if l0.strip() == satellite:
+                        tle = l1.strip() + "\n" + l2.strip()
+                        break
+                fp.close()
+                if tle:
                     break
-            fp.close()
-            if tle:
-                break
-        
-        if not tle:
-            raise AttributeError, "Found no TLE entry for '%s'" % satellite
+            
+            if not tle:
+                raise AttributeError, "Found no TLE entry for '%s'" % satellite
 
         self._read_tle(tle)
 

@@ -1,0 +1,3 @@
+[submodule "doc/build"]
+	path = doc/build
+	url = git@github.com:mraspaud/pyorbital.git

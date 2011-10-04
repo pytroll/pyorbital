@@ -27,6 +27,11 @@ Parts taken from http://www.geoastro.de/elevaz/basics/index.htm
 import datetime
 import numpy as np
 
+
+F = 1 / 298.257223563 # Earth flattening WGS-84
+A = 6378.137 # WGS84 Equatorial radius
+MFACTOR = 7.292115E-5 
+
 def jdays2000(utc_time):
     """Get the days since year 2000.
     """
@@ -127,18 +132,22 @@ def sun_zenith_angle(utc_time, lon, lat):
     """
     return np.arccos(cos_zen, utc_time, lon, lat)
 
-def observer_position(utc_time, lon, lat, alt):
+def observer_position(time, lon, lat, alt):
     """Calculate observer ECI position.
-    http://celestrak.com/columns/v02n02/
+    http://celestrak.com/columns/v02n03/
     """
-    theta = (gmst(utc_time) + lon)%(2*np.pi)
-    c = 1/np.sqrt(1 + F*(F-2)*np.sin(lat)**2)
-    sq = c*(1 - F)**2
+    
+    lon = np.deg2rad(lon)
+    lat = np.deg2rad(lat)
+    
+    theta = (gmst(time) + lon) % (2 * np.pi)
+    c = 1 / np.sqrt(1 + F * (F - 2) * np.sin(lat)**2)
+    sq = c * (1 - F)**2
 
-    achcp = (XKMPER*c + alt)*np.cos(lat)
-    x = achcp*np.cos(theta)  # kilometers
-    y = achcp*np.sin(theta)
-    z = (XKMPER*sq + alt)*np.sin(lat)
+    achcp = (A * c + alt) * np.cos(lat)
+    x = achcp * np.cos(theta)  # kilometers
+    y = achcp * np.sin(theta)
+    z = (A * sq + alt) * np.sin(lat)
 
     vx = -MFACTOR*y  # kilometers/second
     vy = MFACTOR*x

@@ -75,10 +75,11 @@ class Orbital(object):
     it is provided.
     """
 
-    def __init__(self, satellite, tle_file=None):
+    def __init__(self, satellite, tle_file=None, line1=None, line2=None):
         satellite = satellite.upper()
         self.satellite_name = satellite
-        self.tle = tlefile.read(satellite, tle_file)
+        self.tle = tlefile.read(satellite, tle_file=tle_file, 
+                                line1=line1, line2=line2)
         self.orbit_elements = OrbitElements(self.tle)
         self._sgdp4 = _SGDP4(self.orbit_elements)
 

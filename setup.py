@@ -29,7 +29,8 @@ setup(name='pyorbital',
       author_email='martin.raspaud@smhi.se',
       package_dir = {'pyorbital': 'pyorbital'},
       packages = ['pyorbital'],      
-      install_requires=['numpy']
+      install_requires=['numpy'],
+      zip_safe=False
       )
 
 

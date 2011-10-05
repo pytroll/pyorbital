@@ -23,13 +23,14 @@
 from setuptools import setup
 
 setup(name='pyorbital',
-      version="0.1.0",
+      version="0.2.0",
       description='Orbital parameters and astronomical computations in Python',
       author='Martin Raspaud, Esben S. Nielsen',
       author_email='martin.raspaud@smhi.se, esn@dmi.dk',
       package_dir = {'pyorbital': 'pyorbital'},
       packages = ['pyorbital'],      
-      install_requires=['numpy']
+      install_requires=['numpy'],
+      zip_safe=False
       )
 
 

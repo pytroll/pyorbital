@@ -51,8 +51,9 @@ XMNPDA = 1440.0
 #MFACTOR = 7.292115E-5
 AE = 1.0
 SECDAY = 8.6400E4
-# earth flattening
-F = 1 / 298.257223563
+
+F = 1 / 298.257223563 # Earth flattening WGS-84
+A = 6378.137 # WGS84 Equatorial radius    
 
 
 SGDP4_ZERO_ECC = 0
@@ -75,10 +76,11 @@ class Orbital(object):
     it is provided.
     """
 
-    def __init__(self, satellite, tle_file=None):
+    def __init__(self, satellite, tle_file=None, line1=None, line2=None):
         satellite = satellite.upper()
         self.satellite_name = satellite
-        self.tle = tlefile.read(satellite, tle_file)
+        self.tle = tlefile.read(satellite, tle_file=tle_file, 
+                                line1=line1, line2=line2)
         self.orbit_elements = OrbitElements(self.tle)
         self._sgdp4 = _SGDP4(self.orbit_elements)
 
@@ -88,6 +90,7 @@ class Orbital(object):
     def get_position(self, utc_time, normalize=True):
         """Get the cartesian position and velocity from the satellite.
         """
+        
         kep = self._sgdp4.propagate(utc_time)
         pos, vel = kep2xyz(kep)
         
@@ -98,8 +101,10 @@ class Orbital(object):
         return pos, vel
 
     def get_lonlatalt(self, utc_time):
-        """Get the longitute, latitude and altitude from the satellite.
+        """Calculate sublon, sublat and altitude of satellite.
+        http://celestrak.com/columns/v02n03/
         """
+        
         (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(utc_time, normalize=True)
         
         lon = ((np.arctan2(pos_y * XKMPER, pos_x * XKMPER) - astronomy.gmst(utc_time))
@@ -120,8 +125,8 @@ class Orbital(object):
             if abs(lat - lat2) < 1e-10:
                 break
         alt = r / np.cos(lat)- c;
-        alt *= XKMPER
-        return lon, lat, alt
+        alt *= A
+        return np.rad2deg(lon), np.rad2deg(lat), alt
 
     def find_aos(self, time, lon, lat):
         pass
@@ -136,7 +141,11 @@ class Orbital(object):
         (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(time, normalize=False)
         (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \
                                     astronomy.observer_position(time, lon, lat, alt)
-        theta = (astronomy.gmst(time) + lon) % (2*np.pi)
+        
+        lon = np.deg2rad(lon)
+        lat = np.deg2rad(lat)
+        
+        theta = (astronomy.gmst(time) + lon) % (2 * np.pi)
 
         rx = pos_x - opos_x
         ry = pos_y - opos_y
@@ -150,21 +159,21 @@ class Orbital(object):
         sin_theta = np.sin(theta)
         cos_theta = np.cos(theta)
 
-        top_s = sin_lat*cos_theta*rx + sin_lat*sin_theta*ry - cos_lat*rz
-        top_e = -sin_theta*rx + cos_theta*ry
-        top_z = cos_lat*cos_theta*rx + cos_lat*sin_theta*ry + sin_lat*rz
+        top_s = sin_lat * cos_theta * rx + sin_lat * sin_theta * ry - cos_lat * rz
+        top_e = -sin_theta * rx + cos_theta * ry
+        top_z = cos_lat * cos_theta * rx + cos_lat * sin_theta * ry + sin_lat * rz
 
         az = np.arctan(-top_e/top_s)
         if top_s > 0:
             az = az + np.pi
         if az < 0:
-            az = az + 2*np.pi
+            az = az + 2 * np.pi
 
-        rg = np.sqrt(rx*rx + ry*ry + rz*rz)
+        rg = np.sqrt(rx * rx + ry * ry + rz * rz)
         el = np.arcsin(top_z/rg)
-        w = (rx*rvx + ry*rvy + rz*rvz)/rg
+        w = (rx * rvx + ry * rvy + rz * rvz)/rg
 
-        return az, el, rg, w
+        return np.rad2deg(az), np.rad2deg(el)
 
     def get_orbit_number(self, time, tbus_style=False):
         #TODO: Handled corner cases of non AN epoch and propagation to near AN

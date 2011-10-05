@@ -22,6 +22,7 @@ class Test(unittest.TestCase):
         self.failUnless(np.abs(lat - expected_lat) < eps_deg, 'Calculation of sublat failed')
         self.failUnless(np.abs(alt - expected_alt) < eps_deg, 'Calculation of altitude failed')
         
+
     def test_observer_look(self):
         sat = orbital.Orbital("ISS (ZARYA)", 
             line1="1 25544U 98067A   03097.78853147  .00021906  00000-0  28403-3 0  8652", 
@@ -33,3 +34,5 @@ class Test(unittest.TestCase):
         self.failUnless(np.abs(az - expected_az) < eps_deg, 'Calculation of azimut failed')
         self.failUnless(np.abs(el - expected_el) < eps_deg, 'Calculation of elevation failed')
         
+if __name__ == "__main__":
+    unittest.main()

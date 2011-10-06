@@ -62,7 +62,7 @@ def gmst(utc_time):
     return np.deg2rad(theta / 240.0) % (2 * np.pi)
 
 
-def lmst(utc_time, longitude):
+def _lmst(utc_time, longitude):
     """Local mean sidereal time, computed from *utc_time* and *longitude*.
     In radians.
     """
@@ -104,17 +104,23 @@ def sun_ra_dec(utc_time):
     right_ascension = 2 * np.arctan2(y__, (x__ + r__))
     return right_ascension, declination
 
-def local_hour_angle(utc_time, longitude, right_ascension):
+def _local_hour_angle(utc_time, longitude, right_ascension):
     """Hour angle at *utc_time* for the given *longitude* and
     *right_ascension*
+    longitude in radians
     """
-    return lmst(utc_time, longitude) - right_ascension
+    return _lmst(utc_time, longitude) - right_ascension
 
 def get_alt_az(utc_time, lon, lat):
     """Return sun altitude and azimuth from *utc_time*, *lon*, and *lat*.
+    lon,lat in degrees
+    What is the unit of the returned angles and height!? FIXME!
     """
+    lon = np.deg2rad(lon)
+    lat = np.deg2rad(lat)
+
     ra_, dec = sun_ra_dec(utc_time)
-    h__ = local_hour_angle(utc_time, lon, ra_)
+    h__ = _local_hour_angle(utc_time, lon, ra_)
     return (np.arcsin(np.sin(lat)*np.sin(dec) +
                       np.cos(lat) * np.cos(dec) * np.cos(h__)),
             np.arctan2(-np.sin(h__), (np.cos(lat)*np.tan(dec) -
@@ -122,18 +128,26 @@ def get_alt_az(utc_time, lon, lat):
 
 def cos_zen(utc_time, lon, lat):
     """Cosine of the sun-zenith angle for *lon*, *lat* at *utc_time*.
+    utc_time: datetime.datetime instance of the UTC time
+    lon and lat in degrees.
     """
+    lon = np.deg2rad(lon)
+    lat = np.deg2rad(lat)
+
     r_a, dec = sun_ra_dec(utc_time)
-    h__ = local_hour_angle(utc_time, lon, r_a)
+    h__ = _local_hour_angle(utc_time, lon, r_a)
     return (np.sin(lat)*np.sin(dec) + np.cos(lat) * np.cos(dec) * np.cos(h__))
 
 def sun_zenith_angle(utc_time, lon, lat):
     """Sun-zenith angle for *lon*, *lat* at *utc_time*.
+    lon,lat in degrees.
+    The angle returned is given in degrees
     """
-    return np.arccos(cos_zen, utc_time, lon, lat)
+    return np.rad2deg(np.arccos(cos_zen(utc_time, lon, lat)))
 
 def observer_position(time, lon, lat, alt):
     """Calculate observer ECI position.
+
     http://celestrak.com/columns/v02n03/
     """
     
@@ -155,21 +169,3 @@ def observer_position(time, lon, lat, alt):
 
     return (x, y, z), (vx, vy, vz)
     
-
-import unittest
-class TestAstronomy(unittest.TestCase):
-
-    def test_jdays(self):
-        """Test julian day functions.
-        """
-        
-        t = datetime.datetime(2000, 1, 1, 12, 0)
-        self.assertEqual(jdays(t), 2451545.0)
-        self.assertEqual(jdays2000(t), 0)
-        t = datetime.datetime(2009, 10, 8, 14, 30)
-        self.assertEqual(jdays(t), 2455113.1041666665)
-        self.assertEqual(jdays2000(t), 3568.1041666666665)
-
-        
-if __name__ == '__main__':
-    unittest.main()

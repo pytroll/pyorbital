@@ -23,15 +23,15 @@
 from setuptools import setup
 
 setup(name='pyorbital',
-      version="0.1",
+      version="0.2.0",
       description='Orbital parameters and astronomical computations in Python',
       author='Martin Raspaud, Esben S. Nielsen',
       author_email='martin.raspaud@smhi.se, esn@dmi.dk',
+      test_suite="nose.collector",
+      tests_require="nose",
       package_dir = {'pyorbital': 'pyorbital'},
       packages = ['pyorbital'],      
       install_requires=['numpy'],
       zip_safe=False
       )
-
-
 

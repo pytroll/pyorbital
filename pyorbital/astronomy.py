@@ -43,12 +43,22 @@ def jdays(utc_time):
     """
     return jdays2000(utc_time) + 2451545
 
-def _days(dt):
+def _fdays(dt):
     """Get the days (floating point) from *d_t*.
     """
     return (dt.days +
             (dt.seconds +
              dt.microseconds / (1000000.0)) / (24 * 3600.0))
+
+_vdays = np.vectorize(_fdays)
+
+def _days(dt):
+    """Get the days (floating point) from *d_t*.
+    """
+    try:
+        return _fdays(dt)
+    except AttributeError:
+        return _vdays(dt)
 
 def gmst(utc_time):
     """Greenwich mean sidereal utc_time, in radians.

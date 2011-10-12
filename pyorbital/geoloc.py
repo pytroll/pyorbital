@@ -29,6 +29,7 @@
 # - nadir vectors should point to subsatellite point, not earth centre
 # - check if d2 is needed (in line sphere intersection)
 # - optimize !!!
+# - test !!!
 
 import numpy as np
 from numpy import cos, sin

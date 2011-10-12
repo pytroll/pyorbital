@@ -106,7 +106,7 @@ class Orbital(object):
         http://celestrak.com/columns/v02n03/
         """
         (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(utc_time, normalize=True)
-        print pos_x, "*"*10
+
         lon = ((np.arctan2(pos_y * XKMPER, pos_x * XKMPER) - astronomy.gmst(utc_time))
                % (2 * np.pi))
 
@@ -455,9 +455,9 @@ class _SGDP4(object):
         kep['ecc'] = np.sqrt(elsq)
         
         epw = np.fmod(xlt - xnode, 2 * np.pi)
-        capu = epw
+        # needs a copy in case of an array
+        capu = np.array(epw)
         maxnr = kep['ecc']
-        
         for i in range(10):
             sinEPW = np.sin(epw)
             cosEPW = np.cos(epw)
@@ -471,13 +471,12 @@ class _SGDP4(object):
             df = 1.0 - ecosE
 
             # 1st order Newton-Raphson correction. 
-            nr = f / df;
+            nr = f / df
             
             # 2nd order Newton-Raphson correction.
             nr = np.where(np.logical_and(i == 0, np.abs(nr) > 1.25 * maxnr),
                           np.sign(nr) * maxnr,
                           f / (df + 0.5*esinE*nr))
-
             epw += nr
 			
         # Short period preliminary quantities 

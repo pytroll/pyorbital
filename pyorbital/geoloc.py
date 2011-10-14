@@ -179,16 +179,27 @@ def compute_pixels((tle1, tle2), sgeom, start_of_scan):
     radius = vnorm(pos) - alt
 
     # do the computation of distance between line and sphere
-    centre = -pos
-    ldotc = np.einsum("ij,ij->j", centre, vectors)
-    centre_square = np.einsum("ij,ij->j", centre, centre)
-    d1 = ldotc - np.sqrt((ldotc ** 2 - centre_square + radius ** 2))
+    # centre = -pos
+    # ldotc = np.einsum("ij,ij->j", centre, vectors)
+    # centre_square = np.einsum("ij,ij->j", centre, centre)
+    # d1_ = ldotc - np.sqrt((ldotc ** 2 - centre_square + radius ** 2))
 
-    # I think d2 is the far intersection point in this case
-    #d2 = ldotc + np.sqrt((ldotc ** 2 - centre_square + r ** 2))
+    # do the computation between line and ellipsoid
+    centre = -pos
+    a__ = 6378.137 # km
+    b__ = 6356.752314245 # km
+    radius = np.array([[1/a__, 1/a__, 1/b__]]).T
+    xr_ = vectors * radius
+    cr_ = centre * radius
+    ldotc = np.einsum("ij,ij->j", xr_, cr_)
+    lsq = np.einsum("ij,ij->j", xr_, xr_)
+    csq = np.einsum("ij,ij->j", cr_, cr_)
+
+    d1_ = (ldotc - np.sqrt(ldotc ** 2 - csq * lsq + lsq)) / lsq
+
 
     # return the actual pixel positions
-    return vectors * d1 - centre
+    return vectors * d1_ - centre
 
     
 def norm(v):
@@ -222,7 +233,7 @@ if __name__ == '__main__':
     from datetime import datetime
     t = datetime(2011, 10, 12, 13, 45)
 
-    # edge and centre of an avhrr scanline
+    ## edge and centre of an avhrr scanline
     #sgeom = ScanGeometry([(-0.9664123687741623, 0),
     #                      (0, 0)],
     #                     [0, 0.0, ])
@@ -230,10 +241,10 @@ if __name__ == '__main__':
 
 
     ## avhrr swath
-    scanline_nb = 100
+    scanline_nb = 1
 
-    # building the avhrr angles, 2048 pixels from -55.37 to 55.37 degrees
-    avhrr = np.vstack(((np.arange(2048) - 1023.5) / 1024 * np.deg2rad(55.37),
+    # building the avhrr angles, 2048 pixels from +55.37 to -55.37 degrees
+    avhrr = np.vstack(((np.arange(2048) - 1023.5) / 1024 * np.deg2rad(-55.37),
                        np.zeros((2048,)))).transpose()
     avhrr = np.tile(avhrr, [scanline_nb, 1])
     # building the corresponding times array
@@ -246,8 +257,3 @@ if __name__ == '__main__':
     # print the lonlats for the pixel positions
     pixels_pos = compute_pixels((noaa18_tle1, noaa18_tle2), sgeom, t)
     print get_lonlatalt(pixels_pos, t)
-
-    
-
-
-

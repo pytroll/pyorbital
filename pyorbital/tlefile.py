@@ -97,7 +97,10 @@ class Tle(object):
         self.arg_perigee = float(lines[14])
         self.mean_anomaly = float(lines[15])
         self.mean_motion = float(lines[16][:11])
-        self.orbit = int(lines[16][11:-1])
+        if len(lines) == 17:
+            self.orbit = int(lines[16][11:-1])
+        else:
+            self.orbit = int(lines[17][:-1]) 
 
     def __str__(self):
         import pprint, StringIO

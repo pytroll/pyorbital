@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011 SMHI
+# Copyright (c) 2011, 2012 SMHI
 
 # Author(s):
 
@@ -23,10 +23,20 @@
 from setuptools import setup
 
 setup(name='pyorbital',
-      version="0.2.0",
+      version="v0.2.0",
       description='Orbital parameters and astronomical computations in Python',
       author='Martin Raspaud, Esben S. Nielsen',
       author_email='martin.raspaud@smhi.se, esn@dmi.dk',
+      classifiers=["Development Status :: 4 - Beta",
+                   "Intended Audience :: Science/Research",
+                   "License :: OSI Approved :: GNU General Public License v3 " +
+                   "or later (GPLv3+)",
+                   "Operating System :: OS Independent",
+                   "Programming Language :: Python",
+                   "Topic :: Scientific/Engineering",
+                   "Topic :: Scientific/Engineering :: Astronomy"],
+      url="https://github.com/mraspaud/pyorbital",
+      download_url="https://github.com/mraspaud/pyorbital/tarball/v0.2.0#egg=pyorbital-v0.2.0",
       test_suite="nose.collector",
       tests_require="nose",
       package_dir = {'pyorbital': 'pyorbital'},

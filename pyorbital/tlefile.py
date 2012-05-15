@@ -27,18 +27,18 @@ import datetime
 tle_urls = ('http://celestrak.com/NORAD/elements/weather.txt',
             'http://celestrak.com/NORAD/elements/resource.txt')
 
-def read(satellite, tle_file=None, line1=None, line2=None):
+def read(platform, tle_file=None, line1=None, line2=None):
     """Read TLE for *satellite* from *tle_file*, from *line1* and *line2*, or
     from internet if none is provided.
     """
-    return Tle(satellite, tle_file=tle_file, line1=line1, line2=line2)
+    return Tle(platform, tle_file=tle_file, line1=line1, line2=line2)
 
 class Tle(object):
     """Class holding TLE objects.
     """    
 
-    def __init__(self, satellite, tle_file=None, line1=None, line2=None):
-        satellite = satellite.strip().upper()
+    def __init__(self, platform, tle_file=None, line1=None, line2=None):
+        platform = platform.strip().upper()
 
         if line1 is not None and line2 is not None:
             tle = line1.strip() + "\n" + line2.strip()
@@ -56,7 +56,7 @@ class Tle(object):
                 fp = open_func(url)
                 for l0 in fp:
                     l1, l2 = fp.next(), fp.next()
-                    if l0.strip() == satellite:
+                    if l0.strip() == platform:
                         tle = l1.strip() + "\n" + l2.strip()
                         break
                 fp.close()
@@ -64,18 +64,35 @@ class Tle(object):
                     break
             
             if not tle:
-                raise AttributeError, "Found no TLE entry for '%s'" % satellite
+                raise AttributeError, "Found no TLE entry for '%s'" % platform
 
-        self._read_tle(tle)
+        self._platform = platform
+        self._line1, self._line2 = tle.split('\n')
+        self._read_tle()
 
-    def _read_tle(self, lines):
+    @property
+    def line1(self):
+        return self._line1
+
+    @property
+    def line2(self):
+        return self._line2
+
+    @property
+    def platform(self):
+        return self._platform
+
+    def _read_tle(self):
 
         def _read_tle_decimal(rep):
             num = int(rep[:-2]) * 1.0e-5
             exp = int(rep[-2:])
             return num * 10 ** exp
 
-        lines = lines.split()
+        lines = self._line1.split() + self._line2.split()
+        if len(lines) < 17:
+            raise IOError("To few items in the TLE entry, found '%d', expected at least '17'"%len(lines)) 
+
         self.satnumber = lines[1][:5]
         self.classification = lines[1][5:]
         self.id_launch_year = lines[2][:2]
@@ -106,7 +123,8 @@ class Tle(object):
     def __str__(self):
         import pprint, StringIO
         s = StringIO.StringIO()
-        pprint.pprint(self.__dict__, s)
+        d = dict(([(k, v) for k, v in self.__dict__.items() if k[0] != '_']))
+        pprint.pprint(d, s)
         return s.getvalue()[:-1]
 
 if __name__ == '__main__':

@@ -95,25 +95,23 @@ class Orbital(object):
         pos, vel = kep2xyz(kep)
         
         if normalize:
-            pos = [v / XKMPER for v in pos]
-            vel = [v / (XKMPER*XMNPDA/SECDAY) for v in vel]
+            pos /= XKMPER
+            vel /= XKMPER * XMNPDA / SECDAY
 
         return pos, vel
+
 
     def get_lonlatalt(self, utc_time):
         """Calculate sublon, sublat and altitude of satellite.
         http://celestrak.com/columns/v02n03/
         """
-        
         (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(utc_time, normalize=True)
-        
+
         lon = ((np.arctan2(pos_y * XKMPER, pos_x * XKMPER) - astronomy.gmst(utc_time))
                % (2 * np.pi))
 
-        if lon > np.pi:
-            lon -= np.pi * 2
-        if lon <= -np.pi:
-            lon += np.pi * 2
+        lon = np.where(lon > np.pi, lon - np.pi * 2, lon)
+        lon = np.where(lon <= -np.pi, lon + np.pi *2, lon)
 
         r = np.sqrt(pos_x ** 2 + pos_y ** 2)
         lat = np.arctan2(pos_z, r)
@@ -122,7 +120,7 @@ class Orbital(object):
             lat2 = lat
             c = 1/(np.sqrt(1 - e2 * (np.sin(lat2) ** 2)))
             lat = np.arctan2(pos_z + c * e2 *np.sin(lat2), r)
-            if abs(lat - lat2) < 1e-10:
+            if np.all(abs(lat - lat2) < 1e-10):
                 break
         alt = r / np.cos(lat)- c;
         alt *= A
@@ -401,7 +399,7 @@ class _SGDP4(object):
         
     def propagate(self, utc_time):
         kep = {}
-    
+
         ts = astronomy._days(utc_time - self.t_0) * XMNPDA
 
         em = self.eo
@@ -429,15 +427,14 @@ class _SGDP4(object):
 
         else:
             raise Exception('No deep space')
-            
-        if a < 1:
+
+        if np.any(a < 1):
             raise Exception('Satellite crased at time %s', utc_time)
-        elif e < ECC_LIMIT_LOW:
+        elif np.any(e < ECC_LIMIT_LOW):
             raise Exception('Satellite modified eccentricity to low: %e < %e' % (e, ECC_LIMIT_LOW))
-        elif e < ECC_EPS:
-            e = ECC_EPS
-        elif e > ECC_LIMIT_HIGH:
-            e = ECC_LIMIT_HIGH
+
+        e = np.where(e < ECC_EPS, ECC_EPS, e)
+        e = np.where(e > ECC_LIMIT_HIGH, ECC_LIMIT_HIGH, e)
             
         beta2 = 1.0 - e**2
         
@@ -452,15 +449,15 @@ class _SGDP4(object):
 
         elsq = axn**2 + ayn**2
         
-        if elsq >= 1:
+        if np.any(elsq >= 1):
             raise Exception('e**2 >= 1 at %s', utc_time)
             
         kep['ecc'] = np.sqrt(elsq)
         
         epw = np.fmod(xlt - xnode, 2 * np.pi)
-        capu = epw
+        # needs a copy in case of an array
+        capu = np.array(epw)
         maxnr = kep['ecc']
-        
         for i in range(10):
             sinEPW = np.sin(epw)
             cosEPW = np.cos(epw)
@@ -468,20 +465,18 @@ class _SGDP4(object):
             ecosE = axn * cosEPW + ayn * sinEPW
             esinE = axn * sinEPW - ayn * cosEPW
             f = capu - epw + esinE
-            if np.abs(f) < NR_EPS:
+            if np.all(np.abs(f) < NR_EPS):
                 break
                 
             df = 1.0 - ecosE
 
             # 1st order Newton-Raphson correction. 
-            nr = f / df;
-
-            if i == 0 and np.abs(nr) > 1.25 * maxnr:
-                nr = np.sign(nr) * maxnr
-            else:
-                # 2nd order Newton-Raphson correction.
-                nr = f / (df + 0.5*esinE*nr)
-                
+            nr = f / df
+            
+            # 2nd order Newton-Raphson correction.
+            nr = np.where(np.logical_and(i == 0, np.abs(nr) > 1.25 * maxnr),
+                          np.sign(nr) * maxnr,
+                          f / (df + 0.5*esinE*nr))
             epw += nr
 			
         # Short period preliminary quantities 
@@ -508,7 +503,7 @@ class _SGDP4(object):
         xnodek = xnode + 1.5 * temp2 * self.cosIO * sin2u
         xinck = xinc + 1.5 * temp2 * self.cosIO * self.sinIO * cos2u
         
-        if rk < 1:
+        if np.any(rk < 1):
             raise Exception('Satellite crased at time %s', utc_time)
         
         temp0 = np.sqrt(a)
@@ -558,7 +553,7 @@ def kep2xyz(kep):
     v_y = kep['rdotk'] * uy + kep['rfdotk'] * vy;
     v_z = kep['rdotk'] * uz + kep['rfdotk'] * vz;
     
-    return (x, y, z), (v_x, v_y, v_z)
+    return np.array((x, y, z)), np.array((v_x, v_y, v_z))
         
 if __name__ == "__main__":
     obs_lon, obs_lat = np.deg2rad((12.4143, 55.9065))

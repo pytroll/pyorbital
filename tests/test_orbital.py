@@ -8,7 +8,16 @@ from pyorbital import orbital
 eps_deg = 10e-3
 
 class Test(unittest.TestCase):
-    
+
+    def test_get_orbit_number(self):
+        """Testing getting the orbitnumber from the tle"""
+        sat = orbital.Orbital("NPP",
+            line1="1 37849U 11061A   12017.90990040 -.00000112  00000-0 -32693-4 0   772",
+            line2="2 37849  98.7026 317.8811 0001845  92.4533 267.6830 14.19582686 11574")
+        dobj = datetime(2012, 1, 18, 8, 4, 19)
+        orbnum = sat.get_orbit_number(dobj)
+        self.assertEqual(orbnum, 1163)
+
     def test_sublonlat(self):
         sat = orbital.Orbital("ISS (ZARYA)", 
             line1="1 25544U 98067A   03097.78853147  .00021906  00000-0  28403-3 0  8652", 

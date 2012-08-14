@@ -184,6 +184,43 @@ class Orbital(object):
         if tbus_style:
             orbit += 1
         return orbit
+        
+    def get_zenith_overpass(self, utc_time, obslon, obslat):
+        """Get the time when the satellite is highest on the horizon relative
+        to the observer position on ground given by *obslon*,*obslat* closest
+        in time to the time given by *utc_time*. Using the method of gradient
+        ascent with variable step parameter (decreasing in size as we apprach
+        90 degrees zenith angle.
+        """
+
+        precision = datetime.timedelta(seconds=0.001)
+        eps = 1. # Step size
+        sec_step = 0.5
+        t_step = datetime.timedelta(seconds=sec_step/2.0)
+
+        # Local derivative:
+        def fprime(timex):
+            el0 = self.get_observer_look(timex - t_step, 
+                                         obslon, obslat, 0.0)[1]
+            el1 = self.get_observer_look(timex + t_step, 
+                                         obslon, obslat, 0.0)[1]
+            return el0, (el1 - el0) / sec_step 
+
+        tx0 = utc_time - datetime.timedelta(seconds=1.0)
+        tx1 = utc_time
+        idx = 0
+        NIDX = 1000
+        while abs(tx1 - tx0) > precision and idx < NIDX:
+            tx0 = tx1
+            fpr = fprime(tx0)
+            tx1 = tx0 + datetime.timedelta(seconds = (eps * abs(90.0-fpr[0]) * fpr[1]))
+            idx = idx + 1
+    
+        if abs(tx1 - tx0) <= precision and idx < NIDX:
+            return tx1
+        else:
+            return None
+
 
 class OrbitElements(object):
     """Class holding the orbital elements.

@@ -101,8 +101,10 @@ class AIAAIntegrationTest(unittest.TestCase):
                             test_time = timedelta(minutes=delay) + o.tle.epoch
                             pos, vel = o.get_position(test_time, False)
                             res = get_results(int(o.tle.satnumber), float(delay))
-                        except:
+                        except (NotImplementedError, ValueError), e:
                             # WARNING: TODO
+                            from warnings import warn
+                            warn(str(e))
                             break
 
                         delta_pos = 5e-6 # km =  5 mm

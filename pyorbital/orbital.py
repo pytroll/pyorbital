@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011.
+# Copyright (c) 2011, 2012.
 
 # Author(s):
 
@@ -432,7 +432,7 @@ class _SGDP4(object):
                     15.0 * c1sq * (2.0 * self.d2 + c1sq)))
 
         elif self.mode == SGDP4_DEEP_NORM:
-            raise Exception('Deep space calculations not supported')
+            raise NotImplementedError('Deep space calculations not supported')
         
     def propagate(self, utc_time):
         kep = {}
@@ -447,9 +447,10 @@ class _SGDP4(object):
         omega = self.omegao + self.omgdot * ts
         
         if self.mode == SGDP4_ZERO_ECC:
-            raise Exception('TODO')
+            raise NotImplementedError('Mode SGDP4_ZERO_ECC not implemented')
         elif self.mode == SGDP4_NEAR_SIMP:
-            raise Exception('TODO')
+            raise NotImplementedError('Mode "Near-space, simplified equations"'
+                                      ' not implemented')
         elif self.mode == SGDP4_NEAR_NORM:
             delm  = self.xmcof * ((1.0 + self.eta * np.cos(xmp))**3 - self.delmo)
             temp0 = ts * self.omgcof + delm

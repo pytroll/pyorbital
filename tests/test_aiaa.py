@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011 SMHI
+# Copyright (c) 2011, 2012 SMHI
 
 # Author(s):
 
@@ -110,6 +110,7 @@ class AIAAIntegrationTest(unittest.TestCase):
                         delta_pos = 5e-6 # km =  5 mm
                         delta_vel = 5e-9 # km/s = 5 um/s
                         delta_time = 50 # microseconds
+
                         self.assertTrue(abs(res[0] - pos[0]) < delta_pos)
                         self.assertTrue(abs(res[1] - pos[1]) < delta_pos)
                         self.assertTrue(abs(res[2] - pos[2]) < delta_pos)
@@ -117,7 +118,7 @@ class AIAAIntegrationTest(unittest.TestCase):
                         self.assertTrue(abs(res[4] - vel[1]) < delta_vel)
                         self.assertTrue(abs(res[5] - vel[2]) < delta_vel)
                         if res[6] is not None:
-                            self.assertTrue(abs((res[6] - test_time).microseconds)
+                            self.assertTrue(abs((res[6] - test_time)).microseconds
                                             < delta_time)
                         
                 test_line = f__.readline()

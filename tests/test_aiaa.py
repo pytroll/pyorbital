@@ -123,12 +123,12 @@ class AIAAIntegrationTest(unittest.TestCase):
                             
                         delta_time = 50 # microseconds
                         
-                        self.assertTrue(abs((res[0] - pos[0]) / pos[0]) < delta_r or (res[0] - pos[0]) < delta_a)
-                        self.assertTrue(abs((res[1] - pos[1]) / pos[1]) < delta_r or (res[1] - pos[1]) < delta_a)
-                        self.assertTrue(abs((res[2] - pos[2]) / pos[2]) < delta_r or (res[2] - pos[2]) < delta_a)
-                        self.assertTrue(abs((res[3] - vel[0]) / vel[0]) < delta_r or (res[3] - vel[0]) < delta_a)
-                        self.assertTrue(abs((res[4] - vel[1]) / vel[1]) < delta_r or (res[4] - vel[1]) < delta_a)
-                        self.assertTrue(abs((res[5] - vel[2]) / vel[2]) < delta_r or (res[5] - vel[2]) < delta_a)
+                        self.assertTrue(abs((res[0] - pos[0]) / pos[0]) < delta_r or abs(res[0] - pos[0]) < delta_a)
+                        self.assertTrue(abs((res[1] - pos[1]) / pos[1]) < delta_r or abs(res[1] - pos[1]) < delta_a)
+                        self.assertTrue(abs((res[2] - pos[2]) / pos[2]) < delta_r or abs(res[2] - pos[2]) < delta_a)
+                        self.assertTrue(abs((res[3] - vel[0]) / vel[0]) < delta_r or abs(res[3] - vel[0]) < delta_a)
+                        self.assertTrue(abs((res[4] - vel[1]) / vel[1]) < delta_r or abs(res[4] - vel[1]) < delta_a)
+                        self.assertTrue(abs((res[5] - vel[2]) / vel[2]) < delta_r or abs(res[5] - vel[2]) < delta_a)
                         if res[6] is not None:
                             self.assertTrue(abs((res[6] - test_time)).microseconds
                                             < delta_time)

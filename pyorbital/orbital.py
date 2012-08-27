@@ -67,6 +67,8 @@ A3OVK2 = (-XJ3 / CK2) * AE**3
 class OrbitalError(Exception):
     pass
 
+class SatelliteCrashed(Exception):
+    pass
 
 class Orbital(object):
     """Class for orbital computations.
@@ -467,7 +469,7 @@ class _SGDP4(object):
             raise  NotImplementedError('Deep space calculations not supported')
 
         if np.any(a < 1):
-            raise Exception('Satellite crased at time %s', utc_time)
+            raise SatelliteCrashed('Satellite crashed at time %s' % utc_time)
         elif np.any(e < ECC_LIMIT_LOW):
             raise ValueError('Satellite modified eccentricity to low: %e < %e'
                              % (e, ECC_LIMIT_LOW))

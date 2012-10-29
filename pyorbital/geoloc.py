@@ -27,7 +27,6 @@
 # - Attitude correction
 # - project on an ellipsoid instead of a sphere
 # - nadir vectors should point to subsatellite point, not earth centre
-# - check if d2 is needed (in line sphere intersection)
 # - optimize !!!
 # - test !!!
 
@@ -54,7 +53,7 @@ class ScanGeometry(object):
         self._times = np.array(times)
         self.attitude = attitude
 
-    def vectors(self, pos, vel):
+    def vectors(self, pos, vel, roll=0.0, pitch=0.0, yaw=0.0):
         """Get unit vectors pointing to the different pixels.
 
         *pos* and *vel* are column vectors, or matrices of column
@@ -62,17 +61,17 @@ class ScanGeometry(object):
         """
         nadir = -pos / vnorm(pos)
 
-        # x is along track
+        # x is along track (roll)
         x = vel / vnorm(vel)
 
-        # y is cross track
+        # y is cross track (pitch)
         y = np.cross(nadir, vel, 0, 0, 0)
         y /= vnorm(y)
 
         # rotate first around x
-        a = qrotate(nadir, x, self.fovs[:, 0])
+        a = qrotate(nadir, x, self.fovs[:, 0] + roll)
         # then around y
-        return qrotate(a, y, self.fovs[:, 1])
+        return qrotate(a, y, self.fovs[:, 1] + pitch)
 
     def times(self, start_of_scan):
         tds = [timedelta(seconds=i) for i in self._times]
@@ -156,38 +155,28 @@ def get_lonlatalt(pos, utc_time):
 
 ### END OF DIRTY STUFF
 
-def compute_pixels((tle1, tle2), sgeom, start_of_scan):
+def compute_pixels((tle1, tle2), sgeom, times, rpy=(0.0, 0.0, 0.0)):
     """Compute cartesian coordinates of the pixels in instrument scan.
     """
     orb = Orbital("mysatellite", line1=tle1, line2=tle2)
-
-    # times for each pixel
-    times = sgeom.times(start_of_scan)
 
     # get position and velocity for each time of each pixel
     pos, vel = orb.get_position(times, normalize=False)
 
     # now, get the vectors pointing to each pixel
-    vectors = sgeom.vectors(pos, vel)
+    vectors = sgeom.vectors(pos, vel, *rpy)
 
     ## compute intersection of lines (directed by vectors and passing through
-    ## (0, 0, 0)) and sphere
+    ## (0, 0, 0)) and ellipsoid. Derived from:
     ## http://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
     
-    # get the radius of the earth at the given times
-    (lon, lat, alt) = orb.get_lonlatalt(times)
-    radius = vnorm(pos) - alt
 
-    # do the computation of distance between line and sphere
-    # centre = -pos
-    # ldotc = np.einsum("ij,ij->j", centre, vectors)
-    # centre_square = np.einsum("ij,ij->j", centre, centre)
-    # d1_ = ldotc - np.sqrt((ldotc ** 2 - centre_square + radius ** 2))
-
-    # do the computation between line and ellipsoid
+    # do the computation between line and ellipsoid (WGS 84)
+    # NB: AAPP uses GRS 80...
     centre = -pos
     a__ = 6378.137 # km
-    b__ = 6356.752314245 # km
+    #b__ = 6356.75231414 # km, GRS80
+    b__ = 6356.752314245 # km, WGS84
     radius = np.array([[1/a__, 1/a__, 1/b__]]).T
     xr_ = vectors * radius
     cr_ = centre * radius
@@ -255,5 +244,6 @@ if __name__ == '__main__':
     sgeom = ScanGeometry(avhrr, times.ravel())
 
     # print the lonlats for the pixel positions
-    pixels_pos = compute_pixels((noaa18_tle1, noaa18_tle2), sgeom, t)
-    print get_lonlatalt(pixels_pos, t)
+    s_times = sgeom.times(t)
+    pixels_pos = compute_pixels((noaa18_tle1, noaa18_tle2), sgeom, s_times)
+    print get_lonlatalt(pixels_pos, s_times)

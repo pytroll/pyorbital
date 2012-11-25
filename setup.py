@@ -23,7 +23,7 @@
 from setuptools import setup
 
 setup(name='pyorbital',
-      version="v0.2.0",
+      version="v0.2.1",
       description='Orbital parameters and astronomical computations in Python',
       author='Martin Raspaud, Esben S. Nielsen',
       author_email='martin.raspaud@smhi.se, esn@dmi.dk',
@@ -36,7 +36,7 @@ setup(name='pyorbital',
                    "Topic :: Scientific/Engineering",
                    "Topic :: Scientific/Engineering :: Astronomy"],
       url="https://github.com/mraspaud/pyorbital",
-      download_url="https://github.com/mraspaud/pyorbital/tarball/v0.2.0#egg=pyorbital-v0.2.0",
+      download_url="https://github.com/mraspaud/pyorbital/tarball/v0.2.1#egg=pyorbital-v0.2.1",
       test_suite="nose.collector",
       tests_require="nose",
       package_dir = {'pyorbital': 'pyorbital'},

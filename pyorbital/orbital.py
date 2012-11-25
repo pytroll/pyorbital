@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011.
+# Copyright (c) 2011, 2012.
 
 # Author(s):
 
@@ -161,15 +161,15 @@ class Orbital(object):
         top_e = -sin_theta * rx + cos_theta * ry
         top_z = cos_lat * cos_theta * rx + cos_lat * sin_theta * ry + sin_lat * rz
 
-        az = np.arctan(-top_e/top_s)
+        az = np.arctan(-top_e / top_s)
         if top_s > 0:
             az = az + np.pi
         if az < 0:
             az = az + 2 * np.pi
 
         rg = np.sqrt(rx * rx + ry * ry + rz * rz)
-        el = np.arcsin(top_z/rg)
-        w = (rx * rvx + ry * rvy + rz * rvz)/rg
+        el = np.arcsin(top_z / rg)
+        w = (rx * rvx + ry * rvy + rz * rvz) / rg
 
         return np.rad2deg(az), np.rad2deg(el)
 
@@ -310,15 +310,15 @@ class _SGDP4(object):
         self.sinIO = np.sin(self.xincl)
         theta2 = self.cosIO**2
         theta4 = theta2 ** 2 
-        self.x3thm1 = 3.0 * theta2 - 1.0;
-        self.x1mth2 = 1.0 - theta2;
-        self.x7thm1 = 7.0 * theta2 - 1.0;
+        self.x3thm1 = 3.0 * theta2 - 1.0
+        self.x1mth2 = 1.0 - theta2
+        self.x7thm1 = 7.0 * theta2 - 1.0
 
         a1 = (XKE / self.xn_0) ** (2. / 3)
         betao2 = 1.0 - self.eo**2
-        betao = np.sqrt(betao2);
+        betao = np.sqrt(betao2)
         temp0 = 1.5 * CK2 * self.x3thm1 / (betao * betao2)
-        del1 = temp0 / (a1**2);
+        del1 = temp0 / (a1**2)
         a0 = a1 * (1.0 - del1 * (1.0 / 3.0 + del1 * (1.0 + del1 * 134.0 / 81.0)))
         del0 = temp0 / (a0**2)
         self.xnodp = self.xn_0 / (1.0 + del0)
@@ -350,10 +350,10 @@ class _SGDP4(object):
 
         pinvsq = 1.0 / (self.aodp**2 * betao2**2)
         tsi = 1.0 / (self.aodp - s4)
-        self.eta = self.aodp * self.eo * tsi;
-        etasq = self.eta**2;
-        eeta = self.eo * self.eta;
-        psisq = np.abs(1.0 - etasq);
+        self.eta = self.aodp * self.eo * tsi
+        etasq = self.eta**2
+        eeta = self.eo * self.eta
+        psisq = np.abs(1.0 - etasq)
         coef = qoms24 * tsi**4
         coef_1 = coef / psisq**3.5
 
@@ -389,7 +389,7 @@ class _SGDP4(object):
                 temp2 * betao * (13.0 - 78.0 * theta2 +
                 137.0 * theta4)))
 
-        x1m5th = 1.0 - 5.0 * theta2;
+        x1m5th = 1.0 - 5.0 * theta2
 
         self.omgdot = (-0.5 * temp1 * x1m5th + 0.0625 * temp2 *
                  (7.0 - 114.0 * theta2 + 395.0 * theta4) +
@@ -432,7 +432,7 @@ class _SGDP4(object):
                     15.0 * c1sq * (2.0 * self.d2 + c1sq)))
 
         elif self.mode == SGDP4_DEEP_NORM:
-            raise Exception('Deep space calculations not supported')
+            raise NotImplementedError('Deep space calculations not supported')
         
     def propagate(self, utc_time):
         kep = {}
@@ -447,9 +447,10 @@ class _SGDP4(object):
         omega = self.omegao + self.omgdot * ts
         
         if self.mode == SGDP4_ZERO_ECC:
-            raise Exception('TODO')
+            raise NotImplementedError('Mode SGDP4_ZERO_ECC not implemented')
         elif self.mode == SGDP4_NEAR_SIMP:
-            raise Exception('TODO')
+            raise NotImplementedError('Mode "Near-space, simplified equations"'
+                                      ' not implemented')
         elif self.mode == SGDP4_NEAR_NORM:
             delm  = self.xmcof * ((1.0 + self.eta * np.cos(xmp))**3 - self.delmo)
             temp0 = ts * self.omgcof + delm
@@ -460,15 +461,16 @@ class _SGDP4(object):
             templ = ts * ts * (self.t2cof + ts * (self.t3cof + ts * (self.t4cof + ts * self.t5cof)))
             a = self.aodp * tempa**2
             e = em - tempe
-            xl = xmp + omega + xnode + self.xnodp * templ;
+            xl = xmp + omega + xnode + self.xnodp * templ
 
         else:
-            raise Exception('No deep space')
+            raise  NotImplementedError('Deep space calculations not supported')
 
         if np.any(a < 1):
             raise Exception('Satellite crased at time %s', utc_time)
         elif np.any(e < ECC_LIMIT_LOW):
-            raise Exception('Satellite modified eccentricity to low: %e < %e' % (e, ECC_LIMIT_LOW))
+            raise ValueError('Satellite modified eccentricity to low: %e < %e'
+                             % (e, ECC_LIMIT_LOW))
 
         e = np.where(e < ECC_EPS, ECC_EPS, e)
         e = np.where(e > ECC_LIMIT_HIGH, ECC_LIMIT_HIGH, e)
@@ -587,8 +589,8 @@ def kep2xyz(kep):
     vz = sinI * cosT
     
     v_x = kep['rdotk'] * ux + kep['rfdotk'] * vx
-    v_y = kep['rdotk'] * uy + kep['rfdotk'] * vy;
-    v_z = kep['rdotk'] * uz + kep['rfdotk'] * vz;
+    v_y = kep['rdotk'] * uy + kep['rfdotk'] * vy
+    v_z = kep['rdotk'] * uz + kep['rfdotk'] * vz
     
     return np.array((x, y, z)), np.array((v_x, v_y, v_z))
         

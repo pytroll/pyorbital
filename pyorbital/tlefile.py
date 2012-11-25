@@ -33,6 +33,10 @@ def read(platform, tle_file=None, line1=None, line2=None):
     """
     return Tle(platform, tle_file=tle_file, line1=line1, line2=line2)
 
+class ChecksumError(Exception):
+    pass
+
+
 class Tle(object):
     """Class holding TLE objects.
     """    
@@ -68,6 +72,7 @@ class Tle(object):
 
         self._platform = platform
         self._line1, self._line2 = tle.split('\n')
+        self._checksum()
         self._read_tle()
 
     @property
@@ -81,6 +86,20 @@ class Tle(object):
     @property
     def platform(self):
         return self._platform
+
+    def _checksum(self):
+        """Performs the checksum for the current TLE.
+        """
+        for line in [self.line1, self.line2]:
+            check = 0
+            for char in line[:-1]:
+                if char.isdigit():
+                    check += int(char)
+                if char == "-":
+                    check += 1
+
+            if (check % 10) != int(line[-1]):
+                raise ChecksumError(self._platform + " " + line)
 
     def _read_tle(self):
 

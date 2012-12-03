@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011.
+# Copyright (c) 2011, 2012.
 
 # Author(s):
 
@@ -42,7 +42,7 @@ class ScanGeometry(object):
     talk about scanlines of course. *times* is the time of viewing of each
     angle relative to the start of the scanning, so it should have the same
     size as the *fovs*. *attitude* is the attitude correction to apply (not
-    implementer right now).
+    implemented right now).
     """
 
     def __init__(self,

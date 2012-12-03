@@ -69,9 +69,11 @@ class ScanGeometry(object):
         y /= vnorm(y)
 
         # rotate first around x
-        a = qrotate(nadir, x, self.fovs[:, 0] + roll)
+        x_rotated = qrotate(nadir, x, self.fovs[:, 0] + roll)
         # then around y
-        return qrotate(a, y, self.fovs[:, 1] + pitch)
+        xy_rotated = qrotate(x_rotated, y, self.fovs[:, 1] + pitch)
+        # then around z
+        return qrotate(xy_rotated, nadir, yaw)
 
     def times(self, start_of_scan):
         tds = [timedelta(seconds=i) for i in self._times]

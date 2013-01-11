@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011.
+# Copyright (c) 2011, 2012.
 
 # Author(s):
 
@@ -42,7 +42,7 @@ class ScanGeometry(object):
     talk about scanlines of course. *times* is the time of viewing of each
     angle relative to the start of the scanning, so it should have the same
     size as the *fovs*. *attitude* is the attitude correction to apply (not
-    implementer right now).
+    implemented right now).
     """
 
     def __init__(self,
@@ -92,9 +92,11 @@ class ScanGeometry(object):
         y /= vnorm(y)
 
         # rotate first around x
-        a = qrotate(nadir, x, self.fovs[:, 0] + roll)
+        x_rotated = qrotate(nadir, x, self.fovs[:, 0] + roll)
         # then around y
-        return qrotate(a, y, self.fovs[:, 1] + pitch)
+        xy_rotated = qrotate(x_rotated, y, self.fovs[:, 1] + pitch)
+        # then around z
+        return qrotate(xy_rotated, nadir, yaw)
 
     def times(self, start_of_scan):
         tds = [timedelta(seconds=i) for i in self._times]

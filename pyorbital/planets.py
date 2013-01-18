@@ -21,7 +21,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """Astronomy module.
-Parts taken from http://www.stjarnhimlen.se/comp
+Parts taken from http://www.stjarnhimlen.se/comp/ppcomp.html
 Positions of the sun, the moon, the earth and the other planets
 """
 

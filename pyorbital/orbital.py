@@ -704,16 +704,15 @@ def kep2xyz(kep):
 if __name__ == "__main__":
     obs_lon, obs_lat = np.deg2rad((12.4143, 55.9065))
     obs_alt = 0.02
-    o = Orbital(satellite="noaa 18") #, tle_file="/net/prodsat/datadb/sat/orbit/tle/tle_20110327.txt")
+    o = Orbital(satellite="METOP-B")
 
-
-    t_start = datetime(2011, 3, 28, 2, 15)
-    t_stop = t_start + timedelta(minutes=17)
+    t_start = datetime.now()
+    t_stop = t_start + timedelta(minutes=20)
     t = t_start
     while t < t_stop:
         t += timedelta(seconds=15)
         lon, lat, alt = o.get_lonlatalt(t)
         lon, lat = np.rad2deg((lon, lat))
-        az, el, rg, w = o.get_observer_look(t, obs_lon, obs_lat, obs_alt)
-        az, el = np.rad2deg((az, el))
-
+        az, el = o.get_observer_look(t, obs_lon, obs_lat, obs_alt)
+        ob = o.get_orbit_number(t, tbus_style=True)
+        print az, el, ob

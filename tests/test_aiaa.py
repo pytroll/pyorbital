@@ -25,6 +25,8 @@
 
 # TODO: right formal unit tests.
 
+import os
+
 from pyorbital.orbital import Orbital, OrbitElements, _SGDP4
 from pyorbital import tlefile
 import numpy as np
@@ -45,7 +47,8 @@ class LineOrbital(Orbital):
 def get_results(satnumber, delay):
     """Get expected results from result file.
     """
-    with open("aiaa_results") as f_2:
+    path = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(path, "aiaa_results")) as f_2:
         line = f_2.readline()
         while(line):
             if line.endswith(" xx\n") and int(line[:-3]) == satnumber:
@@ -76,7 +79,8 @@ class AIAAIntegrationTest(unittest.TestCase):
     def test_aiaa(self):
         """Do the tests against AIAA test cases.
         """
-        with open("SGP4-VER.TLE") as f__:
+        path = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(path, "SGP4-VER.TLE")) as f__:
             test_line = f__.readline()
             while(test_line):
                 if test_line.startswith("#"):

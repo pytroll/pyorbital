@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 
@@ -33,6 +33,20 @@ class Test(unittest.TestCase):
         expected_el = 1.9800219611255456
         self.failUnless(np.abs(az - expected_az) < eps_deg, 'Calculation of azimut failed')
         self.failUnless(np.abs(el - expected_el) < eps_deg, 'Calculation of elevation failed')
+        
+    def test_orbit_num_an(self):
+        sat = orbital.Orbital("METOP-A", 
+            line1="1 29499U 06044A   11254.96536486  .00000092  00000-0  62081-4 0  5221", 
+            line2="2 29499  98.6804 312.6735 0001758 111.9178 248.2152 14.21501774254058")
+        d = datetime(2011, 9, 14, 5, 30)
+        self.assertEqual(sat.get_orbit_number(d), 25437)
+        
+    def test_orbit_num_non_an(self):
+        sat = orbital.Orbital("METOP-A", 
+            line1="1 29499U 06044A   13060.48822809  .00000017  00000-0  27793-4 0  9819", 
+            line2="2 29499  98.6639 121.6164 0001449  71.9056  43.3132 14.21510544330271")
+        dt = timedelta(minutes=98)
+        self.assertEqual(sat.get_orbit_number(sat.tle.epoch + dt), 33028)
         
 if __name__ == "__main__":
     unittest.main()

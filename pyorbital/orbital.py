@@ -83,9 +83,52 @@ class Orbital(object):
                                 line1=line1, line2=line2)
         self.orbit_elements = OrbitElements(self.tle)
         self._sgdp4 = _SGDP4(self.orbit_elements)
+        
+        pos_epoch, vel_epoch = self.get_position(self.tle.epoch, 
+                                                 normalize=False)
+        if np.abs(pos_epoch[2]) > 1 or not vel_epoch[2] > 0:
+            # Epoch not at ascending node
+            self.orbit_elements.an_time = self._last_an_time(self.tle)
+        else:
+            # Epoch at ascending node (z < 1 km) and positive v_z
+            self.orbit_elements.an_time = self.tle.epoch
+            
 
     def __str__(self):
         return self.satellite_name + " " + str(self.tle)
+
+    def _last_an_time(self, tle):
+        # Propagate backwards to ascending node
+        dt = datetime.timedelta(minutes=10)
+        t_old = tle.epoch
+        t_new = t_old - dt
+        pos0, vel0 = self.get_position(t_old, normalize=False)
+        pos1, vel1 = self.get_position(t_new, normalize=False)
+        while not (pos0[2] > 0 and pos1[2] < 0):
+            pos0, vel0 = pos1, vel1
+            t_old = t_new
+            t_new = t_old - dt
+            pos1, vel1 = self.get_position(t_new, normalize=False)
+        
+        # Return if z within 1 km of an
+        if np.abs(pos0[2]) < 1:
+            return t_old
+        elif np.abs(pos1[2]) < 1:
+            return t_new
+    
+        # Bisect to z within 1 km
+        while np.abs(pos1[2]) > 1:
+            pos0, vel0 = pos1, vel1
+            dt = (t_old - t_new) / 2
+            t_mid = t_old - dt
+            pos1, vel1 = self.get_position(t_mid, normalize=False)
+            if pos1[2] > 0:
+                t_old = t_mid
+            else:
+                t_new = t_mid
+        
+        return t_mid                        
+            
 
     def get_position(self, utc_time, normalize=True):
         """Get the cartesian position and velocity from the satellite.
@@ -178,8 +221,7 @@ class Orbital(object):
     def get_orbit_number(self, time, tbus_style=False):
         #TODO: Handled corner cases of non AN epoch and propagation to near AN
         # and use node periode instead of revolutions 
-        lon, lat, alt = self.get_lonlatalt(self.tle.epoch)
-        dt = astronomy._days(time - self.tle.epoch)
+        dt = astronomy._days(time - self.orbit_elements.an_time)
         orbit = int(self.tle.orbit + self.tle.mean_motion * dt + 
                  self.tle.mean_motion_derivative * dt**2 + 
                  self.tle.mean_motion_sec_derivative * dt**3)

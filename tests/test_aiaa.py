@@ -84,7 +84,7 @@ class AIAAIntegrationTest(unittest.TestCase):
             test_line = f__.readline()
             while(test_line):
                 if test_line.startswith("#"):
-                    pass
+                    test_name = test_line
                 if test_line.startswith("1 "):
                     line1 = test_line
                 if test_line.startswith("2 "):
@@ -95,8 +95,11 @@ class AIAAIntegrationTest(unittest.TestCase):
                                       float(times[2]))
                     try:
                         o = LineOrbital("unknown", line1, line2)
-                    except:
+                    except Exception, e:
                         # WARNING: skipping deep space computations
+                        from warnings import warn
+                        warn(test_name + ' ' + str(e))
+                        
                         test_line = f__.readline()
                         continue
                     for delay in times:
@@ -104,13 +107,15 @@ class AIAAIntegrationTest(unittest.TestCase):
                             test_time = timedelta(minutes=delay) + o.tle.epoch
                             pos, vel = o.get_position(test_time, False)
                             res = get_results(int(o.tle.satnumber), float(delay))
-                        except:
+                        except (NotImplementedError, ValueError), e:
                             # WARNING: TODO
+                            from warnings import warn
+                            warn(test_name + ' ' + str(e))
                             break
 
                         delta_pos = 5e-6 # km =  5 mm
                         delta_vel = 5e-9 # km/s = 5 um/s
-                        delta_time = 50 # microseconds
+                        delta_time = 1e-3 # 1 milisecond
                         self.assertTrue(abs(res[0] - pos[0]) < delta_pos)
                         self.assertTrue(abs(res[1] - pos[1]) < delta_pos)
                         self.assertTrue(abs(res[2] - pos[2]) < delta_pos)
@@ -118,7 +123,7 @@ class AIAAIntegrationTest(unittest.TestCase):
                         self.assertTrue(abs(res[4] - vel[1]) < delta_vel)
                         self.assertTrue(abs(res[5] - vel[2]) < delta_vel)
                         if res[6] is not None:
-                            self.assertTrue(abs((res[6] - test_time).microseconds)
+                            self.assertTrue(abs((res[6] - test_time).total_seconds())
                                             < delta_time)
                         
                 test_line = f__.readline()

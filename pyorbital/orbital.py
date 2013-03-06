@@ -107,7 +107,7 @@ class Orbital(object):
         """        
         
         # Propagate backwards to ascending node
-        dt = datetime.timedelta(minutes=10)
+        dt = timedelta(minutes=10)
         t_old = utc_time
         t_new = t_old - dt
         pos0, vel0 = self.get_position(t_old, normalize=False)

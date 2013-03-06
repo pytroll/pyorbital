@@ -28,7 +28,7 @@
 import os
 
 from pyorbital.orbital import Orbital, OrbitElements, _SGDP4
-from pyorbital import tlefile
+from pyorbital import tlefile, astronomy
 import numpy as np
 from datetime import timedelta, datetime
 import unittest
@@ -123,8 +123,8 @@ class AIAAIntegrationTest(unittest.TestCase):
                         self.assertTrue(abs(res[4] - vel[1]) < delta_vel)
                         self.assertTrue(abs(res[5] - vel[2]) < delta_vel)
                         if res[6] is not None:
-                            self.assertTrue(abs((res[6] - test_time).total_seconds())
-                                            < delta_time)
+                            dt = astronomy._days(res[6] - test_time) * 24 * 60
+                            self.assertTrue(abs(dt) < delta_time)
                         
                 test_line = f__.readline()
         

@@ -69,8 +69,8 @@ class Test(unittest.TestCase):
         self.assertEqual(on2, 6974)
         pos1, vel1 = sat.get_position(t1, normalize=False)
         pos2, vel2 = sat.get_position(t2, normalize=False)
-        self.assertLess(pos1[2], 0)
-        self.assertGreater(pos2[2], 0)
+        self.assertTrue(pos1[2] < 0)
+        self.assertTrue(pos2[2] > 0)
         
 if __name__ == "__main__":
     unittest.main()

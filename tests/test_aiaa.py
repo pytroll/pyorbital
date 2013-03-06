@@ -24,6 +24,7 @@
 """
 
 # TODO: right formal unit tests.
+from __future__ import with_statement
 
 import os
 

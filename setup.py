@@ -23,11 +23,11 @@
 from setuptools import setup
 
 setup(name='pyorbital',
-      version="v0.2.1",
+      version="v0.2.2",
       description='Orbital parameters and astronomical computations in Python',
       author='Martin Raspaud, Esben S. Nielsen',
       author_email='martin.raspaud@smhi.se, esn@dmi.dk',
-      classifiers=["Development Status :: 4 - Beta",
+      classifiers=["Development Status :: 5 - Production/Stable",
                    "Intended Audience :: Science/Research",
                    "License :: OSI Approved :: GNU General Public License v3 " +
                    "or later (GPLv3+)",
@@ -36,7 +36,6 @@ setup(name='pyorbital',
                    "Topic :: Scientific/Engineering",
                    "Topic :: Scientific/Engineering :: Astronomy"],
       url="https://github.com/mraspaud/pyorbital",
-      download_url="https://github.com/mraspaud/pyorbital/tarball/v0.2.1#egg=pyorbital-v0.2.1",
       test_suite="nose.collector",
       tests_require="nose",
       package_dir = {'pyorbital': 'pyorbital'},

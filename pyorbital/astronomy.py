@@ -46,9 +46,21 @@ def jdays(utc_time):
 def _days(dt):
     """Get the days (floating point) from *d_t*.
     """
+    
+    """
     return (dt.days +
             (dt.seconds +
-             dt.microseconds / (1000000.0)) / (24 * 3600.0))
+             dt.microseconds / (1000000.0)) / (24 * 3600.0))"""
+    def get_day(timedelta):
+        return (timedelta.days +
+                (timedelta.seconds +
+                    timedelta.microseconds / (1000000.0)) / (24 * 3600.0))
+    try:
+        days = get_day(dt)
+    except AttributeError:
+        days = np.array([get_day(x) for x in dt])
+        
+    return days
 
 def gmst(utc_time):
     """Greenwich mean sidereal utc_time, in radians.

@@ -72,5 +72,20 @@ class Test(unittest.TestCase):
         self.assertTrue(pos1[2] < 0)
         self.assertTrue(pos2[2] > 0)
         
+    def test_orbit_array(self):
+        sat = orbital.Orbital("SUOMI NPP", 
+            line1="1 37849U 11061A   13061.24611272  .00000048  00000-0  43679-4 0  4334", 
+            line2="2 37849  98.7444   1.0588 0001264  63.8791 102.8546 14.19528338 69643")
+        t1 = datetime(2013, 3, 2, 22, 2, 25)
+        t2 = datetime(2013, 3, 2, 22, 12, 26)
+        ta = np.array([t1, t2])
+        lla = sat.get_lonlatalt(ta)
+        exp1 = np.array([-129.72989252143643, -138.43923912592649])
+        exp2 = np.array([-0.019765800714387046, 35.226672058338714])
+        exp3 = np.array([829.4356064487414, 830.81997170121645])
+        self.assertFalse(np.any(np.abs(exp1 - lla[0]) > 0.1))
+        self.assertFalse(np.any(np.abs(exp2 - lla[1]) > 0.1))        
+        self.assertFalse(np.any(np.abs(exp3 - lla[2]) > 0.1))        
+        
 if __name__ == "__main__":
     unittest.main()

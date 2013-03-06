@@ -89,19 +89,26 @@ class Orbital(object):
                                                  normalize=False)
         if np.abs(pos_epoch[2]) > 1 or not vel_epoch[2] > 0:
             # Epoch not at ascending node
-            self.orbit_elements.an_time = self._last_an_time(self.tle)
+            self.orbit_elements.an_time = self.get_last_an_time(self.tle.epoch)
         else:
             # Epoch at ascending node (z < 1 km) and positive v_z
             self.orbit_elements.an_time = self.tle.epoch
+            
+        self.orbit_elements.an_period = self.orbit_elements.an_time - \
+                        self.get_last_an_time(self.orbit_elements.an_time)    
             
 
     def __str__(self):
         return self.satellite_name + " " + str(self.tle)
 
-    def _last_an_time(self, tle):
+    def get_last_an_time(self, utc_time):
+        """Calculate time of last ascending node relative to the
+        specified time
+        """        
+        
         # Propagate backwards to ascending node
         dt = datetime.timedelta(minutes=10)
-        t_old = tle.epoch
+        t_old = utc_time
         t_new = t_old - dt
         pos0, vel0 = self.get_position(t_old, normalize=False)
         pos1, vel1 = self.get_position(t_new, normalize=False)
@@ -128,8 +135,7 @@ class Orbital(object):
             else:
                 t_new = t_mid
         
-        return t_mid                        
-            
+        return t_mid                                
 
     def get_position(self, utc_time, normalize=True):
         """Get the cartesian position and velocity from the satellite.
@@ -224,13 +230,18 @@ class Orbital(object):
 
         return np.rad2deg(az), np.rad2deg(el)
 
-    def get_orbit_number(self, time, tbus_style=False):
-        #TODO: Handled corner cases of non AN epoch and propagation to near AN
-        # and use node periode instead of revolutions 
-        dt = astronomy._days(time - self.orbit_elements.an_time)
-        orbit = int(self.tle.orbit + self.tle.mean_motion * dt + 
+    def get_orbit_number(self, utc_time, tbus_style=False):
+        """Calculate orbit number at specified time.
+        Optionally use TBUS-style orbit numbering (TLE orbit number + 1)
+        """
+        
+        dt = astronomy._days(utc_time - self.orbit_elements.an_time)
+        orbit_period = astronomy._days(self.orbit_elements.an_period)
+                 
+        orbit = int(self.tle.orbit + dt / orbit_period + 
                  self.tle.mean_motion_derivative * dt**2 + 
                  self.tle.mean_motion_sec_derivative * dt**3)
+                 
         if tbus_style:
             orbit += 1
         return orbit

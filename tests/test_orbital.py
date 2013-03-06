@@ -57,5 +57,16 @@ class Test(unittest.TestCase):
         dt = timedelta(minutes=98)
         self.assertEqual(sat.get_orbit_number(sat.tle.epoch + dt), 33028)
         
+    def test_orbit_num_equator(self):
+        sat = orbital.Orbital("SUOMI NPP", 
+            line1="1 37849U 11061A   13061.24611272  .00000048  00000-0  43679-4 0  4334", 
+            line2="2 37849  98.7444   1.0588 0001264  63.8791 102.8546 14.19528338 69643")
+        t1 = datetime(2013, 3, 2, 22, 2, 25)
+        t2 = datetime(2013, 3, 2, 22, 2, 26)
+        on1 = sat.get_orbit_number(t1)
+        on2 = sat.get_orbit_number(t2)
+        self.assertEqual(on1, 6973)
+        self.assertEqual(on2, 6974)
+        
 if __name__ == "__main__":
     unittest.main()

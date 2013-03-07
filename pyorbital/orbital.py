@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011.
+# Copyright (c) 2011, 2012, 2013.
 
 # Author(s):
 
 #   Esben S. Nielsen <esn@dmi.dk>
+#   Adam Dybbroe <adam.dybbroe@smhi.se>
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,7 +24,7 @@
 """Module for computing the orbital parameters of satellites.
 """
 
-import datetime
+from datetime import datetime, timedelta
 import numpy as np
 from pyorbital import tlefile
 from pyorbital import astronomy
@@ -83,9 +84,59 @@ class Orbital(object):
                                 line1=line1, line2=line2)
         self.orbit_elements = OrbitElements(self.tle)
         self._sgdp4 = _SGDP4(self.orbit_elements)
+        
+        pos_epoch, vel_epoch = self.get_position(self.tle.epoch, 
+                                                 normalize=False)
+        if np.abs(pos_epoch[2]) > 1 or not vel_epoch[2] > 0:
+            # Epoch not at ascending node
+            self.orbit_elements.an_time = self.get_last_an_time(self.tle.epoch)
+        else:
+            # Epoch at ascending node (z < 1 km) and positive v_z
+            self.orbit_elements.an_time = self.tle.epoch
+            
+        self.orbit_elements.an_period = self.orbit_elements.an_time - \
+                        self.get_last_an_time(self.orbit_elements.an_time 
+                                              - timedelta(minutes=10))    
+            
 
     def __str__(self):
         return self.satellite_name + " " + str(self.tle)
+
+    def get_last_an_time(self, utc_time):
+        """Calculate time of last ascending node relative to the
+        specified time
+        """        
+        
+        # Propagate backwards to ascending node
+        dt = timedelta(minutes=10)
+        t_old = utc_time
+        t_new = t_old - dt
+        pos0, vel0 = self.get_position(t_old, normalize=False)
+        pos1, vel1 = self.get_position(t_new, normalize=False)
+        while not (pos0[2] > 0 and pos1[2] < 0):
+            pos0, vel0 = pos1, vel1
+            t_old = t_new
+            t_new = t_old - dt
+            pos1, vel1 = self.get_position(t_new, normalize=False)
+        
+        # Return if z within 1 km of an
+        if np.abs(pos0[2]) < 1:
+            return t_old
+        elif np.abs(pos1[2]) < 1:
+            return t_new
+    
+        # Bisect to z within 1 km
+        while np.abs(pos1[2]) > 1:
+            pos0, vel0 = pos1, vel1
+            dt = (t_old - t_new) / 2
+            t_mid = t_old - dt
+            pos1, vel1 = self.get_position(t_mid, normalize=False)
+            if pos1[2] > 0:
+                t_old = t_mid
+            else:
+                t_new = t_mid
+        
+        return t_mid                                
 
     def get_position(self, utc_time, normalize=True):
         """Get the cartesian position and velocity from the satellite.
@@ -135,6 +186,13 @@ class Orbital(object):
     def get_observer_look(self, time, lon, lat, alt):
         """Calculate observers look angle to a satellite.
         http://celestrak.com/columns/v02n02/
+
+        time: Observation time (datetime object)
+        lon: Longitude of observer position on ground
+        lat: Latitude of observer position on ground
+        alt: Altitude above sea-level (geoid) of observer position on ground
+
+        Return: (Azimuth, Elevation)
         """
         (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(time, normalize=False)
         (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \
@@ -161,29 +219,169 @@ class Orbital(object):
         top_e = -sin_theta * rx + cos_theta * ry
         top_z = cos_lat * cos_theta * rx + cos_lat * sin_theta * ry + sin_lat * rz
 
-        az = np.arctan(-top_e/top_s)
+        az = np.arctan(-top_e / top_s)
         if top_s > 0:
             az = az + np.pi
         if az < 0:
             az = az + 2 * np.pi
 
         rg = np.sqrt(rx * rx + ry * ry + rz * rz)
-        el = np.arcsin(top_z/rg)
-        w = (rx * rvx + ry * rvy + rz * rvz)/rg
+        el = np.arcsin(top_z / rg)
+        w = (rx * rvx + ry * rvy + rz * rvz) / rg
 
         return np.rad2deg(az), np.rad2deg(el)
 
-    def get_orbit_number(self, time, tbus_style=False):
-        #TODO: Handled corner cases of non AN epoch and propagation to near AN
-        # and use node periode instead of revolutions 
-        lon, lat, alt = self.get_lonlatalt(self.tle.epoch)
-        dt = astronomy._days(time - self.tle.epoch)
-        orbit = int(self.tle.orbit + self.tle.mean_motion * dt + 
+    def get_orbit_number(self, utc_time, tbus_style=False):
+        """Calculate orbit number at specified time.
+        Optionally use TBUS-style orbit numbering (TLE orbit number + 1)
+        """
+        
+        dt = astronomy._days(utc_time - self.orbit_elements.an_time)
+        orbit_period = astronomy._days(self.orbit_elements.an_period)
+                 
+        orbit = int(self.tle.orbit + dt / orbit_period + 
                  self.tle.mean_motion_derivative * dt**2 + 
                  self.tle.mean_motion_sec_derivative * dt**3)
+                 
         if tbus_style:
             orbit += 1
         return orbit
+        
+    def get_zenith_overpass(self, utc_time, obslon, obslat):
+        """Get the time when the satellite is highest on the horizon relative
+        to the observer position on ground given by *obslon*,*obslat* closest
+        in time (in the future) to the time given by *utc_time*. Using the
+        method of gradient ascent with variable step parameter (decreasing in
+        size as we apprach 90 degrees zenith angle.
+        """
+
+        # First check if the elevation is above zero. If not continue until it
+        # is, using larger steps when the ange is far from zero and shorter
+        # ones when the elevation gets closer to zero:
+        el_start = self.get_observer_look(utc_time, obslon, obslat, 0.0)[1]
+        if el_start < 0:
+            start_time = utc_time
+            elev = el_start
+            idx = 0
+            NIDX = 100
+            while elev < 0 and idx < NIDX:
+                var_scale = np.exp(np.square(np.sin(elev * np.pi/180.)))
+                t_step = timedelta(seconds = (300 * var_scale))
+                start_time = start_time + t_step
+                elev = self.get_observer_look(start_time, obslon, obslat, 0.0)[1]
+                idx = idx + 1
+                #print idx, start_time, var_scale, elev
+
+            utc_time = start_time - t_step
+
+        precision = timedelta(seconds=0.01)
+        sec_step = 0.5
+        t_step = timedelta(seconds=sec_step/2.0)
+
+        # Local derivative:
+        def fprime(timex):
+            el0 = self.get_observer_look(timex - t_step, 
+                                         obslon, obslat, 0.0)[1]
+            el1 = self.get_observer_look(timex + t_step, 
+                                         obslon, obslat, 0.0)[1]
+            return el0, (el1 - el0) / sec_step 
+
+        tx0 = utc_time - timedelta(seconds=1.0)
+        tx1 = utc_time
+        idx = 0
+        NIDX = 100
+        eps = 1000. # Step size scaling
+        while abs(tx1 - tx0) > precision and idx < NIDX:
+            tx0 = tx1
+            fpr = fprime(tx0)
+            #var_scale = abs(90.0-fpr[0])
+            var_scale = np.abs(np.cos(fpr[0] * np.pi/180.))
+            tx1 = tx0 + timedelta(seconds = (eps * var_scale * fpr[1]))
+            #print idx, tx0, tx1, fpr
+            idx = idx + 1
+    
+        if abs(tx1 - tx0) <= precision and idx < NIDX:
+            return tx1, idx
+        else:
+            return None
+        
+    def get_risetime(self, utc_time, obslon, obslat, **kwargs):
+        """Get the risetime of the satellite closest in time in the future to
+        the time *utc_time* for a reception station at *obslon*, *obslat*
+        position on the ground
+        """
+        retv = self.get_zenith_overpass(utc_time, obslon, obslat)
+        if retv:
+            zenith_time = retv[0]
+        else:
+            zenith_time = utc_time
+        one_minute = timedelta(seconds = 60)
+        return self._get_time_at_horizon(zenith_time - one_minute, 
+                                         obslon, obslat, **kwargs)
+        
+    def get_falltime(self, utc_time, obslon, obslat, **kwargs):
+        """Get the falltime of the satellite closest in time in the future to
+        the time *utc_time* for a reception station at *obslon*, *obslat*
+        position on the ground
+        """
+        retv = self.get_zenith_overpass(utc_time, obslon, obslat)
+        if retv:
+            zenith_time = retv[0]
+        else:
+            zenith_time = utc_time
+        one_minute = timedelta(seconds = 60)
+        return self._get_time_at_horizon(zenith_time + one_minute, 
+                                         obslon, obslat, **kwargs)
+        
+    def _get_time_at_horizon(self, utc_time, obslon, obslat, **kwargs):
+        """Get the time closest in time to *utc_time* when the
+        satellite is at the horizon relative to the position of an observer on
+        ground (altitude = 0)
+        """
+        if "precision" in kwargs:
+            precision = kwargs['precision']
+        else:
+            precision = timedelta(seconds=0.001)
+        if "max_iterations" in kwargs:
+            nmax_iter = kwargs["max_iterations"]
+        else:
+            nmax_iter = 100
+
+        sec_step = 0.5
+        t_step = timedelta(seconds=sec_step/2.0)
+
+        # Local derivative:
+        def fprime(timex):
+            el0 = self.get_observer_look(timex - t_step, 
+                                         obslon, obslat, 0.0)[1]
+            el1 = self.get_observer_look(timex + t_step, 
+                                         obslon, obslat, 0.0)[1]
+            return el0, (abs(el1) - abs(el0)) / sec_step 
+
+        tx0 = utc_time - timedelta(seconds=1.0)
+        tx1 = utc_time
+        idx = 0
+        #eps = 500.
+        eps = 100.
+        while abs(tx1 - tx0) > precision and idx < nmax_iter:
+            tx0 = tx1
+            fpr = fprime(tx0)
+            # When the elevation is high the scale is high, and when
+            # the elevation is low the scale is low
+            #var_scale = np.abs(np.sin(fpr[0] * np.pi/180.))
+            #var_scale = np.sqrt(var_scale)
+            var_scale = np.abs(fpr[0])
+            tx1 = tx0 - timedelta(seconds = (eps * var_scale * fpr[1]))
+            idx = idx + 1
+            #print idx, tx0, tx1, var_scale, fpr
+            if abs(tx1 - utc_time) < precision and idx < 2:
+                tx1 = tx1 + timedelta(seconds=1.0)
+                
+        if abs(tx1 - tx0) <= precision and idx < nmax_iter:
+            return tx1
+        else:
+            return None
+
 
 class OrbitElements(object):
     """Class holding the orbital elements.
@@ -273,15 +471,15 @@ class _SGDP4(object):
         self.sinIO = np.sin(self.xincl)
         theta2 = self.cosIO**2
         theta4 = theta2 ** 2 
-        self.x3thm1 = 3.0 * theta2 - 1.0;
-        self.x1mth2 = 1.0 - theta2;
-        self.x7thm1 = 7.0 * theta2 - 1.0;
+        self.x3thm1 = 3.0 * theta2 - 1.0
+        self.x1mth2 = 1.0 - theta2
+        self.x7thm1 = 7.0 * theta2 - 1.0
 
         a1 = (XKE / self.xn_0) ** (2. / 3)
         betao2 = 1.0 - self.eo**2
-        betao = np.sqrt(betao2);
+        betao = np.sqrt(betao2)
         temp0 = 1.5 * CK2 * self.x3thm1 / (betao * betao2)
-        del1 = temp0 / (a1**2);
+        del1 = temp0 / (a1**2)
         a0 = a1 * (1.0 - del1 * (1.0 / 3.0 + del1 * (1.0 + del1 * 134.0 / 81.0)))
         del0 = temp0 / (a0**2)
         self.xnodp = self.xn_0 / (1.0 + del0)
@@ -313,10 +511,10 @@ class _SGDP4(object):
 
         pinvsq = 1.0 / (self.aodp**2 * betao2**2)
         tsi = 1.0 / (self.aodp - s4)
-        self.eta = self.aodp * self.eo * tsi;
-        etasq = self.eta**2;
-        eeta = self.eo * self.eta;
-        psisq = np.abs(1.0 - etasq);
+        self.eta = self.aodp * self.eo * tsi
+        etasq = self.eta**2
+        eeta = self.eo * self.eta
+        psisq = np.abs(1.0 - etasq)
         coef = qoms24 * tsi**4
         coef_1 = coef / psisq**3.5
 
@@ -352,7 +550,7 @@ class _SGDP4(object):
                 temp2 * betao * (13.0 - 78.0 * theta2 +
                 137.0 * theta4)))
 
-        x1m5th = 1.0 - 5.0 * theta2;
+        x1m5th = 1.0 - 5.0 * theta2
 
         self.omgdot = (-0.5 * temp1 * x1m5th + 0.0625 * temp2 *
                  (7.0 - 114.0 * theta2 + 395.0 * theta4) +
@@ -395,7 +593,7 @@ class _SGDP4(object):
                     15.0 * c1sq * (2.0 * self.d2 + c1sq)))
 
         elif self.mode == SGDP4_DEEP_NORM:
-            raise Exception('Deep space calculations not supported')
+            raise NotImplementedError('Deep space calculations not supported')
         
     def propagate(self, utc_time):
         kep = {}
@@ -410,9 +608,10 @@ class _SGDP4(object):
         omega = self.omegao + self.omgdot * ts
         
         if self.mode == SGDP4_ZERO_ECC:
-            raise Exception('TODO')
+            raise NotImplementedError('Mode SGDP4_ZERO_ECC not implemented')
         elif self.mode == SGDP4_NEAR_SIMP:
-            raise Exception('TODO')
+            raise NotImplementedError('Mode "Near-space, simplified equations"'
+                                      ' not implemented')
         elif self.mode == SGDP4_NEAR_NORM:
             delm  = self.xmcof * ((1.0 + self.eta * np.cos(xmp))**3 - self.delmo)
             temp0 = ts * self.omgcof + delm
@@ -423,15 +622,16 @@ class _SGDP4(object):
             templ = ts * ts * (self.t2cof + ts * (self.t3cof + ts * (self.t4cof + ts * self.t5cof)))
             a = self.aodp * tempa**2
             e = em - tempe
-            xl = xmp + omega + xnode + self.xnodp * templ;
+            xl = xmp + omega + xnode + self.xnodp * templ
 
         else:
-            raise Exception('No deep space')
+            raise  NotImplementedError('Deep space calculations not supported')
 
         if np.any(a < 1):
             raise Exception('Satellite crased at time %s', utc_time)
         elif np.any(e < ECC_LIMIT_LOW):
-            raise Exception('Satellite modified eccentricity to low: %e < %e' % (e, ECC_LIMIT_LOW))
+            raise ValueError('Satellite modified eccentricity to low: %e < %e'
+                             % (e, ECC_LIMIT_LOW))
 
         e = np.where(e < ECC_EPS, ECC_EPS, e)
         e = np.where(e > ECC_LIMIT_HIGH, ECC_LIMIT_HIGH, e)
@@ -550,24 +750,23 @@ def kep2xyz(kep):
     vz = sinI * cosT
     
     v_x = kep['rdotk'] * ux + kep['rfdotk'] * vx
-    v_y = kep['rdotk'] * uy + kep['rfdotk'] * vy;
-    v_z = kep['rdotk'] * uz + kep['rfdotk'] * vz;
+    v_y = kep['rdotk'] * uy + kep['rfdotk'] * vy
+    v_z = kep['rdotk'] * uz + kep['rfdotk'] * vz
     
     return np.array((x, y, z)), np.array((v_x, v_y, v_z))
         
 if __name__ == "__main__":
     obs_lon, obs_lat = np.deg2rad((12.4143, 55.9065))
     obs_alt = 0.02
-    o = Orbital(satellite="noaa 18") #, tle_file="/net/prodsat/datadb/sat/orbit/tle/tle_20110327.txt")
+    o = Orbital(satellite="METOP-B")
 
-
-    t_start = datetime.datetime(2011, 3, 28, 2, 15)
-    t_stop = t_start + datetime.timedelta(minutes=17)
+    t_start = datetime.now()
+    t_stop = t_start + timedelta(minutes=20)
     t = t_start
     while t < t_stop:
-        t += datetime.timedelta(seconds=15)
+        t += timedelta(seconds=15)
         lon, lat, alt = o.get_lonlatalt(t)
         lon, lat = np.rad2deg((lon, lat))
-        az, el, rg, w = o.get_observer_look(t, obs_lon, obs_lat, obs_alt)
-        az, el = np.rad2deg((az, el))
-
+        az, el = o.get_observer_look(t, obs_lon, obs_lat, obs_alt)
+        ob = o.get_orbit_number(t, tbus_style=True)
+        print az, el, ob

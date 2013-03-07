@@ -43,22 +43,12 @@ def jdays(utc_time):
     """
     return jdays2000(utc_time) + 2451545
 
-def _fdays(dt):
+def _days(dt):
     """Get the days (floating point) from *d_t*.
     """
     return (dt.days +
             (dt.seconds +
              dt.microseconds / (1000000.0)) / (24 * 3600.0))
-
-_vdays = np.vectorize(_fdays)
-
-def _days(dt):
-    """Get the days (floating point) from *d_t*.
-    """
-    try:
-        return _fdays(dt)
-    except AttributeError:
-        return _vdays(dt)
 
 def gmst(utc_time):
     """Greenwich mean sidereal utc_time, in radians.
@@ -124,7 +114,7 @@ def _local_hour_angle(utc_time, longitude, right_ascension):
 def get_alt_az(utc_time, lon, lat):
     """Return sun altitude and azimuth from *utc_time*, *lon*, and *lat*.
     lon,lat in degrees
-    What is the unit of the returned angles and height!? FIXME!
+    What is the unit of the returned angles and heights!? FIXME!
     """
     lon = np.deg2rad(lon)
     lat = np.deg2rad(lat)

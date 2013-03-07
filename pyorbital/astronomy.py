@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011
+# Copyright (c) 2011, 2013
 
 # Author(s):
 
@@ -144,6 +144,24 @@ def sun_zenith_angle(utc_time, lon, lat):
     The angle returned is given in degrees
     """
     return np.rad2deg(np.arccos(cos_zen(utc_time, lon, lat)))
+
+def sun_earth_distance_correction(utc_time):
+    """Calculate the sun earth distance correction, relative to 1 AU.
+    """
+    year = 365.256363004
+    # This is computed from
+    # http://curious.astro.cornell.edu/question.php?number=582
+    # AU = 149597870700.0
+    # a = 149598261000.0
+    # theta = (jdays2000(utc_time) - 2) * (2 * np.pi) / year
+    # e = 0.01671123
+    # r = a*(1-e*e)/(1+e * np.cos(theta))
+    # corr_me = (r / AU) ** 2
+
+    # from known software.
+    corr = 1 - 0.0334 * np.cos(2 * np.pi * (jdays2000(utc_time) - 2) / year) 
+
+    return corr
 
 def observer_position(time, lon, lat, alt):
     """Calculate observer ECI position.

@@ -95,7 +95,8 @@ class Orbital(object):
             self.orbit_elements.an_time = self.tle.epoch
             
         self.orbit_elements.an_period = self.orbit_elements.an_time - \
-                        self.get_last_an_time(self.orbit_elements.an_time)    
+                        self.get_last_an_time(self.orbit_elements.an_time 
+                                              - timedelta(minutes=10))    
             
 
     def __str__(self):

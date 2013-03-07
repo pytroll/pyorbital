@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012 SMHI
+# Copyright (c) 2011, 2012, 2013 SMHI
 
 # Author(s):
 
@@ -23,7 +23,7 @@
 from setuptools import setup
 
 setup(name='pyorbital',
-      version="v0.2.2",
+      version="v0.2.3",
       description='Orbital parameters and astronomical computations in Python',
       author='Martin Raspaud, Esben S. Nielsen',
       author_email='martin.raspaud@smhi.se, esn@dmi.dk',

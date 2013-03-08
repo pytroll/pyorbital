@@ -32,10 +32,25 @@ F = 1 / 298.257223563 # Earth flattening WGS-84
 A = 6378.137 # WGS84 Equatorial radius
 MFACTOR = 7.292115E-5 
 
-def jdays2000(utc_time):
+def jdays2000(utc_time, hour=12):
     """Get the days since year 2000.
     """
-    return _days(utc_time - datetime.datetime(2000, 1, 1, 12, 0))
+    return _days(utc_time - datetime.datetime(2000, 1, 1, hour, 0))
+
+def jdays1970(utc_time, hour=0):
+    """Get the days since year 1950.
+    """
+    return _days(utc_time - datetime.datetime(1970, 1, 1, hour, 0))
+    
+def jdays1950(utc_time, hour=0):
+    """Get the days since year 1950.
+    """
+    return _days(utc_time - datetime.datetime(1950, 1, 1, hour, 0))
+    
+def jdays1900(utc_time, hour=12):
+    """Get the days since year 1950.
+    """
+    return _days(utc_time - datetime.datetime(1900, 1, 1, hour, 0))
     
 
 def jdays(utc_time):

@@ -36,6 +36,7 @@ ECC_LIMIT_HIGH = 1.0 - ECC_EPS	# Too close to 1
 ECC_ALL = 1.0e-4
 
 EPS_COS = 1.5e-12
+EPS_SIN = 1.0e-12
 
 NR_EPS = 1.0e-12
 
@@ -58,9 +59,11 @@ A = 6378.137 # WGS84 Equatorial radius
 
 
 SGDP4_ZERO_ECC = 0
-SGDP4_DEEP_NORM = 1
-SGDP4_NEAR_SIMP = 2 
-SGDP4_NEAR_NORM = 3
+SGDP4_NEAR_SIMP = 1 
+SGDP4_NEAR_NORM = 2
+SGDP4_DEEP_NORM = 3
+SGDP4_DEEP_RESN = 4
+SGDP4_DEEP_SYNC = 5
 
 KS = AE * (1.0 + S0 / XKMPER)
 A3OVK2 = (-XJ3 / CK2) * AE**3
@@ -580,6 +583,8 @@ class _SGDP4(object):
         self.sinXMO = np.sin(self.xmo)
         self.delmo = (1.0 + self.eta * self.cosXMO)**3
         
+        self._deep_space = None
+        
         if self.mode == SGDP4_NEAR_NORM:        
             c1sq = self.c1**2
             self.d2 = 4.0 * self.aodp * tsi * c1sq
@@ -592,7 +597,12 @@ class _SGDP4(object):
                     15.0 * c1sq * (2.0 * self.d2 + c1sq)))
 
         elif self.mode == SGDP4_DEEP_NORM:
-            raise NotImplementedError('Deep space calculations not supported')
+            self._deep_space = _DeepSpace(self.t_0, self.omegao, self.xnodeo, 
+                                          self.xmo, self.eo, self.xincl, 
+                                          self.aodp, self.xmdot, 
+                                          self.omgdot, self.xnodot, 
+                                          self.xnodp)
+            #raise NotImplementedError('Deep space calculations not supported')
         
     def propagate(self, utc_time):
         kep = {}
@@ -725,6 +735,231 @@ class _SGDP4(object):
         return kep   
 
 
+class _DeepSpace(object):
+    
+    def __init__(self, epoch, omegao, xnodeo, xmo, orb_eo, orb_xincl, aodp, 
+                 xlldot, omgdot, xnodot, xnodp):
+
+        def mod2pi(a):
+            b = np.fmod(a, 2 * np.pi)
+            if b < 0:
+                return b + 2 * np.pi
+            else:
+                return b
+
+        eo = eq = orb_eo
+        xincl = orb_xincl
+        
+        # Decide on direct or Lyddane Lunar-Solar perturbations. 
+        self.ilsd = False
+        if xincl >= 0.2:
+            self.ilsd = True
+            
+        # Drop some terms below 3 deg inclination.
+        self.ishq = False
+        if xincl >= 0.052359877:
+            self.ishq = True
+            
+        sinomo = np.sin(omegao)
+        cosomo = np.cos(omegao)
+        sinq = np.sin(xnodeo)
+        cosq = np.cos(xnodeo)
+        siniq = np.sin(xincl)
+        cosiq = np.cos(xincl)
+        
+        if np.abs(siniq) <= EPS_SIN:
+            siniq = np.sign(siniq) * EPS_SIN
+            
+        cosiq2 = cosiq ** 2
+        siniq2 = siniq ** 2
+        print cosiq2, siniq2
+        
+        ao = aodp
+        omgdt = omgdot
+        eqsq = eo ** 2
+        bsq = 1 - eqsq
+        rteqsq = np.sqrt(bsq)
+        print 'rteqsq', rteqsq
+        thgr = astronomy.gmst(epoch)
+        print 'thgr',thgr
+        
+        xnq = xnodp
+        aqnv = 1. / ao
+        xmao = xmo
+        xpidot = omgdt + xnodot
+        print 'xpidot', xpidot
+        omegaq = omegao
+        
+        # Initialize lunar terms.
+        # Note: the Dundee reference code d50 is off by 1 day
+        jd1900 = astronomy.jdays1900(epoch)
+        jd1900 += 1 #TODO: compability?
+        print 'epoch', epoch
+        print 'd1900', jd1900
+        xnodce = 4.523602 - jd1900 * 9.2422029e-4
+        temp0 = np.fmod(xnodce, 2 * np.pi)
+        stem = np.sin(temp0)
+        ctem = np.cos(temp0)
+        
+        zcosil = 0.91375164 - ctem * 0.03568096
+        zsinil = np.sqrt(1.0 - zcosil * zcosil)
+        zsinhl = stem * 0.089683511 / zsinil
+        zcoshl = np.sqrt(1.0 - zsinhl * zsinhl)
+        print 'zcoshl', zcoshl
+        
+        c = jd1900 * 0.2299715 + 4.7199672
+        gam = jd1900 * 0.001944368 + 5.8351514
+        print 'c', c
+        print 'gam', gam
+        zmol = mod2pi(c - gam)
+        print 'zmol',  zmol
+        zx = stem * 0.39785416 / zsinil
+        zy = zcoshl * ctem + zsinhl * 0.91744867 * stem
+        zx = np.arctan2(zx, zy)
+        zx = np.fmod(gam + zx - xnodce, 2 * np.pi)
+        print 'zx', zx
+        zsingl = np.sin(zx)
+        zcosgl = np.cos(zx)
+        zmos = mod2pi(jd1900 * 0.017201977 + 6.2565837)
+        print 'zsingl', zsingl 
+        print 'zcosgl', zcosgl
+        print 'zmos', zmos
+        
+        # Do solar terms
+        zcosg = 0.1945905
+        zsing = -0.98088458
+        zcosi = 0.91744867
+        zsini = 0.39785416
+        zcosh = cosq
+        zsinh = sinq
+        cc = 2.9864797e-6
+        zn = 1.19459e-5
+        ze = 0.01675
+        zmo = zmos
+        xnoi = 1. / xnq
+        
+        for ls in range(2):
+            a1 = zcosg * zcosh + zsing * zcosi * zsinh
+            a3 = -zsing * zcosh + zcosg * zcosi * zsinh
+            a7 = -zcosg * zsinh + zsing * zcosi * zcosh
+            a8 = zsing * zsini
+            a9 = zsing * zsinh + zcosg * zcosi * zcosh
+            a10 = zcosg * zsini
+            a2 = cosiq * a7 + siniq * a8
+            a4 = cosiq * a9 + siniq * a10
+            a5 = -siniq * a7 + cosiq * a8
+            a6 = -siniq * a9 + cosiq * a10
+    
+            x1 = a1 * cosomo + a2 * sinomo
+            x2 = a3 * cosomo + a4 * sinomo
+            x3 = -a1 * sinomo + a2 * cosomo
+            x4 = -a3 * sinomo + a4 * cosomo
+            x5 = a5 * sinomo
+            x6 = a6 * sinomo
+            x7 = a5 * cosomo
+            x8 = a6 * cosomo
+            
+            z31 = x1 * 12.0 * x1 - x3 * 3.0 * x3
+            z32 = x1 * 24.0 * x2 - x3 * 6.0 * x4
+            z33 = x2 * 12.0 * x2 - x4 * 3.0 * x4
+            z1 = (a1 * a1 + a2 * a2) * 3.0 + z31 * eqsq
+            z2 = (a1 * a3 + a2 * a4) * 6.0 + z32 * eqsq
+            z3 = (a3 * a3 + a4 * a4) * 3.0 + z33 * eqsq
+            z11 = a1 * -6.0 * a5 + eqsq * (x1 * -24.0 * x7 - x3 * 6.0 * x5)
+            z12 = ((a1 * a6 + a3 * a5) * -6.0 + eqsq * ((x2 * x7 
+                   + x1 * x8) * -24.0 - (x3 * x6 + x4 * x5) * 6.0))
+            z13 = a3 * -6.0 * a6 + eqsq * (x2 * -24.0 * x8 - x4 * 6.0 * x6)
+            z21 = a2 * 6.0 * a5 + eqsq * (x1 * 24.0 * x5 - x3 * 6.0 * x7)
+            z22 = ((a4 * a5 + a2 * a6) * 6.0 + eqsq * ((x2 * x5 + x1 * x6) 
+                    * 24.0 - (x4 * x7 + x3 * x8) * 6.0))
+            z23 = a4 * 6.0 * a6 + eqsq * (x2 * 24.0 * x6 - x4 * 6.0 * x8)
+            z1 = z1 + z1 + bsq * z31
+            z2 = z2 + z2 + bsq * z32
+            z3 = z3 + z3 + bsq * z33
+            s3 = cc * xnoi
+            s2 = s3 * -0.5 / rteqsq
+            s4 = s3 * rteqsq
+            s1 = eq * -15.0 * s4
+            s5 = x1 * x3 + x2 * x4
+            s6 = x2 * x3 + x1 * x4
+            s7 = x2 * x4 - x1 * x3
+            se = s1 * zn * s5
+            si = s2 * zn * (z11 + z13)
+            sl = -zn * s3 * (z1 + z3 - 14.0 - eqsq * 6.0)
+            sgh = s4 * zn * (z31 + z33 - 6.0)
+            print 'sgh', sgh
+            
+            shdq = 0
+            if self.ishq:
+                sh = -zn * s2 * (z21 + z23)
+                shdq = sh / siniq
+                
+            ee2 = s1 * 2.0 * s6
+            e3 = s1 * 2.0 * s7
+            xi2 = s2 * 2.0 * z12
+            xi3 = s2 * 2.0 * (z13 - z11)
+            xl2 = s3 * -2.0 * z2
+            xl3 = s3 * -2.0 * (z3 - z1)
+            xl4 = s3 * -2.0 * (-21.0 - eqsq * 9.0) * ze
+            xgh2 = s4 * 2.0 * z32
+            xgh3 = s4 * 2.0 * (z33 - z31)
+            xgh4 = s4 * -18.0 * ze
+            xh2 = s2 * -2.0 * z22
+            xh3 = s2 * -2.0 * (z23 - z21)
+            print 'xh3', xh3
+            
+            if ls == 1:
+                break
+            
+            # Do lunar terms
+            sse = se
+            ssi = si
+            ssl = sl
+            ssh = shdq
+            ssg = sgh - cosiq * ssh
+            se2 = ee2
+            si2 = xi2
+            sl2 = xl2
+            sgh2 = xgh2
+            sh2 = xh2
+            se3 = e3
+            si3 = xi3
+            sl3 = xl3
+            sgh3 = xgh3
+            sh3 = xh3
+            sl4 = xl4
+            sgh4 = xgh4
+            zcosg = zcosgl
+            zsing = zsingl
+            zcosi = zcosil
+            zsini = zsinil;
+            zcosh = zcoshl * cosq + zsinhl * sinq
+            zsinh = sinq * zcoshl - cosq * zsinhl
+            zn = 1.5835218e-4
+            cc = 4.7968065e-7
+            ze = 0.0549
+            zmo = zmol
+        
+        sse += se
+        ssi += si
+        ssl += sl
+        ssg += sgh - cosiq * shdq
+        ssh += shdq
+        print 'ssg', ssg
+        
+        if 0.0034906585 < xnq < 0.0052359877:
+            raise NotImplementedError('24h resonance not implemented')
+        elif 0.00826 <= xnq <= 0.00924 and eq >= 0.5:
+            raise NotImplementedError('12h resonance not implemented')
+        else:
+            self.iresfl = False
+            self.isynfl = False
+            
+        if not self.iresfl:
+            self.mode = SGDP4_DEEP_NORM
+        else:
+            raise NotImplementedError('Only normal deep space init')
+            
 def kep2xyz(kep):
     sinT = np.sin(kep['theta'])
     cosT = np.cos(kep['theta'])

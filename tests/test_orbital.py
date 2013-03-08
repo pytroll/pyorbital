@@ -85,7 +85,12 @@ class Test(unittest.TestCase):
         exp3 = np.array([829.4356064487414, 830.81997170121645])
         self.assertFalse(np.any(np.abs(exp1 - lla[0]) > 0.1))
         self.assertFalse(np.any(np.abs(exp2 - lla[1]) > 0.1))        
-        self.assertFalse(np.any(np.abs(exp3 - lla[2]) > 0.1))        
+        self.assertFalse(np.any(np.abs(exp3 - lla[2]) > 0.1))
+        
+    def test_deep_space_init(self):
+        sat = orbital.Orbital('SL-6 R/B(2)',
+            line1="1 16925U 86065D   06151.67415771  .02550794 -30915-6  18784-3 0  4486", 
+            line2="2 16925 062.0906 295.0239 5596327 245.1593 047.9690 04.88511875148616")                  
         
 if __name__ == "__main__":
     unittest.main()

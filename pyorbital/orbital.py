@@ -247,96 +247,61 @@ class Orbital(object):
             orbit += 1
         return orbit
         
-    def get_zenith_overpass(self, utc_time, obslon, obslat):
-        """Get the time when the satellite is highest on the horizon relative
-        to the observer position on ground given by *obslon*,*obslat* closest
-        in time (in the future) to the time given by *utc_time*. Using the
-        method of gradient ascent with variable step parameter (decreasing in
-        size as we apprach 90 degrees zenith angle.
+    def get_next_passes(self, time, length, lon, lat, alt):
+        """Calculate passes for the next hours for a given start time and a 
+        given observer.
+
+        Original by Martin.
+
+        time: Observation time (datetime object)
+        length: Number of hours to find passes (int)
+        lon: Longitude of observer position on ground (float)
+        lat: Latitude of observer position on ground (float)
+        alt: Altitude above sea-level (geoid) of observer position on ground (float)
+
+        Return: [(rise-time, fall-time, max-elevation-time), ...]
         """
+        from scipy.optimize import brentq, brent
 
-        # First check if the elevation is above zero. If not continue until it
-        # is, using larger steps when the ange is far from zero and shorter
-        # ones when the elevation gets closer to zero:
-        el_start = self.get_observer_look(utc_time, obslon, obslat, 0.0)[1]
-        if el_start < 0:
-            start_time = utc_time
-            elev = el_start
-            idx = 0
-            NIDX = 100
-            while elev < 0 and idx < NIDX:
-                var_scale = np.exp(np.square(np.sin(elev * np.pi/180.)))
-                t_step = timedelta(seconds = (300 * var_scale))
-                start_time = start_time + t_step
-                elev = self.get_observer_look(start_time, obslon, obslat, 0.0)[1]
-                idx = idx + 1
-                #print idx, start_time, var_scale, elev
-
-            utc_time = start_time - t_step
-
-        precision = timedelta(seconds=0.01)
-        sec_step = 0.5
-        t_step = timedelta(seconds=sec_step/2.0)
-
-        # Local derivative:
-        def fprime(timex):
-            el0 = self.get_observer_look(timex - t_step, 
-                                         obslon, obslat, 0.0)[1]
-            el1 = self.get_observer_look(timex + t_step, 
-                                         obslon, obslat, 0.0)[1]
-            return el0, (el1 - el0) / sec_step 
-
-        tx0 = utc_time - timedelta(seconds=1.0)
-        tx1 = utc_time
-        idx = 0
-        NIDX = 100
-        eps = 1000. # Step size scaling
-        while abs(tx1 - tx0) > precision and idx < NIDX:
-            tx0 = tx1
-            fpr = fprime(tx0)
-            #var_scale = abs(90.0-fpr[0])
-            var_scale = np.abs(np.cos(fpr[0] * np.pi/180.))
-            tx1 = tx0 + timedelta(seconds = (eps * var_scale * fpr[1]))
-            #print idx, tx0, tx1, fpr
-            idx = idx + 1
-    
-        if abs(tx1 - tx0) <= precision and idx < NIDX:
-            return tx1, idx
-        else:
-            return None
+        def elevation(minutes):
+            return self.get_observer_look(time +
+                                          timedelta(minutes=minutes),
+                                          lon, lat, alt)[1]
+        def elevation_inv(minutes):
+            return -elevation(minutes)
         
-    def get_risetime(self, utc_time, obslon, obslat, **kwargs):
-        """Get the risetime of the satellite closest in time in the future to
-        the time *utc_time* for a reception station at *obslon*, *obslat*
-        position on the ground
-        """
-        retv = self.get_zenith_overpass(utc_time, obslon, obslat)
-        if retv:
-            zenith_time = retv[0]
-        else:
-            zenith_time = utc_time
-        one_minute = timedelta(seconds = 60)
-        return self._get_time_at_horizon(zenith_time - one_minute, 
-                                         obslon, obslat, **kwargs)
-        
-    def get_falltime(self, utc_time, obslon, obslat, **kwargs):
-        """Get the falltime of the satellite closest in time in the future to
-        the time *utc_time* for a reception station at *obslon*, *obslat*
-        position on the ground
-        """
-        retv = self.get_zenith_overpass(utc_time, obslon, obslat)
-        if retv:
-            zenith_time = retv[0]
-        else:
-            zenith_time = utc_time
-        one_minute = timedelta(seconds = 60)
-        return self._get_time_at_horizon(zenith_time + one_minute, 
-                                         obslon, obslat, **kwargs)
-        
+        arr = np.array([elevation(m) for m in range(length * 60)])
+        a = np.where(np.diff(np.sign(arr)))[0]
+
+        res = []
+        risetime = None
+        falltime = None
+        for guess in a:
+            horizon_mins = brentq(elevation, guess, guess + 1)
+            horizon_time = time + timedelta(minutes=horizon_mins)
+            if arr[guess] < 0:
+                risetime = horizon_time
+                risemins = horizon_mins
+                falltime = None
+            else:
+                falltime = horizon_time
+                fallmins = horizon_mins
+                if risetime:
+                    highest = time + \
+                        timedelta(minutes=brent(
+                            elevation_inv, 
+                            brack=(risemins, fallmins)))
+                    res += [(risetime, falltime, highest)]
+                risetime = None
+        return res
+
     def _get_time_at_horizon(self, utc_time, obslon, obslat, **kwargs):
         """Get the time closest in time to *utc_time* when the
         satellite is at the horizon relative to the position of an observer on
         ground (altitude = 0)
+
+        Note: This is considered deprecated and it's functionality is currently
+        replaced by 'get_next_passes'.
         """
         if "precision" in kwargs:
             precision = kwargs['precision']
@@ -381,7 +346,6 @@ class Orbital(object):
             return tx1
         else:
             return None
-
 
 class OrbitElements(object):
     """Class holding the orbital elements.

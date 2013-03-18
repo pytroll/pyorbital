@@ -177,31 +177,31 @@ class Orbital(object):
         alt *= A
         return np.rad2deg(lon), np.rad2deg(lat), alt
 
-    def find_aos(self, time, lon, lat):
+    def find_aos(self, utc_time, lon, lat):
         pass
 
-    def find_aol(self, time, lon, lat):
+    def find_aol(self, utc_time, lon, lat):
         pass
 
-    def get_observer_look(self, time, lon, lat, alt):
+    def get_observer_look(self, utc_time, lon, lat, alt):
         """Calculate observers look angle to a satellite.
         http://celestrak.com/columns/v02n02/
 
-        time: Observation time (datetime object)
+        utc_time: Observation time (datetime object)
         lon: Longitude of observer position on ground
         lat: Latitude of observer position on ground
         alt: Altitude above sea-level (geoid) of observer position on ground
 
         Return: (Azimuth, Elevation)
         """
-        (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(time, normalize=False)
+        (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(utc_time, normalize=False)
         (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \
-                                    astronomy.observer_position(time, lon, lat, alt)
+                                    astronomy.observer_position(utc_time, lon, lat, alt)
         
         lon = np.deg2rad(lon)
         lat = np.deg2rad(lat)
         
-        theta = (astronomy.gmst(time) + lon) % (2 * np.pi)
+        theta = (astronomy.gmst(utc_time) + lon) % (2 * np.pi)
 
         rx = pos_x - opos_x
         ry = pos_y - opos_y
@@ -247,13 +247,13 @@ class Orbital(object):
             orbit += 1
         return orbit
         
-    def get_next_passes(self, time, length, lon, lat, alt):
+    def get_next_passes(self, utc_time, length, lon, lat, alt):
         """Calculate passes for the next hours for a given start time and a 
         given observer.
 
         Original by Martin.
 
-        time: Observation time (datetime object)
+        utc_time: Observation time (datetime object)
         length: Number of hours to find passes (int)
         lon: Longitude of observer position on ground (float)
         lat: Latitude of observer position on ground (float)
@@ -264,7 +264,7 @@ class Orbital(object):
         from scipy.optimize import brentq, brent
 
         def elevation(minutes):
-            return self.get_observer_look(time +
+            return self.get_observer_look(utc_time +
                                           timedelta(minutes=minutes),
                                           lon, lat, alt)[1]
         def elevation_inv(minutes):
@@ -278,7 +278,7 @@ class Orbital(object):
         falltime = None
         for guess in a:
             horizon_mins = brentq(elevation, guess, guess + 1)
-            horizon_time = time + timedelta(minutes=horizon_mins)
+            horizon_time = utc_time + timedelta(minutes=horizon_mins)
             if arr[guess] < 0:
                 risetime = horizon_time
                 risemins = horizon_mins
@@ -287,7 +287,7 @@ class Orbital(object):
                 falltime = horizon_time
                 fallmins = horizon_mins
                 if risetime:
-                    highest = time + \
+                    highest = utc_time + \
                         timedelta(minutes=brent(
                             elevation_inv, 
                             brack=(risemins, fallmins)))

@@ -96,15 +96,25 @@ class Test(unittest.TestCase):
         self.assertFalse(np.any(np.abs(pos_exp - pos) > 1e-3))
         self.assertFalse(np.any(np.abs(vel_exp - vel) > 1e-5))
     
-    @tmp    
-    def test_deep_space_init(self):
-        sat = orbital.Orbital('SL-6 R/B(2)',
+    def test_deep_space_basic(self):
+        sat = orbital.Orbital("SL-6 R/B(2)",
             line1="1 16925U 86065D   06151.67415771  .02550794 -30915-6  18784-3 0  4486", 
             line2="2 16925 062.0906 295.0239 5596327 245.1593 047.9690 04.88511875148616")                  
         dt = timedelta(minutes=400)
         pos, vel = sat.get_position(sat.tle.epoch + dt, normalize=False)
         pos_exp = np.array([12896.82145795, -4961.23861713, 18147.24024919])
         vel_exp = np.array([-0.505583439452, 2.495617319061, 1.114910477512])
+        self.check_pos_vel(pos, pos_exp, vel, vel_exp)
+
+    @tmp        
+    def test_deep_space_lyddane_fix(self):
+        sat = orbital.Orbital("Unknown",
+            line1="1 04632U 70093B   04031.91070959 -.00000084  00000-0  10000-3 0  9955", 
+            line2="2 04632  11.4628 273.1101 1450506 207.6000 143.9350  1.20231981 44145")                  
+        dt = timedelta(minutes=-5184)
+        pos, vel = sat.get_position(sat.tle.epoch + dt, normalize=False)
+        pos_exp = np.array([-29020.02585705, 13819.84421667, -5713.33678865])        
+        vel_exp = np.array([-1.768068392665, -3.235371190739, -0.395206136024])
         self.check_pos_vel(pos, pos_exp, vel, vel_exp)
         
 if __name__ == "__main__":

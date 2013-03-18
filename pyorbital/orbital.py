@@ -651,6 +651,12 @@ class _SGDP4(object):
             e = em - tempe
             xl = xmp + omega + xnode + self.xnodp * templ
 
+            x3thm1 = self.x3thm1
+            x1mth2 = self.x1mth2
+            x7thm1 = self.x7thm1
+            xlcof = self.xlcof
+            aycof = self.aycof
+            
         else:
             #raise  NotImplementedError('Deep space calculations not supported')
             tempa = 1.0 - ts * self.c1
@@ -701,7 +707,7 @@ class _SGDP4(object):
         e = np.where(e < ECC_EPS, ECC_EPS, e)
         e = np.where(e > ECC_LIMIT_HIGH, ECC_LIMIT_HIGH, e)
             
-        beta2 = 1.0 - e**2
+        beta2 = 1.0 - e ** 2
         
         # Long period periodics
         sinOMG = np.sin(omega)
@@ -709,10 +715,10 @@ class _SGDP4(object):
 
         temp0 = 1.0 / (a * beta2)
         axn = e * cosOMG
-        ayn = e * sinOMG + temp0 * self.aycof
-        xlt = xl + temp0 * self.xlcof * axn
+        ayn = e * sinOMG + temp0 * aycof
+        xlt = xl + temp0 * xlcof * axn
 
-        elsq = axn**2 + ayn**2
+        elsq = axn ** 2 + ayn ** 2
         
         if np.any(elsq >= 1):
             raise Exception('e**2 >= 1 at %s', utc_time)
@@ -763,8 +769,8 @@ class _SGDP4(object):
         
         # Update for short term periodics to position terms. 
 
-        rk = r * (1.0 - 1.5 * temp2 * betal * self.x3thm1) + 0.5 * temp1 * self.x1mth2 * cos2u
-        uk = u - 0.25 * temp2 * self.x7thm1 * sin2u
+        rk = r * (1.0 - 1.5 * temp2 * betal * x3thm1) + 0.5 * temp1 * x1mth2 * cos2u
+        uk = u - 0.25 * temp2 * x7thm1 * sin2u
         xnodek = xnode + 1.5 * temp2 * self.cosIO * sin2u
         xinck = xinc + 1.5 * temp2 * self.cosIO * self.sinIO * cos2u
         
@@ -773,10 +779,10 @@ class _SGDP4(object):
         
         temp0 = np.sqrt(a)
         temp2 = XKE / (a * temp0)
-        rdotk = ((XKE * temp0 * esinE * invR -temp2 * temp1 * self.x1mth2 * sin2u) * 
+        rdotk = ((XKE * temp0 * esinE * invR -temp2 * temp1 * x1mth2 * sin2u) * 
                  (XKMPER / AE * XMNPDA / 86400.0))
         rfdotk = ((XKE * np.sqrt(pl) * invR + temp2 * temp1 * 
-                  (self.x1mth2 * cos2u + 1.5 * self.x3thm1)) * 
+                  (x1mth2 * cos2u + 1.5 * x3thm1)) * 
                   (XKMPER / AE * XMNPDA / 86400.0))
             
         kep['radius'] = rk * XKMPER / AE

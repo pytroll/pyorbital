@@ -92,13 +92,20 @@ class Test(unittest.TestCase):
         self.assertFalse(np.any(np.abs(exp2 - lla[1]) > 0.1))        
         self.assertFalse(np.any(np.abs(exp3 - lla[2]) > 0.1))
     
+    def check_pos_vel(self, pos, pos_exp, vel, vel_exp):
+        self.assertFalse(np.any(np.abs(pos_exp - pos) > 1e-3))
+        self.assertFalse(np.any(np.abs(vel_exp - vel) > 1e-5))
+    
     @tmp    
     def test_deep_space_init(self):
         sat = orbital.Orbital('SL-6 R/B(2)',
             line1="1 16925U 86065D   06151.67415771  .02550794 -30915-6  18784-3 0  4486", 
             line2="2 16925 062.0906 295.0239 5596327 245.1593 047.9690 04.88511875148616")                  
         dt = timedelta(minutes=400)
-        sat.get_position(sat.tle.epoch + dt)
+        pos, vel = sat.get_position(sat.tle.epoch + dt, normalize=False)
+        pos_exp = np.array([12896.82145795, -4961.23861713, 18147.24024919])
+        vel_exp = np.array([-0.505583439452, 2.495617319061, 1.114910477512])
+        self.check_pos_vel(pos, pos_exp, vel, vel_exp)
         
 if __name__ == "__main__":
     unittest.main()

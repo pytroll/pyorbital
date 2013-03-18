@@ -37,6 +37,7 @@ ECC_ALL = 1.0e-4
 
 EPS_COS = 1.5e-12
 EPS_SIN = 1.0e-12
+EPS_COSIO = 1.5e-12
 
 NR_EPS = 1.0e-12
 
@@ -67,7 +68,7 @@ SGDP4_DEEP_RESN = 4
 SGDP4_DEEP_SYNC = 5
 
 KS = AE * (1.0 + S0 / XKMPER)
-A3OVK2 = (-XJ3 / CK2) * AE**3
+A3OVK2 = (-XJ3 / CK2) * AE ** 3
 
 ZNS = 1.19459e-5
 C1SS = 2.9864797e-6
@@ -668,6 +669,28 @@ class _SGDP4(object):
                 self._deep_space.dpper(e, xinc, omega, xnode, xmam, ts)
             print 'dpper'
             print 'e', e, 'xinc', xinc, 'omega', omega, 'xnode', xnode, 'xmam', xmam
+            
+            if xinc < 0:
+                xinc = -xinc
+                xnode += np.pi
+                omega -= np.pi
+                
+            xl = xmam + omega + xnode
+
+            # Re-compute the perturbed values            
+            sinIO = np.sin(xinc)
+            cosIO = np.cos(xinc)
+            theta2 = cosIO * cosIO
+            x3thm1 = 3.0 * theta2 - 1.0
+            x1mth2 = 1.0 - theta2
+            x7thm1 = 7.0 * theta2 - 1.0
+
+            # Check for possible divide-by-zero for X/(1+cosIO) when calculating xlcof            
+            temp0 = 1.0 + cosIO
+            temp0 = np.where(np.abs(temp0) < EPS_COSIO, np.sign(temp0) * EPS_COSIO, temp0)
+
+            xlcof = 0.125 * A3OVK2 * sinIO * (3.0 + 5.0 * cosIO) / temp0
+            aycof = 0.25 * A3OVK2 * sinIO
             
         if np.any(a < 1):
             raise Exception('Satellite crased at time %s', utc_time)

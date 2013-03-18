@@ -47,7 +47,8 @@ QOMS2T = 1.88027916e-9
 S = 1.01222928
 S0 = 78.0
 XJ3 = -0.253881e-5
-XKE = 0.743669161e-1
+#XKE = 0.743669161e-1
+XKE = 7.43669161331734132e-2
 XKMPER = 6378.135
 XMNPDA = 1440.0
 #MFACTOR = 7.292115E-5
@@ -67,6 +68,19 @@ SGDP4_DEEP_SYNC = 5
 
 KS = AE * (1.0 + S0 / XKMPER)
 A3OVK2 = (-XJ3 / CK2) * AE**3
+
+ZNS = 1.19459e-5
+C1SS = 2.9864797e-6
+ZES = 0.01675
+
+ZNL = 1.5835218e-4
+C1L = 4.7968065e-7
+ZEL = 0.0549
+
+ZCOSIS = 0.91744867
+ZSINIS = 0.39785416
+ZCOSGS = 0.1945905
+ZSINGS = -0.98088458
 
 class OrbitalError(Exception):
     pass
@@ -88,8 +102,10 @@ class Orbital(object):
         self.orbit_elements = OrbitElements(self.tle)
         self._sgdp4 = _SGDP4(self.orbit_elements)
         
+        """
         pos_epoch, vel_epoch = self.get_position(self.tle.epoch, 
                                                  normalize=False)
+        
         if np.abs(pos_epoch[2]) > 1 or not vel_epoch[2] > 0:
             # Epoch not at ascending node
             self.orbit_elements.an_time = self.get_last_an_time(self.tle.epoch)
@@ -98,7 +114,7 @@ class Orbital(object):
             self.orbit_elements.an_time = self.tle.epoch
             
         self.orbit_elements.an_period = self.orbit_elements.an_time - \
-                        self.get_last_an_time(self.orbit_elements.an_time)    
+                        self.get_last_an_time(self.orbit_elements.an_time)    """
             
 
     def __str__(self):
@@ -445,6 +461,7 @@ class _SGDP4(object):
 
         perigee = orbit_elements.perigee
         self.eo = orbit_elements.excentricity
+        print 'eo', self.eo
         self.xincl = orbit_elements.inclination
         self.xno = orbit_elements.original_mean_motion
         k_2 = CK2
@@ -608,7 +625,7 @@ class _SGDP4(object):
         kep = {}
 
         ts = astronomy._days(utc_time - self.t_0) * XMNPDA
-
+        print 'ts', ts
         em = self.eo
         xinc = self.xincl
         
@@ -634,8 +651,24 @@ class _SGDP4(object):
             xl = xmp + omega + xnode + self.xnodp * templ
 
         else:
-            raise  NotImplementedError('Deep space calculations not supported')
-
+            #raise  NotImplementedError('Deep space calculations not supported')
+            tempa = 1.0 - ts * self.c1
+            tempe = self.bstar * ts * self.c4
+            templ = ts * ts * self.t2cof
+            xn = self.xnodp
+            xmp, omega, xnode, em, xinc, xn = \
+                self._deep_space.dpsec(xmp, omega, xnode, em, xinc, xn, ts)
+            print 'xmp', xmp, 'omega', omega, 'xnode', xnode, 'em', em, 'xinc', xinc, 'xn', xn
+            a = (XKE / xn) ** (2. / 3.) * tempa ** 2
+            e = em - tempe
+            xmam = xmp + self.xnodp * templ
+            print 'xnodp', self.xnodp, 'templ', templ
+            print 'a', a, 'e', e, 'xmam', xmam
+            e, xinc, omega, xnode, xmam = \
+                self._deep_space.dpper(e, xinc, omega, xnode, xmam, ts)
+            print 'dpper'
+            print 'e', e, 'xinc', xinc, 'omega', omega, 'xnode', xnode, 'xmam', xmam
+            
         if np.any(a < 1):
             raise Exception('Satellite crased at time %s', utc_time)
         elif np.any(e < ECC_LIMIT_LOW):
@@ -811,8 +844,8 @@ class _DeepSpace(object):
         gam = jd1900 * 0.001944368 + 5.8351514
         print 'c', c
         print 'gam', gam
-        zmol = mod2pi(c - gam)
-        print 'zmol',  zmol
+        self.zmol = mod2pi(c - gam)
+        print 'zmol',  self.zmol
         zx = stem * 0.39785416 / zsinil
         zy = zcoshl * ctem + zsinhl * 0.91744867 * stem
         zx = np.arctan2(zx, zy)
@@ -820,22 +853,22 @@ class _DeepSpace(object):
         print 'zx', zx
         zsingl = np.sin(zx)
         zcosgl = np.cos(zx)
-        zmos = mod2pi(jd1900 * 0.017201977 + 6.2565837)
+        self.zmos = mod2pi(jd1900 * 0.017201977 + 6.2565837)
         print 'zsingl', zsingl 
         print 'zcosgl', zcosgl
-        print 'zmos', zmos
+        print 'zmos', self.zmos
         
         # Do solar terms
-        zcosg = 0.1945905
-        zsing = -0.98088458
+        zcosg = ZCOSGS
+        zsing = ZSINGS
         zcosi = 0.91744867
         zsini = 0.39785416
         zcosh = cosq
         zsinh = sinq
-        cc = 2.9864797e-6
-        zn = 1.19459e-5
-        ze = 0.01675
-        zmo = zmos
+        cc = C1SS
+        zn = ZNS
+        ze = ZES
+        zmo = self.zmos
         xnoi = 1. / xnq
         
         for ls in range(2):
@@ -894,58 +927,59 @@ class _DeepSpace(object):
                 sh = -zn * s2 * (z21 + z23)
                 shdq = sh / siniq
                 
-            ee2 = s1 * 2.0 * s6
-            e3 = s1 * 2.0 * s7
-            xi2 = s2 * 2.0 * z12
-            xi3 = s2 * 2.0 * (z13 - z11)
-            xl2 = s3 * -2.0 * z2
-            xl3 = s3 * -2.0 * (z3 - z1)
-            xl4 = s3 * -2.0 * (-21.0 - eqsq * 9.0) * ze
-            xgh2 = s4 * 2.0 * z32
-            xgh3 = s4 * 2.0 * (z33 - z31)
-            xgh4 = s4 * -18.0 * ze
-            xh2 = s2 * -2.0 * z22
-            xh3 = s2 * -2.0 * (z23 - z21)
-            print 'xh3', xh3
+            self.ee2 = s1 * 2.0 * s6
+            self.e3 = s1 * 2.0 * s7
+            self.xi2 = s2 * 2.0 * z12
+            self.xi3 = s2 * 2.0 * (z13 - z11)
+            self.xl2 = s3 * -2.0 * z2
+            self.xl3 = s3 * -2.0 * (z3 - z1)
+            self.xl4 = s3 * -2.0 * (-21.0 - eqsq * 9.0) * ze
+            self.xgh2 = s4 * 2.0 * z32
+            self.xgh3 = s4 * 2.0 * (z33 - z31)
+            self.xgh4 = s4 * -18.0 * ze
+            self.xh2 = s2 * -2.0 * z22
+            self.xh3 = s2 * -2.0 * (z23 - z21)
+            print 'xh3', self.xh3
             
+            # Break on second iteration
             if ls == 1:
                 break
             
             # Do lunar terms
-            sse = se
-            ssi = si
-            ssl = sl
-            ssh = shdq
-            ssg = sgh - cosiq * ssh
-            se2 = ee2
-            si2 = xi2
-            sl2 = xl2
-            sgh2 = xgh2
-            sh2 = xh2
-            se3 = e3
-            si3 = xi3
-            sl3 = xl3
-            sgh3 = xgh3
-            sh3 = xh3
-            sl4 = xl4
-            sgh4 = xgh4
+            self.sse = se
+            self.ssi = si
+            self.ssl = sl
+            self.ssh = shdq
+            self.ssg = sgh - cosiq * self.ssh
+            self.se2 = self.ee2
+            self.si2 = self.xi2
+            self.sl2 = self.xl2
+            self.sgh2 = self.xgh2
+            self.sh2 = self.xh2
+            self.se3 = self.e3
+            self.si3 = self.xi3
+            self.sl3 = self.xl3
+            self.sgh3 = self.xgh3
+            self.sh3 = self.xh3
+            self.sl4 = self.xl4
+            self.sgh4 = self.xgh4
             zcosg = zcosgl
             zsing = zsingl
             zcosi = zcosil
             zsini = zsinil;
             zcosh = zcoshl * cosq + zsinhl * sinq
             zsinh = sinq * zcoshl - cosq * zsinhl
-            zn = 1.5835218e-4
-            cc = 4.7968065e-7
-            ze = 0.0549
-            zmo = zmol
+            zn = ZNL
+            cc = C1L
+            ze = ZEL
+            zmo = self.zmol
         
-        sse += se
-        ssi += si
-        ssl += sl
-        ssg += sgh - cosiq * shdq
-        ssh += shdq
-        print 'ssg', ssg
+        self.sse += se
+        self.ssi += si
+        self.ssl += sl
+        self.ssg += sgh - cosiq * shdq
+        self.ssh += shdq
+        print 'ssg', self.ssg
         
         if 0.0034906585 < xnq < 0.0052359877:
             raise NotImplementedError('24h resonance not implemented')
@@ -959,7 +993,77 @@ class _DeepSpace(object):
             self.mode = SGDP4_DEEP_NORM
         else:
             raise NotImplementedError('Only normal deep space init')
-            
+
+    def dpsec(self, xmp, omega, xnode, ema, xinca, xna, tsince):
+        xll = xmp + self.ssl * tsince
+        omgasm = omega + self.ssg * tsince
+        xnodes = xnode + self.ssh * tsince
+        em = ema + self.sse * tsince
+        xinc = xinca + self.ssi * tsince
+        
+        if not self.iresfl:
+            return xll, omgasm, xnodes, em, xinc, xna
+        else:
+            raise NotImplementedError('Only normal deep space')    
+
+    def dpper(self, e, xinca, omega, xnode, xmam, ts):
+        pgh, ph, pe, pinc, pl = self.compute_lunar_solar(ts)
+        print 'pgh', pgh, 'ph', ph, 'pe', pe, 'pinc', pinc, 'pl', pl 
+        xinc = xinca + pinc
+        em = e + pe
+        sinis = np.sin(xinc)
+        cosis = np.cos(xinc)
+        
+        if self.ilsd:
+            tmp_ph = ph / sinis
+            omgasm = omega + pgh - cosis * tmp_ph
+            xnodes = xnode + tmp_ph
+            xll = xmam + pl            
+        else:
+            raise NotImplementedError('Lyddane modifications not implemented')    
+        
+        return em, xinc, omgasm, xnodes, xll
+    
+    def compute_lunar_solar(self, tsince):
+        
+        # Update Solar terms
+        zm = self.zmos + ZNS * tsince
+        zf = zm + ZES * 2. * np.sin(zm)
+        sinzf = np.sin(zf)
+        coszf = np.cos(zf)
+        f2 = sinzf * 0.5 * sinzf - 0.25
+        f3 = sinzf * -0.5 * coszf
+        ses  = self.se2 * f2 + self.se3 * f3
+        sis  = self.si2 * f2 + self.si3 * f3
+        sls  = self.sl2 * f2 + self.sl3 * f3 + self.sl4 * sinzf
+        
+        sghs = self.sgh2 * f2 + self.sgh3 * f3 + self.sgh4 * sinzf
+        shs  = self.sh2  * f2 + self.sh3  * f3
+        
+        # Update Lunar terms
+        zm = self.zmol + ZNL * tsince
+        zf = zm + ZEL * 2.0 * np.sin(zm)
+        sinzf = np.sin(zf)
+        coszf = np.cos(zf)
+        f2 = sinzf * 0.5 * sinzf - 0.25
+        f3 = sinzf * -0.5 * coszf
+        
+        sel = self.ee2 * f2 + self.e3 * f3
+        sil = self.xi2 * f2 + self.xi3 * f3
+        sll = self.xl2 * f2 + self.xl3 * f3 + self.xl4 * sinzf
+        
+        sghl = self.xgh2 * f2 + self.xgh3 * f3 + self.xgh4 * sinzf
+        shl  = self.xh2  * f2 + self.xh3  * f3
+        
+        pgh = sghs + sghl
+        ph = shs + shl
+        pe = ses + sel
+        pinc = sis + sil
+        pl = sls + sll
+        
+        return pgh, ph, pe, pinc, pl
+        
+        
 def kep2xyz(kep):
     sinT = np.sin(kep['theta'])
     cosT = np.cos(kep['theta'])

@@ -7,6 +7,10 @@ from pyorbital import orbital
 
 eps_deg = 10e-3
 
+def tmp(f):
+    f.tmp = True
+    return f
+
 class Test(unittest.TestCase):
 
     def test_get_orbit_number(self):
@@ -42,7 +46,8 @@ class Test(unittest.TestCase):
         expected_el = 1.9800219611255456
         self.failUnless(np.abs(az - expected_az) < eps_deg, 'Calculation of azimut failed')
         self.failUnless(np.abs(el - expected_el) < eps_deg, 'Calculation of elevation failed')
-        
+    
+    
     def test_orbit_num_an(self):
         sat = orbital.Orbital("METOP-A", 
             line1="1 29499U 06044A   11254.96536486  .00000092  00000-0  62081-4 0  5221", 
@@ -71,7 +76,7 @@ class Test(unittest.TestCase):
         pos2, vel2 = sat.get_position(t2, normalize=False)
         self.assertTrue(pos1[2] < 0)
         self.assertTrue(pos2[2] > 0)
-        
+      
     def test_orbit_array(self):
         sat = orbital.Orbital("SUOMI NPP", 
             line1="1 37849U 11061A   13061.24611272  .00000048  00000-0  43679-4 0  4334", 
@@ -86,11 +91,14 @@ class Test(unittest.TestCase):
         self.assertFalse(np.any(np.abs(exp1 - lla[0]) > 0.1))
         self.assertFalse(np.any(np.abs(exp2 - lla[1]) > 0.1))        
         self.assertFalse(np.any(np.abs(exp3 - lla[2]) > 0.1))
-        
+    
+    @tmp    
     def test_deep_space_init(self):
         sat = orbital.Orbital('SL-6 R/B(2)',
             line1="1 16925U 86065D   06151.67415771  .02550794 -30915-6  18784-3 0  4486", 
             line2="2 16925 062.0906 295.0239 5596327 245.1593 047.9690 04.88511875148616")                  
+        dt = timedelta(minutes=400)
+        sat.get_position(sat.tle.epoch + dt)
         
 if __name__ == "__main__":
     unittest.main()

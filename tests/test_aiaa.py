@@ -48,6 +48,7 @@ class LineOrbital(Orbital):
 def get_results(satnumber, delay):
     """Get expected results from result file.
     """
+    print 'get for', satnumber
     path = os.path.dirname(os.path.abspath(__file__))
     with open(os.path.join(path, "aiaa_results")) as f_2:
         line = f_2.readline()
@@ -56,6 +57,8 @@ def get_results(satnumber, delay):
                 line = f_2.readline()
                 while(not line.startswith("%.8f"%delay)):
                     line = f_2.readline()
+                    if line == '':
+                        raise ValueError('Could not find requested results for satnumber %s' % satnumber)
                 sline = line.split()
                 if delay == 0:
                     utc_time = None
@@ -72,6 +75,7 @@ def get_results(satnumber, delay):
                         float(sline[6]),
                         utc_time)
             line = f_2.readline()
+            #print line
 
 class AIAAIntegrationTest(unittest.TestCase):
     """Test against the AIAA test cases.
@@ -115,9 +119,11 @@ class AIAAIntegrationTest(unittest.TestCase):
                             warn(test_name + ' ' + str(e))
                             break
 
-                        delta_pos = 5e-6 # km =  5 mm
-                        delta_vel = 5e-9 # km/s = 5 um/s
+                        delta_pos = 1e-3 # km =  1 m
+                        delta_vel = 1e-5 # km/s = 1 cm/s
                         delta_time = 1e-3 # 1 milisecond
+                        print res
+                        print pos
                         self.assertTrue(abs(res[0] - pos[0]) < delta_pos)
                         self.assertTrue(abs(res[1] - pos[1]) < delta_pos)
                         self.assertTrue(abs(res[2] - pos[2]) < delta_pos)
@@ -129,7 +135,7 @@ class AIAAIntegrationTest(unittest.TestCase):
                             self.assertTrue(abs(dt) < delta_time)
                         
                 test_line = f__.readline()
-        
+                
 
 if __name__ == '__main__':
     unittest.main()

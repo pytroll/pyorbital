@@ -117,5 +117,10 @@ class Test(unittest.TestCase):
         vel_exp = np.array([-1.768068392665, -3.235371190739, -0.395206136024])
         self.check_pos_vel(pos, pos_exp, vel, vel_exp)
         
+        dt = timedelta(minutes=-5064)
+        pos, vel = sat.get_position(sat.tle.epoch + dt, normalize=False)
+        print pos
+        print vel
+        
 if __name__ == "__main__":
     unittest.main()

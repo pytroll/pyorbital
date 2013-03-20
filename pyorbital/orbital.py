@@ -656,6 +656,8 @@ class _SGDP4(object):
             x7thm1 = self.x7thm1
             xlcof = self.xlcof
             aycof = self.aycof
+            sinIO = self.sinIO
+            cosIO = self.cosIO
             
         else:
             #raise  NotImplementedError('Deep space calculations not supported')
@@ -771,8 +773,8 @@ class _SGDP4(object):
 
         rk = r * (1.0 - 1.5 * temp2 * betal * x3thm1) + 0.5 * temp1 * x1mth2 * cos2u
         uk = u - 0.25 * temp2 * x7thm1 * sin2u
-        xnodek = xnode + 1.5 * temp2 * self.cosIO * sin2u
-        xinck = xinc + 1.5 * temp2 * self.cosIO * self.sinIO * cos2u
+        xnodek = xnode + 1.5 * temp2 * cosIO * sin2u
+        xinck = xinc + 1.5 * temp2 * cosIO * sinIO * cos2u
         
         if np.any(rk < 1):
             raise Exception('Satellite crashed at time %s', utc_time)
@@ -794,6 +796,7 @@ class _SGDP4(object):
         kep['rdotk'] = rdotk 
         kep['rfdotk'] = rfdotk
 
+        print 'kep:', kep
         return kep   
 
 

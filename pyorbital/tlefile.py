@@ -99,7 +99,7 @@ class Tle(object):
                     check += 1
 
             if (check % 10) != int(line[-1]):
-                raise ChecksumError(self._platform + " " + line)
+                raise ChecksumError("Checksum error for: " + self._platform + " " + line)
 
     def _read_tle(self):
 

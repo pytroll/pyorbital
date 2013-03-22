@@ -97,6 +97,8 @@ G54 = 4.4108898
 
 THDT = 4.37526908801129966e-3
 
+STEP = 720.0
+
 
 class OrbitalError(Exception):
     pass
@@ -734,9 +736,11 @@ class _SGDP4(object):
         temp0 = 1.0 / (a * beta2)
         axn = e * cosOMG
         ayn = e * sinOMG + temp0 * aycof
+        print 'axn', axn, 'ayn', ayn
         xlt = xl + temp0 * xlcof * axn
 
         elsq = axn ** 2 + ayn ** 2
+        print 'elsq', elsq
         
         if np.any(elsq >= 1):
             raise Exception('e**2 >= 1 at %s', utc_time)
@@ -744,6 +748,7 @@ class _SGDP4(object):
         kep['ecc'] = np.sqrt(elsq)
         
         epw = np.fmod(xlt - xnode, 2 * np.pi)
+        print 'pre epw', epw
         # needs a copy in case of an array
         capu = np.array(epw)
         maxnr = kep['ecc']
@@ -767,17 +772,28 @@ class _SGDP4(object):
                           np.sign(nr) * maxnr,
                           f / (df + 0.5*esinE*nr))
             epw += nr
-			
+            
+        print 'post epw', epw    
+        print 'sinEPW', sinEPW
+        print 'cosEPW', cosEPW
+        print 'ecosE', ecosE
+        print 'axn * cosEPW', axn * cosEPW
+        print 'ayn * sinEPW', ayn * sinEPW
+        
         # Short period preliminary quantities 
         temp0 = 1.0 - elsq
         betal = np.sqrt(temp0)
         pl = a * temp0
         r = a * (1.0 - ecosE)
+        print 'r', r
         invR = 1.0 / r
         temp2 = a * invR
+        print 'temp2', temp2
         temp3 = 1.0 / (1.0 + betal)
+        print 'temp3', temp3
         cosu = temp2 * (cosEPW - axn + ayn * esinE * temp3)
         sinu = temp2 * (sinEPW - ayn - axn * esinE * temp3)
+        print 'cosu', cosu, 'sinu', sinu  
         u = np.arctan2(sinu, cosu)
         sin2u = 2.0 * sinu * cosu
         cos2u = 2.0 * cosu**2 - 1.0
@@ -789,6 +805,7 @@ class _SGDP4(object):
 
         rk = r * (1.0 - 1.5 * temp2 * betal * x3thm1) + 0.5 * temp1 * x1mth2 * cos2u
         uk = u - 0.25 * temp2 * x7thm1 * sin2u
+        print 'u', u, 'temp2', temp2, 'x7thm1', x7thm1, 'sin2u', sin2u
         xnodek = xnode + 1.5 * temp2 * cosIO * sin2u
         xinck = xinc + 1.5 * temp2 * cosIO * sinIO * cos2u
         
@@ -861,8 +878,8 @@ class _DeepSpace(object):
         bsq = 1 - eqsq
         rteqsq = np.sqrt(bsq)
         print 'rteqsq', rteqsq
-        thgr = astronomy.gmst(epoch)
-        print 'thgr',thgr
+        self.thgr = astronomy.gmst(epoch)
+        print 'thgr', self.thgr
         
         xnq = xnodp
         aqnv = 1. / ao
@@ -1102,7 +1119,7 @@ class _DeepSpace(object):
             temp0 = temp1 * 2.0 * ROOT54
             self.d5421 = temp0 * f542 * g521
             self.d5433 = temp0 * f543 * g533
-            xlamo = xmao + xnodeo + xnodeo - thgr - thgr
+            xlamo = xmao + xnodeo + xnodeo - self.thgr - self.thgr
             bfact = xlldot + xnodot + xnodot - THDT - THDT
             bfact += self.ssl + self.ssh + self.ssh
             
@@ -1119,7 +1136,7 @@ class _DeepSpace(object):
             self.xli = xlamo
             self.xni = xnq
             
-            self.xnddt0, self.xndot0, self.xldot0, = self.dot_terms_calculated(0.0)
+            self.xnddt0, self.xndot0, self.xldot0, = self.dot_terms_calculated(0.0, self.xli, self.xni)
             
             if self.isynfl:
                 self.mode = SGDP4_DEEP_SYNC
@@ -1133,10 +1150,43 @@ class _DeepSpace(object):
         em = ema + self.sse * tsince
         xinc = xinca + self.ssi * tsince
         
-        if not self.iresfl:
-            return xll, omgasm, xnodes, em, xinc, xna
-        else:
-            raise NotImplementedError('Only normal deep space')    
+        #if not self.iresfl:
+        #    return xll, omgasm, xnodes, em, xinc, xna
+        #else:
+        if self.iresfl:
+            #raise NotImplementedError('Only normal deep space')
+            xni = self.xni
+            xli = self.xli
+            
+            xnddt = self.xnddt0
+            xndot = self.xndot0
+            xldot = self.xldot0
+            
+            print 'xni', xni, 'xli', xli
+            
+            delt = np.sign(tsince) * STEP
+            ft = 0
+            while np.abs(tsince - ft) >= STEP:
+                xli += delt * (xldot + delt * 0.5 * xndot)
+                xni += delt * (xndot + delt * 0.5 * xnddt)
+                ft += delt
+                xnddt, xndot, xldot = self.dot_terms_calculated(ft, xli, xni)
+                
+            
+            print 'integrated xni', xni, 'xli', xli, 'ft', ft
+            
+            dt = tsince - ft 
+            xl = xli + dt * (xldot + dt * 0.5 * xndot)
+            xna = xni + dt * (xndot + dt * 0.5 * xnddt)
+            
+            temp0 = -xnodes + self.thgr + tsince * THDT
+            
+            if not self.isynfl:
+                xll = xl + 2 * temp0
+            else:
+                xll = xl - omgasm + temp0
+                
+        return xll, omgasm, xnodes, em, xinc, xna
 
     def dpper(self, e, xinca, omega, xnode, xmam, ts):
         pgh, ph, pe, pinc, pl = self.compute_lunar_solar(ts)
@@ -1195,43 +1245,43 @@ class _DeepSpace(object):
         
         return pgh, ph, pe, pinc, pl
 
-    def dot_terms_calculated(self, atime):
+    def dot_terms_calculated(self, atime, xli, xni):
         if self.isynfl:
-            xndot = (self.del1 * np.sin(self.xli - self.fasx2)
-                     + self.del2 * np.sin((self.xli - self.fasx4) * 2.0)
-                     + del3 * np.sin((self.xli - self.fasx6) * 3.0))
+            xndot = (self.del1 * np.sin(xli - self.fasx2)
+                     + self.del2 * np.sin((xli - self.fasx4) * 2.0)
+                     + self.del3 * np.sin((xli - self.fasx6) * 3.0))
 
-            xnddt = (self.del1 * np.cos(self.xli - self.fasx2)
-                     + self.del2 * np.cos((self.xli - self.fasx4) * 2.0) * 2.0
-                     + self.del3 * np.cos((self.xli - self.fasx6) * 3.0) * 3.0)
+            xnddt = (self.del1 * np.cos(xli - self.fasx2)
+                     + self.del2 * np.cos((xli - self.fasx4) * 2.0) * 2.0
+                     + self.del3 * np.cos((xli - self.fasx6) * 3.0) * 3.0)
         else:
             xomi = self.omegaq + self.omgdt * atime
             x2omi = 2 * xomi
-            x2li = 2 * self.xli
+            x2li = 2 * xli
 
-            xndot = (self.d2201 * np.sin(x2omi + self.xli - G22)
-                     + self.d2211 * np.sin(self.xli - G22)
-                     + self.d3210 * np.sin(xomi + self.xli - G32)
-                     + self.d3222 * np.sin(-xomi + self.xli - G32)
-                     + self.d5220 * np.sin(xomi + self.xli - G52)
-                     + self.d5232 * np.sin(-xomi + self.xli - G52)
+            xndot = (self.d2201 * np.sin(x2omi + xli - G22)
+                     + self.d2211 * np.sin(xli - G22)
+                     + self.d3210 * np.sin(xomi + xli - G32)
+                     + self.d3222 * np.sin(-xomi + xli - G32)
+                     + self.d5220 * np.sin(xomi + xli - G52)
+                     + self.d5232 * np.sin(-xomi + xli - G52)
                      + self.d4410 * np.sin(x2omi + x2li - G44)
                      + self.d4422 * np.sin(x2li - G44)
                      + self.d5421 * np.sin(xomi + x2li - G54)
                      + self.d5433 * np.sin(-xomi + x2li - G54))
 
-            xnddt = (self.d2201 * np.cos(x2omi + self.xli - G22)
-                     + self.d2211 * np.cos(self.xli - G22)
-                     + self.d3210 * np.cos(xomi + self.xli - G32)
-                     + self.d3222 * np.cos(-xomi + self.xli - G32)
-                     + self.d5220 * np.cos(xomi + self.xli - G52)
-                     + self.d5232 * np.cos(-xomi + self.xli - G52)
+            xnddt = (self.d2201 * np.cos(x2omi + xli - G22)
+                     + self.d2211 * np.cos(xli - G22)
+                     + self.d3210 * np.cos(xomi + xli - G32)
+                     + self.d3222 * np.cos(-xomi + xli - G32)
+                     + self.d5220 * np.cos(xomi + xli - G52)
+                     + self.d5232 * np.cos(-xomi + xli - G52)
                      + (self.d4410 * np.cos(x2omi + x2li - G44)
                      +  self.d4422 * np.cos(x2li - G44)
                      +  self.d5421 * np.cos(xomi + x2li - G54)
                      +  self.d5433 * np.cos(-xomi + x2li - G54)) * 2.0)
 
-        xldot = self.xni + self.xfact
+        xldot = xni + self.xfact
         xnddt *= xldot
     
         return xnddt, xndot, xldot         

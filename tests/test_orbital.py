@@ -127,6 +127,8 @@ class Test(unittest.TestCase):
             line2="2 08195  64.1586 279.0717 6877146 264.7651  20.2257  2.00491383225656")                  
         dt = timedelta(minutes=2880)
         pos, vel = sat.get_position(sat.tle.epoch + dt, normalize=False)
+        print pos
+        print vel
         
 if __name__ == "__main__":
     unittest.main()

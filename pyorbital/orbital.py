@@ -83,6 +83,21 @@ ZSINIS = 0.39785416
 ZCOSGS = 0.1945905
 ZSINGS = -0.98088458
 
+ROOT22 = 1.7891679e-6
+ROOT32 = 3.7393792e-7
+ROOT44 = 7.3636953e-9
+ROOT52 = 1.1428639e-7
+ROOT54 = 2.1765803e-9
+
+G22 = 5.7686396
+G32 = 0.95240898
+G44 = 1.8014998
+G52 = 1.0508330
+G54 = 4.4108898
+
+THDT = 4.37526908801129966e-3
+
+
 class OrbitalError(Exception):
     pass
 
@@ -103,10 +118,11 @@ class Orbital(object):
         self.orbit_elements = OrbitElements(self.tle)
         self._sgdp4 = _SGDP4(self.orbit_elements)
         
-        """
+        
         pos_epoch, vel_epoch = self.get_position(self.tle.epoch, 
                                                  normalize=False)
         
+        """
         if np.abs(pos_epoch[2]) > 1 or not vel_epoch[2] > 0:
             # Epoch not at ascending node
             self.orbit_elements.an_time = self.get_last_an_time(self.tle.epoch)
@@ -115,7 +131,7 @@ class Orbital(object):
             self.orbit_elements.an_time = self.tle.epoch
             
         self.orbit_elements.an_period = self.orbit_elements.an_time - \
-                        self.get_last_an_time(self.orbit_elements.an_time)    """
+                        self.get_last_an_time(self.orbit_elements.an_time)"""
             
 
     def __str__(self):
@@ -840,7 +856,7 @@ class _DeepSpace(object):
         print cosiq2, siniq2
         
         ao = aodp
-        omgdt = omgdot
+        self.omgdt = omgdot
         eqsq = eo ** 2
         bsq = 1 - eqsq
         rteqsq = np.sqrt(bsq)
@@ -851,9 +867,9 @@ class _DeepSpace(object):
         xnq = xnodp
         aqnv = 1. / ao
         xmao = xmo
-        xpidot = omgdt + xnodot
+        xpidot = self.omgdt + xnodot
         print 'xpidot', xpidot
-        omegaq = omegao
+        self.omegaq = omegao
         
         # Initialize lunar terms.
         # Note: the Dundee reference code d50 is off by 1 day
@@ -1016,7 +1032,80 @@ class _DeepSpace(object):
         if 0.0034906585 < xnq < 0.0052359877:
             raise NotImplementedError('24h resonance not implemented')
         elif 0.00826 <= xnq <= 0.00924 and eq >= 0.5:
-            raise NotImplementedError('12h resonance not implemented')
+            #raise NotImplementedError('12h resonance not implemented')
+            self.iresfl = 1
+            self.isynfl = 0
+            eoc = eq * eqsq
+            g201 = -0.306 - (eq - 0.64) * 0.44
+
+            if eq <= 0.65:
+                g211 = 3.616 - eq * 13.247 + eqsq * 16.29
+                g310 = eq * 117.39 - 19.302 - eqsq * 228.419 + eoc * 156.591
+                g322 = eq * 109.7927 - 18.9068 - eqsq * 214.6334 + eoc * 146.5816
+                g410 = eq * 242.694 - 41.122 - eqsq * 471.094 + eoc * 313.953
+                g422 = eq * 841.88 - 146.407 - eqsq * 1629.014 + eoc * 1083.435
+                g520 = eq * 3017.977 - 532.114 - eqsq * 5740.032 + eoc * 3708.276
+            else:
+                g211 = eq * 331.819 - 72.099 - eqsq * 508.738 + eoc * 266.724
+                g310 = eq * 1582.851 - 346.844 - eqsq * 2415.925 + eoc * 1246.113
+                g322 = eq * 1554.908 - 342.585 - eqsq * 2366.899 + eoc * 1215.972
+                g410 = eq * 4758.686 - 1052.797 - eqsq * 7193.992 + eoc * 3651.957
+                g422 = eq * 16178.11 - 3581.69 - eqsq * 24462.77 + eoc * 12422.52
+    
+                if eq <= 0.715:
+                    g520 = 1464.74 - eq * 4664.75 + eqsq * 3763.64
+                else:
+                    g520 = eq * 29936.92 - 5149.66 - eqsq * 54087.36 + eoc * 31324.56
+    
+            if eq < 0.7:
+                g533 = eq * 4988.61 - 919.2277 - eqsq * 9064.77 + eoc * 5542.21
+                g521 = eq * 4568.6173 - 822.71072 - eqsq * 8491.4146 + eoc * 5337.524
+                g532 = eq * 4690.25 - 853.666 - eqsq * 8624.77 + eoc * 5341.4
+            else:
+                g533 = eq * 161616.52 - 37995.78 - eqsq * 229838.2 + eoc * 109377.94
+                g521 = eq * 218913.95 - 51752.104 - eqsq * 309468.16 + eoc * 146349.42
+                g532 = eq * 170470.89 - 40023.88 - eqsq * 242699.48 + eoc * 115605.82
+
+            f220 = (cosiq * 2.0 + 1.0 + cosiq2) * 0.75
+            f221 = siniq2 * 1.5
+            f321 = siniq * 1.875 * (1.0 - cosiq * 2.0 - cosiq2 * 3.0)
+            f322 = siniq * -1.875 * (cosiq * 2.0 + 1.0 - cosiq2 * 3.0)
+            f441 = siniq2 * 35.0 * f220
+            f442 = siniq2 * 39.375 * siniq2
+            f522 = (siniq * 9.84375 * (siniq2 * (1.0 - cosiq *
+                    2.0 - cosiq2 * 5.0) + (cosiq * 4.0 - 2.0 + cosiq2 * 6.0) * 0.33333333))
+            f523 = (siniq * (siniq2 * 4.92187512 * (-2.0 - cosiq *
+                    4.0 + cosiq2 * 10.0) + (cosiq * 2.0 +
+                    1.0 - cosiq2 * 3.0) * 6.56250012))
+            f542 = (siniq * 29.53125 * (2.0 - cosiq * 8.0 +
+                    cosiq2 * (cosiq * 8.0 - 12.0 + cosiq2 * 10.0)))
+            f543 = (siniq * 29.53125 * (-2.0 - cosiq * 8.0 +
+                    cosiq2 * (cosiq * 8.0 + 12.0 - cosiq2 * 10.0)))
+            xno2 = xnq * xnq
+            ainv2 = aqnv * aqnv
+            temp1 = xno2 * 3.0 * ainv2
+            temp0 = temp1 * ROOT22
+            self.d2201 = temp0 * f220 * g201
+            self.d2211 = temp0 * f221 * g211
+            temp1 *= aqnv
+            temp0 = temp1 * ROOT32
+            self.d3210 = temp0 * f321 * g310
+            self.d3222 = temp0 * f322 * g322
+            temp1 *= aqnv
+            temp0 = temp1 * 2.0 * ROOT44
+            self.d4410 = temp0 * f441 * g410
+            self.d4422 = temp0 * f442 * g422
+            temp1 *= aqnv
+            temp0 = temp1 * ROOT52
+            self.d5220 = temp0 * f522 * g520
+            self.d5232 = temp0 * f523 * g532
+            temp0 = temp1 * 2.0 * ROOT54
+            self.d5421 = temp0 * f542 * g521
+            self.d5433 = temp0 * f543 * g533
+            xlamo = xmao + xnodeo + xnodeo - thgr - thgr
+            bfact = xlldot + xnodot + xnodot - THDT - THDT
+            bfact += self.ssl + self.ssh + self.ssh
+            
         else:
             self.iresfl = False
             self.isynfl = False
@@ -1024,7 +1113,18 @@ class _DeepSpace(object):
         if not self.iresfl:
             self.mode = SGDP4_DEEP_NORM
         else:
-            raise NotImplementedError('Only normal deep space init')
+            #raise NotImplementedError('Only normal deep space init')
+            # Integrator initialization
+            self.xfact = bfact - xnq
+            self.xli = xlamo
+            self.xni = xnq
+            
+            self.xnddt0, self.xndot0, self.xldot0, = self.dot_terms_calculated(0.0)
+            
+            if self.isynfl:
+                self.mode = SGDP4_DEEP_SYNC
+            else:
+                self.mode = SGDP4_DEEP_RESN
 
     def dpsec(self, xmp, omega, xnode, ema, xinca, xna, tsince):
         xll = xmp + self.ssl * tsince
@@ -1094,7 +1194,47 @@ class _DeepSpace(object):
         pl = sls + sll
         
         return pgh, ph, pe, pinc, pl
-        
+
+    def dot_terms_calculated(self, atime):
+        if self.isynfl:
+            xndot = (self.del1 * np.sin(self.xli - self.fasx2)
+                     + self.del2 * np.sin((self.xli - self.fasx4) * 2.0)
+                     + del3 * np.sin((self.xli - self.fasx6) * 3.0))
+
+            xnddt = (self.del1 * np.cos(self.xli - self.fasx2)
+                     + self.del2 * np.cos((self.xli - self.fasx4) * 2.0) * 2.0
+                     + self.del3 * np.cos((self.xli - self.fasx6) * 3.0) * 3.0)
+        else:
+            xomi = self.omegaq + self.omgdt * atime
+            x2omi = 2 * xomi
+            x2li = 2 * self.xli
+
+            xndot = (self.d2201 * np.sin(x2omi + self.xli - G22)
+                     + self.d2211 * np.sin(self.xli - G22)
+                     + self.d3210 * np.sin(xomi + self.xli - G32)
+                     + self.d3222 * np.sin(-xomi + self.xli - G32)
+                     + self.d5220 * np.sin(xomi + self.xli - G52)
+                     + self.d5232 * np.sin(-xomi + self.xli - G52)
+                     + self.d4410 * np.sin(x2omi + x2li - G44)
+                     + self.d4422 * np.sin(x2li - G44)
+                     + self.d5421 * np.sin(xomi + x2li - G54)
+                     + self.d5433 * np.sin(-xomi + x2li - G54))
+
+            xnddt = (self.d2201 * np.cos(x2omi + self.xli - G22)
+                     + self.d2211 * np.cos(self.xli - G22)
+                     + self.d3210 * np.cos(xomi + self.xli - G32)
+                     + self.d3222 * np.cos(-xomi + self.xli - G32)
+                     + self.d5220 * np.cos(xomi + self.xli - G52)
+                     + self.d5232 * np.cos(-xomi + self.xli - G52)
+                     + (self.d4410 * np.cos(x2omi + x2li - G44)
+                     +  self.d4422 * np.cos(x2li - G44)
+                     +  self.d5421 * np.cos(xomi + x2li - G54)
+                     +  self.d5433 * np.cos(-xomi + x2li - G54)) * 2.0)
+
+        xldot = self.xni + self.xfact
+        xnddt *= xldot
+    
+        return xnddt, xndot, xldot         
         
 def kep2xyz(kep):
     sinT = np.sin(kep['theta'])

@@ -105,8 +105,7 @@ class Test(unittest.TestCase):
         pos_exp = np.array([12896.82145795, -4961.23861713, 18147.24024919])
         vel_exp = np.array([-0.505583439452, 2.495617319061, 1.114910477512])
         self.check_pos_vel(pos, pos_exp, vel, vel_exp)
-
-    @tmp        
+       
     def test_deep_space_lyddane_fix(self):
         sat = orbital.Orbital("Unknown",
             line1="1 04632U 70093B   04031.91070959 -.00000084  00000-0  10000-3 0  9955", 
@@ -117,10 +116,17 @@ class Test(unittest.TestCase):
         vel_exp = np.array([-1.768068392665, -3.235371190739, -0.395206136024])
         self.check_pos_vel(pos, pos_exp, vel, vel_exp)
         
+        # TODO: investigate divergence between Dundee implementation and STR#3 
         dt = timedelta(minutes=-5064)
         pos, vel = sat.get_position(sat.tle.epoch + dt, normalize=False)
-        print pos
-        print vel
+    
+    @tmp    
+    def test_deep_space_molniya(self):
+        sat = orbital.Orbital("MOLNIYA 2-14",
+            line1="1 08195U 75081A   06176.33215444  .00000099  00000-0  11873-3 0   813", 
+            line2="2 08195  64.1586 279.0717 6877146 264.7651  20.2257  2.00491383225656")                  
+        dt = timedelta(minutes=2880)
+        pos, vel = sat.get_position(sat.tle.epoch + dt, normalize=False)
         
 if __name__ == "__main__":
     unittest.main()

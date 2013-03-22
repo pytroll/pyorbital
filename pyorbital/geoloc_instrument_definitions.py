@@ -48,25 +48,27 @@ scans_nb = 10
 #
 ################################################################
 
+def avhrr(scans_nb, scan_points):
+    # build the avhrr instrument (scan angles)
+    avhrr_inst = np.vstack(((scan_points / 1023.5 - 1) * np.deg2rad(-55.37),
+                            np.zeros((len(scan_points),)))).transpose()
+    avhrr_inst = np.tile(avhrr_inst, [scans_nb, 1])
+
+    # building the corresponding times array
+    offset = np.arange(scans_nb) * 0.1666667
+    times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
+             + np.expand_dims(offset, 1))
+
+    return ScanGeometry(avhrr_inst, times.ravel())
+
 ################################################################
 #### avhrr, all pixels
 
 # we take all pixels
 scan_points = np.arange(2048)
 
-
-# build the avhrr instrument (scan angles)
-avhrr = np.vstack(((scan_points - 1023.5) / 1024 * np.deg2rad(-55.37),
-                   np.zeros((len(scan_points),)))).transpose()
-avhrr = np.tile(avhrr, [scans_nb, 1])
-
-# building the corresponding times array
-offset = np.arange(scans_nb) * 0.1666667
-times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
-         + np.expand_dims(offset, 1))
-
 # build the scan geometry object
-avhrr_all_geom = ScanGeometry(avhrr, times.ravel())
+avhrr_all_geom = avhrr(scans_nb, scan_points)
 
 ################################################################
 #### avhrr, edge pixels
@@ -75,18 +77,8 @@ avhrr_all_geom = ScanGeometry(avhrr, times.ravel())
 scan_points = np.array([0, 2047])
 
 
-# build the avhrr instrument (scan angles)
-avhrr = np.vstack(((scan_points - 1023.5) / 1024 * np.deg2rad(-55.37),
-                   np.zeros((len(scan_points),)))).transpose()
-avhrr = np.tile(avhrr, [scans_nb, 1])
-
-# building the corresponding times array
-offset = np.arange(scans_nb) * 0.1666667
-times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
-         + np.expand_dims(offset, 1))
-
 # build the scan geometry object
-avhrr_edge_geom = ScanGeometry(avhrr, times.ravel())
+avhrr_edge_geom = avhrr(scans_nb, scan_points)
 
 ################################################################
 #### avhrr, every 40th pixel from the 24th
@@ -94,22 +86,15 @@ avhrr_edge_geom = ScanGeometry(avhrr, times.ravel())
 # we take only every 40th pixel
 scan_points = np.arange(24, 2048, 40)
 
-
-# build the avhrr instrument (scan angles)
-avhrr = np.vstack(((scan_points - 1023.5) / 1024 * np.deg2rad(-55.37),
-                   np.zeros((len(scan_points),)))).transpose()
-avhrr = np.tile(avhrr, [scans_nb, 1])
-
-# building the corresponding times array
-offset = np.arange(scans_nb) * 0.1666667
-times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
-         + np.expand_dims(offset, 1))
-
 # build the scan geometry object
-avhrr_40_geom = ScanGeometry(avhrr, times.ravel())
+avhrr_40_geom = avhrr(scans_nb, scan_points)
 
 
-
+################################################################
+#
+#   AMSU-A
+#
+################################################################
 
 def amsua(scans_nb, edges_only=False):
     """ Describe AMSU-A instrument geometry
@@ -142,10 +127,10 @@ def amsua(scans_nb, edges_only=False):
                          np.zeros((len(scan_points),)))).transpose()
     samples = np.tile(samples, [scans_nb, 1])
 
-	# building the corresponding times array
+    # building the corresponding times array
     offset = np.arange(scans_nb) * scan_rate
     times = (np.tile(scan_points * sampling_interval + sync_time, [scans_nb, 1])
 	         + np.expand_dims(offset, 1))
 
-	# build the scan geometry object
+    # build the scan geometry object
     return ScanGeometry(samples, times.ravel())

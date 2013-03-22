@@ -6,6 +6,7 @@
 # Author(s):
 
 #   Martin Raspaud <martin.raspaud@smhi.se>
+#   Mikhail Itkin <itkin.m@gmail.com>
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -106,3 +107,45 @@ times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
 
 # build the scan geometry object
 avhrr_40_geom = ScanGeometry(avhrr, times.ravel())
+
+
+
+
+def amsua(scans_nb, edges_only=False):
+    """ Describe AMSU-A instrument geometry
+    
+    Parameters:
+       scans_nb | int -  number of scan lines
+     
+     Keywords:
+     * edges_only - use only edge pixels
+
+    Returns:
+       pyorbital.geoloc.ScanGeometry object
+    
+    """
+
+    scan_len  = 30 # 30 samples per scan
+    scan_rate = 8 # single scan, seconds
+    scan_angle = -48.3 # swath, degrees
+    sampling_interval = 0.2 # single view, seconds
+    sync_time = 0.00355 # delay before the actual scan starts
+
+    if edges_only:
+        scan_points = np.array([0, scan_len - 1])
+    else:
+        scan_points = np.arange(0, scan_len)
+
+    # build the instrument (scan angles)
+    samples = np.vstack(((scan_points / (scan_len*0.5-0.5) - 1)
+                         * np.deg2rad(scan_angle),
+                         np.zeros((len(scan_points),)))).transpose()
+    samples = np.tile(samples, [scans_nb, 1])
+
+	# building the corresponding times array
+    offset = np.arange(scans_nb) * scan_rate
+    times = (np.tile(scan_points * sampling_interval + sync_time, [scans_nb, 1])
+	         + np.expand_dims(offset, 1))
+
+	# build the scan geometry object
+    return ScanGeometry(samples, times.ravel())

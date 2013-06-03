@@ -48,14 +48,15 @@ scans_nb = 10
 #
 ################################################################
 
-def avhrr(scans_nb, scan_points):
+def avhrr(scans_nb, scan_points, scan_angle=55.37):
     # build the avhrr instrument (scan angles)
-    avhrr_inst = np.vstack(((scan_points / 1023.5 - 1) * np.deg2rad(-55.37),
+    avhrr_inst = np.vstack(((scan_points / 1023.5 - 1)
+                            * np.deg2rad(-scan_angle),
                             np.zeros((len(scan_points),)))).transpose()
     avhrr_inst = np.tile(avhrr_inst, [scans_nb, 1])
 
     # building the corresponding times array
-    offset = np.arange(scans_nb) * 0.1666667
+    offset = np.arange(scans_nb) / 6.0
     times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
              + np.expand_dims(offset, 1))
 

@@ -220,10 +220,13 @@ class Orbital(object):
         top_z = cos_lat * cos_theta * rx + cos_lat * sin_theta * ry + sin_lat * rz
 
         az = np.arctan(-top_e / top_s)
-        if top_s > 0:
-            az = az + np.pi
-        if az < 0:
-            az = az + 2 * np.pi
+#        if top_s > 0:
+#            az = az + np.pi
+#        if az < 0:
+#            az = az + 2 * np.pi
+
+        az = np.where(top_s > 0, az + np.pi, az)
+        az = np.where(az < 0, az + 2 * np.pi, az)
 
         rg = np.sqrt(rx * rx + ry * ry + rz * rz)
         el = np.arcsin(top_z / rg)

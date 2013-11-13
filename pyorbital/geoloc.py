@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012.
+# Copyright (c) 2011, 2012, 2013.
 
 # Author(s):
 
@@ -66,23 +66,23 @@ class ScanGeometry(object):
         nadir = -pos / vnorm(pos)
 
 
-        #### Patch for true nadir.
-        # FIXME: Won't work at equator and poles!
-        h_norm = np.sqrt(pos[0, :] ** 2 + pos[1, :] ** 2)
-        tan_lambda = h_norm / pos[2, :]
+        # #### Patch for true nadir.
+        # # FIXME: Won't work at equator and poles!
+        # h_norm = np.sqrt(pos[0, :] ** 2 + pos[1, :] ** 2)
+        # tan_lambda = h_norm / pos[2, :]
 
-        a = 6378.137 # km
-        #b = 6356.75231414 # km, GRS80
-        b = 6356.752314245 # km, WGS84
+        # a = 6378.137 # km
+        # b = 6356.75231414 # km, GRS80
+        # #b = 6356.752314245 # km, WGS84
         
-        vert_eq = (b / np.sqrt(tan_lambda ** 2 + b**2/a**2) *
-                   (1 - (b**2/a**2)))
-        mult = np.vstack((vert_eq / h_norm, vert_eq / h_norm,
-                          np.zeros(len(tan_lambda))))
-        vert_centre = pos * mult
-        nadir = vert_centre - pos
-        nadir /= vnorm(nadir)
-        #### End of patch
+        # vert_eq = (b / np.sqrt(tan_lambda ** 2 + b**2/a**2) *
+        #            (1 - (b**2/a**2)))
+        # mult = np.vstack((vert_eq / h_norm, vert_eq / h_norm,
+        #                   np.zeros(len(tan_lambda))))
+        # vert_centre = pos * mult
+        # nadir = vert_centre - pos
+        # nadir /= vnorm(nadir)
+        # #### End of patch
 
         # x is along track (roll)
         x = vel / vnorm(vel)

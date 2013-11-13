@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012.
+# Copyright (c) 2011, 2012, 2013.
 
 # Author(s):
 
@@ -22,10 +22,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
+import logging
 import datetime
 
 tle_urls = ('http://celestrak.com/NORAD/elements/weather.txt',
             'http://celestrak.com/NORAD/elements/resource.txt')
+
+logger = logging.getLogger(__name__)
 
 def read(platform, tle_file=None, line1=None, line2=None):
     """Read TLE for *satellite* from *tle_file*, from *line1* and *line2*, or
@@ -51,6 +54,7 @@ class Tle(object):
                 urls = (tle_file,)
                 open_func = open
             else:
+                logger.debug("Trying to fetch tle from the internet.")
                 import urllib2
                 urls = tle_urls
                 open_func = urllib2.urlopen

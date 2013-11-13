@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012, 2013.
+# Copyright (c) 2011.
 
 # Author(s):
 
@@ -27,8 +27,8 @@
 # - Attitude correction
 # - project on an ellipsoid instead of a sphere
 # - nadir vectors should point to subsatellite point, not earth centre
+# - check if d2 is needed (in line sphere intersection)
 # - optimize !!!
-# - test !!!
 
 import numpy as np
 from numpy import cos, sin
@@ -42,7 +42,7 @@ class ScanGeometry(object):
     talk about scanlines of course. *times* is the time of viewing of each
     angle relative to the start of the scanning, so it should have the same
     size as the *fovs*. *attitude* is the attitude correction to apply (not
-    implemented right now).
+    implementer right now).
     """
 
     def __init__(self,
@@ -53,50 +53,25 @@ class ScanGeometry(object):
         self._times = np.array(times)
         self.attitude = attitude
 
-    def vectors(self, pos, vel, roll=0.0, pitch=0.0, yaw=0.0):
+    def vectors(self, pos, vel):
         """Get unit vectors pointing to the different pixels.
 
         *pos* and *vel* are column vectors, or matrices of column
         vectors. Returns vectors as stacked rows.
         """
-        # FIXME: This is not nadir!!! This is the intersection point between
-        # the satellite looking down at the centre of the ellipsoid and the
-        # surface of the ellipsoid. Nadir on the other hand is the point which
-        # vertical goes through the satellite...
         nadir = -pos / vnorm(pos)
 
-
-        # #### Patch for true nadir.
-        # # FIXME: Won't work at equator and poles!
-        # h_norm = np.sqrt(pos[0, :] ** 2 + pos[1, :] ** 2)
-        # tan_lambda = h_norm / pos[2, :]
-
-        # a = 6378.137 # km
-        # b = 6356.75231414 # km, GRS80
-        # #b = 6356.752314245 # km, WGS84
-        
-        # vert_eq = (b / np.sqrt(tan_lambda ** 2 + b**2/a**2) *
-        #            (1 - (b**2/a**2)))
-        # mult = np.vstack((vert_eq / h_norm, vert_eq / h_norm,
-        #                   np.zeros(len(tan_lambda))))
-        # vert_centre = pos * mult
-        # nadir = vert_centre - pos
-        # nadir /= vnorm(nadir)
-        # #### End of patch
-
-        # x is along track (roll)
+        # x is along track
         x = vel / vnorm(vel)
 
-        # y is cross track (pitch)
+        # y is cross track
         y = np.cross(nadir, vel, 0, 0, 0)
         y /= vnorm(y)
 
         # rotate first around x
-        x_rotated = qrotate(nadir, x, self.fovs[:, 0] + roll)
+        a = qrotate(nadir, x, self.fovs[:, 0])
         # then around y
-        xy_rotated = qrotate(x_rotated, y, self.fovs[:, 1] + pitch)
-        # then around z
-        return qrotate(xy_rotated, nadir, yaw)
+        return qrotate(a, y, self.fovs[:, 1])
 
     def times(self, start_of_scan):
         tds = [timedelta(seconds=i) for i in self._times]
@@ -180,40 +155,39 @@ def get_lonlatalt(pos, utc_time):
 
 ### END OF DIRTY STUFF
 
-def compute_pixels((tle1, tle2), sgeom, times, rpy=(0.0, 0.0, 0.0)):
+def compute_pixels((tle1, tle2), sgeom, start_of_scan):
     """Compute cartesian coordinates of the pixels in instrument scan.
     """
     orb = Orbital("mysatellite", line1=tle1, line2=tle2)
+
+    # times for each pixel
+    times = sgeom.times(start_of_scan)
 
     # get position and velocity for each time of each pixel
     pos, vel = orb.get_position(times, normalize=False)
 
     # now, get the vectors pointing to each pixel
-    vectors = sgeom.vectors(pos, vel, *rpy)
+    vectors = sgeom.vectors(pos, vel)
 
     ## compute intersection of lines (directed by vectors and passing through
-    ## (0, 0, 0)) and ellipsoid. Derived from:
+    ## (0, 0, 0)) and sphere
     ## http://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
     
+    # get the radius of the earth at the given times
+    (lon, lat, alt) = orb.get_lonlatalt(times)
+    radius = vnorm(pos) - alt
 
-    # do the computation between line and ellipsoid (WGS 84)
-    # NB: AAPP uses GRS 80...
+    # do the computation of distance between line and sphere
     centre = -pos
-    a__ = 6378.137 # km
-    #b__ = 6356.75231414 # km, GRS80
-    b__ = 6356.752314245 # km, WGS84
-    radius = np.array([[1/a__, 1/a__, 1/b__]]).T
-    xr_ = vectors * radius
-    cr_ = centre * radius
-    ldotc = np.einsum("ij,ij->j", xr_, cr_)
-    lsq = np.einsum("ij,ij->j", xr_, xr_)
-    csq = np.einsum("ij,ij->j", cr_, cr_)
+    ldotc = np.einsum("ij,ij->j", centre, vectors)
+    centre_square = np.einsum("ij,ij->j", centre, centre)
+    d1 = ldotc - np.sqrt((ldotc ** 2 - centre_square + radius ** 2))
 
-    d1_ = (ldotc - np.sqrt(ldotc ** 2 - csq * lsq + lsq)) / lsq
-
+    # I think d2 is the far intersection point in this case
+    #d2 = ldotc + np.sqrt((ldotc ** 2 - centre_square + r ** 2))
 
     # return the actual pixel positions
-    return vectors * d1_ - centre
+    return vectors * d1 - centre
 
     
 def norm(v):
@@ -247,7 +221,7 @@ if __name__ == '__main__':
     from datetime import datetime
     t = datetime(2011, 10, 12, 13, 45)
 
-    ## edge and centre of an avhrr scanline
+    # edge and centre of an avhrr scanline
     #sgeom = ScanGeometry([(-0.9664123687741623, 0),
     #                      (0, 0)],
     #                     [0, 0.0, ])
@@ -255,10 +229,10 @@ if __name__ == '__main__':
 
 
     ## avhrr swath
-    scanline_nb = 1
+    scanline_nb = 100
 
-    # building the avhrr angles, 2048 pixels from +55.37 to -55.37 degrees
-    avhrr = np.vstack(((np.arange(2048) - 1023.5) / 1024 * np.deg2rad(-55.37),
+    # building the avhrr angles, 2048 pixels from -55.37 to 55.37 degrees
+    avhrr = np.vstack(((np.arange(2048) - 1023.5) / 1024 * np.deg2rad(55.37),
                        np.zeros((2048,)))).transpose()
     avhrr = np.tile(avhrr, [scanline_nb, 1])
     # building the corresponding times array
@@ -269,6 +243,10 @@ if __name__ == '__main__':
     sgeom = ScanGeometry(avhrr, times.ravel())
 
     # print the lonlats for the pixel positions
-    s_times = sgeom.times(t)
-    pixels_pos = compute_pixels((noaa18_tle1, noaa18_tle2), sgeom, s_times)
-    print get_lonlatalt(pixels_pos, s_times)
+    pixels_pos = compute_pixels((noaa18_tle1, noaa18_tle2), sgeom, t)
+    print get_lonlatalt(pixels_pos, t)
+
+    
+
+
+

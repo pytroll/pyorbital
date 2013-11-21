@@ -719,7 +719,7 @@ class _SGDP4(object):
             aycof = 0.25 * A3OVK2 * sinIO
             
         if np.any(a < 1):
-            raise Exception('Satellite crased at time %s', utc_time)
+            raise Exception('Satellite crashed at time %s', utc_time)
         elif np.any(e < ECC_LIMIT_LOW):
             raise ValueError('Satellite modified eccentricity to low: %e < %e'
                              % (e, ECC_LIMIT_LOW))
@@ -738,6 +738,7 @@ class _SGDP4(object):
         ayn = e * sinOMG + temp0 * aycof
         print 'axn', axn, 'ayn', ayn
         xlt = xl + temp0 * xlcof * axn
+        print 'xlt', xlt, 'xnode', xnode
 
         elsq = axn ** 2 + ayn ** 2
         print 'elsq', elsq
@@ -747,6 +748,7 @@ class _SGDP4(object):
             
         kep['ecc'] = np.sqrt(elsq)
         
+        print 'xlt - xnode', xlt - xnode
         epw = np.fmod(xlt - xnode, 2 * np.pi)
         print 'pre epw', epw
         # needs a copy in case of an array

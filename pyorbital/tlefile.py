@@ -24,6 +24,7 @@
 
 import logging
 import datetime
+import urllib2
 
 tle_urls = ('http://celestrak.com/NORAD/elements/weather.txt',
             'http://celestrak.com/NORAD/elements/resource.txt')
@@ -35,6 +36,14 @@ def read(platform, tle_file=None, line1=None, line2=None):
     from internet if none is provided.
     """
     return Tle(platform, tle_file=tle_file, line1=line1, line2=line2)
+
+def fetch(destination):
+    """fetch TLE from internet and save it to *destination*.
+    """
+    with open(destination, "w") as dest:
+        for url in tle_urls:
+            response = urllib2.urlopen(url)
+            dest.write(response.read())
 
 class ChecksumError(Exception):
     pass
@@ -54,8 +63,7 @@ class Tle(object):
                 urls = (tle_file,)
                 open_func = open
             else:
-                logger.debug("Trying to fetch tle from the internet.")
-                import urllib2
+                logger.debug("Fetch tle from the internet.")
                 urls = tle_urls
                 open_func = urllib2.urlopen
             

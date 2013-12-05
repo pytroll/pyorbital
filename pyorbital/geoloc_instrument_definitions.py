@@ -90,6 +90,49 @@ scan_points = np.arange(24, 2048, 40)
 # build the scan geometry object
 avhrr_40_geom = avhrr(scans_nb, scan_points)
 
+################################################################
+#
+#   VIIRS
+#
+################################################################
+
+def viirs(scans_nb, scan_indices=slice(0, None)):
+    """Describe VIIRS instrument geometry.
+
+    """
+
+    entire_width = np.arange(6400)
+    scan_points = entire_width[scan_indices]
+    
+    across_track = (scan_points / 3199.5 - 1) * np.deg2rad(-55.84)
+    y_max_angle = np.arctan2(11.87/2, 824.0)
+    along_track = np.array([-y_max_angle, 0, y_max_angle])
+
+    scan_pixels = len(scan_points)
+
+    scan = np.vstack((np.tile(across_track, scan_pixels),
+                      np.repeat(along_track, 6400))).T
+    
+    npp = np.tile(scan, [scans_nb, 1])
+    
+    # from the timestamp in the filenames, a granule takes 1:25.400 to record
+    # (85.4 seconds) so 1.779166667 would be the duration of 1 scanline
+    # dividing the duration of a single scan by a width of 6400 pixels results
+    # in 0.0002779947917 seconds for each column of 32 pixels in the scanline
+
+    # the individual times per pixel are probably wrong, unless the scanning
+    # behaves the same as for AVHRR, The VIIRS sensor rotates to allow internal
+    # calibration before each scanline. This would imply that the scanline
+    # always moves in the same direction.  more info @
+    # http://www.eoportal.org/directory/pres_NPOESSNationalPolarorbitingOperationalEnvironmentalSatelliteSystem.html
+
+    offset = np.arange(scans_nb) * 1.779166667
+    times = (np.tile(scan_points * 0.0002779947917, [scans_nb, scan_pixels])
+             + np.expand_dims(offset, 1))
+
+    # build the scan geometry object
+    return ScanGeometry(npp, times.ravel())
+
 
 ################################################################
 #

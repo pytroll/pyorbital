@@ -206,9 +206,9 @@ class Orbital(object):
         rx = pos_x - opos_x
         ry = pos_y - opos_y
         rz = pos_z - opos_z
-        rvx = vel_x - ovel_x
-        rvy = vel_y - ovel_y
-        rvz = vel_z - ovel_z
+        #rvx = vel_x - ovel_x
+        #rvy = vel_y - ovel_y
+        #rvz = vel_z - ovel_z
 
         sin_lat = np.sin(lat)
         cos_lat = np.cos(lat)
@@ -230,7 +230,7 @@ class Orbital(object):
 
         rg = np.sqrt(rx * rx + ry * ry + rz * rz)
         el = np.arcsin(top_z / rg)
-        w = (rx * rvx + ry * rvy + rz * rvz) / rg
+        #w = (rx * rvx + ry * rvy + rz * rvz) / rg
 
         return np.rad2deg(az), np.rad2deg(el)
 
@@ -249,7 +249,7 @@ class Orbital(object):
         if tbus_style:
             orbit += 1
         return orbit
-        
+
     def get_next_passes(self, utc_time, length, lon, lat, alt):
         """Calculate passes for the next hours for a given start time and a 
         given observer.

@@ -28,6 +28,7 @@ from pyorbital.tlefile import Tle
 import datetime
 import unittest
 
+line0 = "ISS (ZARYA)"
 line1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
 line2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537"
 
@@ -44,9 +45,9 @@ class TLETest(unittest.TestCase):
     
     """
 
-    def test_from_line(self):
-        tle = Tle("ISS (ZARYA)", line1=line1, line2=line2)
-
+    def check_example(self, tle):
+        """Check the *tle* instance against predetermined values.
+        """
         # line 1
         self.assertEqual(tle.satnumber, "25544")
         self.assertEqual(tle.classification, "U")
@@ -72,7 +73,22 @@ class TLETest(unittest.TestCase):
         self.assertEqual(tle.mean_anomaly, 325.0288)
         self.assertEqual(tle.mean_motion, 15.72125391)
         self.assertEqual(tle.orbit, 56353)
-        
+
+    def test_from_line(self):
+        tle = Tle("ISS (ZARYA)", line1=line1, line2=line2)
+        self.check_example(tle)
+
+    def test_from_file(self):
+        from tempfile import mkstemp
+        from os import write, close, remove
+        filehandle, filename = mkstemp()
+        try:
+            write(filehandle, "\n".join([line0, line1, line2]))
+            close(filehandle)
+            tle = Tle("ISS (ZARYA)", filename)
+            self.check_example(tle)
+        finally:
+            remove(filename)
 
 
 def suite():

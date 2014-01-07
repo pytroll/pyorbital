@@ -21,9 +21,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from setuptools import setup
+import imp
+
+version = imp.load_source('pyorbital.version', 'pyorbital/version.py')
 
 setup(name='pyorbital',
-      version="v0.2.4",
+      version=version.__version__,
       description='Orbital parameters and astronomical computations in Python',
       author='Martin Raspaud, Esben S. Nielsen',
       author_email='martin.raspaud@smhi.se, esn@dmi.dk',

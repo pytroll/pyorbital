@@ -135,7 +135,7 @@ class AIAAIntegrationTest(unittest.TestCase):
         
 
 def suite():
-    """The suite for test_image
+    """The suite for test_aiaa
     """
     loader = unittest.TestLoader()
     mysuite = unittest.TestSuite()
@@ -143,6 +143,3 @@ def suite():
     
     return mysuite
 
-
-if __name__ == '__main__':
-    unittest.main()

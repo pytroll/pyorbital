@@ -55,14 +55,11 @@ class TestAstronomy(unittest.TestCase):
         self.assertEqual(sun_theta, 1.8751916863323426)
 
 def suite():
-    """The suite for test_image
+    """The suite for test_astronomy
     """
     loader = unittest.TestLoader()
     mysuite = unittest.TestSuite()
     mysuite.addTest(loader.loadTestsFromTestCase(TestAstronomy))
     
     return mysuite
-        
-if __name__ == '__main__':
-    unittest.main()
 

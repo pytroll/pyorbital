@@ -75,13 +75,10 @@ class Test(unittest.TestCase):
 
 
 def suite():
-    """The suite for test_image
+    """The suite for test_orbital
     """
     loader = unittest.TestLoader()
     mysuite = unittest.TestSuite()
     mysuite.addTest(loader.loadTestsFromTestCase(Test))
     
     return mysuite
-
-if __name__ == "__main__":
-    unittest.main()

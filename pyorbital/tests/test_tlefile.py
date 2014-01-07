@@ -92,7 +92,7 @@ class TLETest(unittest.TestCase):
 
 
 def suite():
-    """The suite for test_image
+    """The suite for test_tlefile
     """
     loader = unittest.TestLoader()
     mysuite = unittest.TestSuite()

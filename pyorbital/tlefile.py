@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012, 2013.
+# Copyright (c) 2011, 2012, 2013, 2014.
 
 # Author(s):
 
@@ -116,40 +116,39 @@ class Tle(object):
     def _read_tle(self):
 
         def _read_tle_decimal(rep):
-            num = int(rep[:-2]) * 1.0e-5
-            exp = int(rep[-2:])
-            return num * 10 ** exp
+            if rep[0] in ["-", " "]:
+                val = rep[0] + "." + rep[1:-2] + "e" + rep[-2:]
+            else:
+                val = "." + rep[:-2] + "e" + rep[-2:]
 
-        lines = self._line1.split() + self._line2.split()
-        if len(lines) < 17:
-            raise IOError("To few items in the TLE entry, found '%d', expected at least '17'"%len(lines)) 
+            return float(val)
+        
+        self.satnumber = self._line1[2:7]
+        self.classification = self._line1[7]
+        self.id_launch_year = self._line1[9:11]
+        self.id_launch_number = self._line1[11:14]
+        self.id_launch_piece = self._line1[14:17]
+        self.epoch_year = self._line1[18:20]
+        self.epoch_day = float(self._line1[20:32])
+        self.epoch = (datetime.datetime.strptime(self.epoch_year, "%y") +
+                             datetime.timedelta(days=self.epoch_day - 1))
+        self.mean_motion_derivative = float(self._line1[33:43])
+        self.mean_motion_sec_derivative = _read_tle_decimal(self._line1[44:52])
+        self.bstar = float(self._line1[53] + "." + self._line1[54:59] + "e" + self._line1[59:61])
+        _read_tle_decimal(self._line1[53:61])
+        try:
+            self.ephemeris_type = int(self._line1[62])
+        except ValueError:
+            self.ephemeris_type = 0
+        self.element_number = int(self._line1[64:68])
 
-        self.satnumber = lines[1][:5]
-        self.classification = lines[1][5:]
-        self.id_launch_year = lines[2][:2]
-        self.id_launch_number = lines[2][2:5]
-        self.id_launch_piece = lines[2][5:]
-        self.epoch_year = int(lines[3][:2])
-        self.epoch_day = float(lines[3][2:])
-        self.epoch = (datetime.datetime.strptime(lines[3][:2], "%y") +
-                             datetime.timedelta(days=float(lines[3][2:]) - 1))
-        self.mean_motion_derivative = float(lines[4])
-        self.mean_motion_sec_derivative = _read_tle_decimal(lines[5])
-        self.bstar = _read_tle_decimal(lines[6])
-        self.ephemeris_type = int(lines[7])
-        self.element_number = int(lines[8][:-1])
-
-        self.inclination = float(lines[11])
-        self.right_ascension = float(lines[12])
-        self.excentricity = int(lines[13]) * 10 ** -7
-        self.arg_perigee = float(lines[14])
-        self.mean_anomaly = float(lines[15])
-        if len(lines) > 17:
-            self.orbit = int(lines[17][:-1])
-            self.mean_motion = float(lines[16])
-        else:
-            self.orbit = int(lines[16][11:-1])
-            self.mean_motion = float(lines[16][:11])
+        self.inclination = float(self._line2[8:16])
+        self.right_ascension = float(self._line2[17:25])
+        self.excentricity = int(self._line2[26:33]) * 10 ** -7
+        self.arg_perigee = float(self._line2[34:42])
+        self.mean_anomaly = float(self._line2[43:51])
+        self.mean_motion = float(self._line2[52:63])
+        self.orbit = int(self._line2[63:68])
 
     def __str__(self):
         import pprint, StringIO

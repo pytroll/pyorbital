@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011 SMHI
+# Copyright (c) 2011, 2014 SMHI
 
 # Author(s):
 
@@ -29,6 +29,7 @@ from __future__ import with_statement
 import os
 
 from pyorbital.orbital import Orbital, OrbitElements, _SGDP4
+from pyorbital.tlefile import ChecksumError
 from pyorbital import tlefile, astronomy
 import numpy as np
 from datetime import timedelta, datetime
@@ -96,13 +97,16 @@ class AIAAIntegrationTest(unittest.TestCase):
                                       float(times[2]))
                     try:
                         o = LineOrbital("unknown", line1, line2)
-                    except Exception, e:
+                    except NotImplementedError, e:
                         # WARNING: skipping deep space computations
                         from warnings import warn
+                        print e
                         warn(test_name + ' ' + str(e))
                         
                         test_line = f__.readline()
                         continue
+                    except ChecksumError, e:
+                        self.assertTrue(test_line.split()[1] in ["33333", "33334", "33335"])
                     for delay in times:
                         try:
                             test_time = timedelta(minutes=delay) + o.tle.epoch
@@ -129,6 +133,16 @@ class AIAAIntegrationTest(unittest.TestCase):
                         
                 test_line = f__.readline()
         
+
+def suite():
+    """The suite for test_image
+    """
+    loader = unittest.TestLoader()
+    mysuite = unittest.TestSuite()
+    mysuite.addTest(loader.loadTestsFromTestCase(AIAAIntegrationTest))
+    
+    return mysuite
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -71,6 +71,17 @@ class Test(unittest.TestCase):
         pos2, vel2 = sat.get_position(t2, normalize=False)
         self.assertTrue(pos1[2] < 0)
         self.assertTrue(pos2[2] > 0)
-        
+
+
+
+def suite():
+    """The suite for test_image
+    """
+    loader = unittest.TestLoader()
+    mysuite = unittest.TestSuite()
+    mysuite.addTest(loader.loadTestsFromTestCase(Test))
+    
+    return mysuite
+
 if __name__ == "__main__":
     unittest.main()

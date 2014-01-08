@@ -23,7 +23,8 @@
 """The tests package.
 """
 
-from pyorbital.tests import test_aiaa, test_tlefile, test_orbital, test_astronomy
+from pyorbital.tests import (test_aiaa, test_tlefile, test_orbital,
+                             test_astronomy, test_geoloc)
 import unittest
 
 def suite():
@@ -37,6 +38,7 @@ def suite():
     mysuite.addTests(test_tlefile.suite())
     mysuite.addTests(test_orbital.suite())
     mysuite.addTests(test_astronomy.suite())
+    mysuite.addTests(test_geoloc.suite())
     
     return mysuite
 

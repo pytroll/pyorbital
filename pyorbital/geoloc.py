@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012, 2013.
+# Copyright (c) 2011, 2012, 2013, 2014.
 
 # Author(s):
 
@@ -26,14 +26,50 @@
 # TODO:
 # - Attitude correction
 # - project on an ellipsoid instead of a sphere
-# - nadir vectors should point to subsatellite point, not earth centre
 # - optimize !!!
 # - test !!!
 
 import numpy as np
-from numpy import cos, sin
+from numpy import cos, sin, sqrt
 from datetime import timedelta
 from pyorbital.orbital import Orbital
+
+a = 6378.137 # km
+b = 6356.75231414 # km, GRS80
+#b = 6356.752314245 # km, WGS84
+
+def geodetic_lat(point, a=a, b=b):
+
+    x, y, z = point
+    r = np.sqrt(x*x + y*y)
+    geoc_lat = np.arctan2(z, r)
+
+    geod_lat = geoc_lat
+    e2 = (a*a - b*b) / (a*a)
+    while True:
+        phi = geod_lat
+        C = 1  / sqrt(1 - e2 * sin(phi)**2)
+        geod_lat = np.arctan2(z + a*C*e2 * sin(phi), r)
+        if np.allclose(geod_lat, phi):
+            return geod_lat
+                      
+
+def subpoint(query_point, a=a, b=b):
+    """Get the point on the ellipsoid under the *query_point*.
+    """
+    x, y, z = query_point
+    r = sqrt(x*x + y*y)
+
+    lat = geodetic_lat(query_point)
+    lon = np.arctan2(y, x)
+    e2_ = (a*a - b*b) / (a*a)
+    n__ = a / sqrt(1 - e2_ * sin(lat)**2)
+    nx_ = n__ * cos(lat) * cos(lon)
+    ny_ = n__ * cos(lat) * sin(lon)
+    nz_ = (1-e2_) * n__ * sin(lat)
+
+    return np.vstack([nx_, ny_, nz_])
+    
 
 class ScanGeometry(object):
     """Description of the geometry of an instrument.
@@ -59,31 +95,18 @@ class ScanGeometry(object):
         *pos* and *vel* are column vectors, or matrices of column
         vectors. Returns vectors as stacked rows.
         """
-        # FIXME: This is not nadir!!! This is the intersection point between
-        # the satellite looking down at the centre of the ellipsoid and the
-        # surface of the ellipsoid. Nadir on the other hand is the point which
-        # vertical goes through the satellite...
-        nadir = -pos / vnorm(pos)
-
-
-        # #### Patch for true nadir.
-        # # FIXME: Won't work at equator and poles!
-        # h_norm = np.sqrt(pos[0, :] ** 2 + pos[1, :] ** 2)
-        # tan_lambda = h_norm / pos[2, :]
-
-        # a = 6378.137 # km
-        # b = 6356.75231414 # km, GRS80
-        # #b = 6356.752314245 # km, WGS84
+        # TODO: yaw steering mode !
         
-        # vert_eq = (b / np.sqrt(tan_lambda ** 2 + b**2/a**2) *
-        #            (1 - (b**2/a**2)))
-        # mult = np.vstack((vert_eq / h_norm, vert_eq / h_norm,
-        #                   np.zeros(len(tan_lambda))))
-        # vert_centre = pos * mult
-        # nadir = vert_centre - pos
-        # nadir /= vnorm(nadir)
-        # #### End of patch
+        
+        # Fake nadir: This is the intersection point between the satellite
+        # looking down at the centre of the ellipsoid and the surface of the
+        # ellipsoid. Nadir on the other hand is the point which vertical goes
+        # through the satellite...
+        #nadir = -pos / vnorm(pos)
 
+        nadir = subpoint(-pos)
+        nadir /= vnorm(nadir)
+        
         # x is along track (roll)
         x = vel / vnorm(vel)
 

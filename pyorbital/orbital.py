@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012, 2013.
+# Copyright (c) 2011, 2012, 2013, 2014.
 
 # Author(s):
 
@@ -85,20 +85,6 @@ class Orbital(object):
         self.orbit_elements = OrbitElements(self.tle)
         self._sgdp4 = _SGDP4(self.orbit_elements)
         
-        pos_epoch, vel_epoch = self.get_position(self.tle.epoch, 
-                                                 normalize=False)
-        if np.abs(pos_epoch[2]) > 1 or not vel_epoch[2] > 0:
-            # Epoch not at ascending node
-            self.orbit_elements.an_time = self.get_last_an_time(self.tle.epoch)
-        else:
-            # Epoch at ascending node (z < 1 km) and positive v_z
-            self.orbit_elements.an_time = self.tle.epoch
-            
-        self.orbit_elements.an_period = self.orbit_elements.an_time - \
-                        self.get_last_an_time(self.orbit_elements.an_time 
-                                              - timedelta(minutes=10))    
-            
-
     def __str__(self):
         return self.satellite_name + " " + str(self.tle)
 
@@ -206,9 +192,6 @@ class Orbital(object):
         rx = pos_x - opos_x
         ry = pos_y - opos_y
         rz = pos_z - opos_z
-        #rvx = vel_x - ovel_x
-        #rvy = vel_y - ovel_y
-        #rvz = vel_z - ovel_z
 
         sin_lat = np.sin(lat)
         cos_lat = np.cos(lat)
@@ -219,28 +202,40 @@ class Orbital(object):
         top_e = -sin_theta * rx + cos_theta * ry
         top_z = cos_lat * cos_theta * rx + cos_lat * sin_theta * ry + sin_lat * rz
 
-        az = np.arctan(-top_e / top_s)
-#        if top_s > 0:
-#            az = az + np.pi
-#        if az < 0:
-#            az = az + 2 * np.pi
+        az_ = np.arctan(-top_e / top_s)
 
-        az = np.where(top_s > 0, az + np.pi, az)
-        az = np.where(az < 0, az + 2 * np.pi, az)
+        az_ = np.where(top_s > 0, az_ + np.pi, az_)
+        az_ = np.where(az_ < 0, az_ + 2 * np.pi, az_)
 
-        rg = np.sqrt(rx * rx + ry * ry + rz * rz)
-        el = np.arcsin(top_z / rg)
-        #w = (rx * rvx + ry * rvy + rz * rvz) / rg
+        rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
+        el_ = np.arcsin(top_z / rg_)
 
-        return np.rad2deg(az), np.rad2deg(el)
+        return np.rad2deg(az_), np.rad2deg(el_)
 
     def get_orbit_number(self, utc_time, tbus_style=False):
         """Calculate orbit number at specified time.
         Optionally use TBUS-style orbit numbering (TLE orbit number + 1)
         """
+        try:        
+            dt = astronomy._days(utc_time - self.orbit_elements.an_time)
+            orbit_period = astronomy._days(self.orbit_elements.an_period)
+        except AttributeError:
+            pos_epoch, vel_epoch = self.get_position(self.tle.epoch, 
+                                                 normalize=False)
+            if np.abs(pos_epoch[2]) > 1 or not vel_epoch[2] > 0:
+                # Epoch not at ascending node
+                self.orbit_elements.an_time = self.get_last_an_time(self.tle.epoch)
+            else:
+                # Epoch at ascending node (z < 1 km) and positive v_z
+                self.orbit_elements.an_time = self.tle.epoch
+            
+            self.orbit_elements.an_period = self.orbit_elements.an_time - \
+                                            self.get_last_an_time(self.orbit_elements.an_time 
+                                                                  - timedelta(minutes=10))    
+
+            dt = astronomy._days(utc_time - self.orbit_elements.an_time)
+            orbit_period = astronomy._days(self.orbit_elements.an_period)
         
-        dt = astronomy._days(utc_time - self.orbit_elements.an_time)
-        orbit_period = astronomy._days(self.orbit_elements.an_period)
                  
         orbit = int(self.tle.orbit + dt / orbit_period + 
                  self.tle.mean_motion_derivative * dt**2 + 
@@ -250,7 +245,7 @@ class Orbital(object):
             orbit += 1
         return orbit
 
-    def get_next_passes(self, utc_time, length, lon, lat, alt):
+    def get_next_passes(self, utc_time, length, lon, lat, alt, tol=0.001):
         """Calculate passes for the next hours for a given start time and a 
         given observer.
 
@@ -261,6 +256,7 @@ class Orbital(object):
         lon: Longitude of observer position on ground (float)
         lat: Latitude of observer position on ground (float)
         alt: Altitude above sea-level (geoid) of observer position on ground (float)
+        tol: precision of the result in seconds
 
         Return: [(rise-time, fall-time, max-elevation-time), ...]
         """
@@ -272,17 +268,19 @@ class Orbital(object):
                                           lon, lat, alt)[1]
         def elevation_inv(minutes):
             return -elevation(minutes)
-        
-        arr = np.array([elevation(m) for m in range(length * 60)])
-        a = np.where(np.diff(np.sign(arr)))[0]
+
+        times = utc_time + np.array([timedelta(minutes=minutes)
+                                    for minutes in range(length * 60)])
+        elev = self.get_observer_look(times, lon, lat, alt)[1]
+        a = np.where(np.diff(np.sign(elev)))[0]
 
         res = []
         risetime = None
         falltime = None
         for guess in a:
-            horizon_mins = brentq(elevation, guess, guess + 1)
+            horizon_mins = brentq(elevation, guess, guess + 1, xtol=tol/60.0)
             horizon_time = utc_time + timedelta(minutes=horizon_mins)
-            if arr[guess] < 0:
+            if elev[guess] < 0:
                 risetime = horizon_time
                 risemins = horizon_mins
                 falltime = None
@@ -290,10 +288,12 @@ class Orbital(object):
                 falltime = horizon_time
                 fallmins = horizon_mins
                 if risetime:
+                    middle = (risemins + fallmins) / 2.0
                     highest = utc_time + \
                         timedelta(minutes=brent(
                             elevation_inv, 
-                            brack=(risemins, fallmins)))
+                            brack=(middle - 0.1, middle + 0.1),
+                            tol=tol/60.0))
                     res += [(risetime, falltime, highest)]
                 risetime = None
         return res

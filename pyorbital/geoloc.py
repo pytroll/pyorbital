@@ -159,14 +159,14 @@ def qrotate(vector, axis, angle):
     sin_angle = np.expand_dims(sin(angle/2), 0)
     if np.rank(n_axis)==1:
         n_axis = np.expand_dims(n_axis, 1)
-        p = np.dot(n_axis, sin_angle)
+        p__ = np.dot(n_axis, sin_angle)[:, np.newaxis]
     else:
-        p = n_axis * sin_angle
-        
-    q = Quaternion(cos(angle/2), p)
+        p__ = n_axis * sin_angle
+
+    q__ = Quaternion(cos(angle/2), p__)
     return np.einsum("kj, ikj->ij",
                      vector,
-                     q.rotation_matrix()[:3, :3])
+                     q__.rotation_matrix()[:3, :3])
 
 
 
@@ -191,18 +191,18 @@ def get_lonlatalt(pos, utc_time):
     r = np.sqrt(pos_x ** 2 + pos_y ** 2)
     lat = np.arctan2(pos_z, r)
     e2 = F * (2 - F)
+
     while True:
         lat2 = lat
         c = 1/(np.sqrt(1 - e2 * (np.sin(lat2) ** 2)))
         lat = np.arctan2(pos_z + c * e2 *np.sin(lat2), r)
         if np.all(abs(lat - lat2) < 1e-10):
             break
-    alt = r / np.cos(lat)- c;
+    alt = r / np.cos(lat)- c
     alt *= A
     return np.rad2deg(lon), np.rad2deg(lat), alt
 
 ### END OF DIRTY STUFF
-
 def compute_pixels((tle1, tle2), sgeom, times, rpy=(0.0, 0.0, 0.0)):
     """Compute cartesian coordinates of the pixels in instrument scan.
     """

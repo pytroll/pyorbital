@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013 Martin Raspaud
+# Copyright (c) 2013, 2014 Martin Raspaud
 
 # Author(s):
 
@@ -48,7 +48,12 @@ scans_nb = 10
 #
 ################################################################
 
-def avhrr(scans_nb, scan_points, scan_angle=55.37):
+def avhrr(scans_nb, scan_points, scan_angle=55.37, decimate=1):
+    """Definition of the avhrr instrument.
+
+    Source: NOAA KLM User's Guide, Appendix J
+    http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
+    """
     # build the avhrr instrument (scan angles)
     avhrr_inst = np.vstack(((scan_points / 1023.5 - 1)
                             * np.deg2rad(-scan_angle),
@@ -56,8 +61,10 @@ def avhrr(scans_nb, scan_points, scan_angle=55.37):
     avhrr_inst = np.tile(avhrr_inst, [scans_nb, 1])
 
     # building the corresponding times array
-    offset = np.arange(scans_nb) / 6.0
-    times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
+    offset = np.arange(scans_nb) * decimate / 6.0
+    #times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
+    #         + np.expand_dims(offset, 1))
+    times = (np.tile(scan_points * 0.000025, [scans_nb, 1])
              + np.expand_dims(offset, 1))
 
     return ScanGeometry(avhrr_inst, times.ravel())
@@ -82,7 +89,7 @@ scan_points = np.array([0, 2047])
 avhrr_edge_geom = avhrr(scans_nb, scan_points)
 
 ################################################################
-#### avhrr, every 40th pixel from the 24th
+#### avhrr, every 40th pixel from the 24th (aapp style)
 
 # we take only every 40th pixel
 scan_points = np.arange(24, 2048, 40)
@@ -97,7 +104,7 @@ avhrr_40_geom = avhrr(scans_nb, scan_points)
 ################################################################
 
 def viirs(scans_nb, scan_indices=slice(0, None)):
-    """Describe VIIRS instrument geometry.
+    """Describe VIIRS instrument geometry, I-band.
 
     """
 

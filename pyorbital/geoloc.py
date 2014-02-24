@@ -77,8 +77,7 @@ class ScanGeometry(object):
     *fovs* is the x and y viewing angles of the instrument. y is zero if the we
     talk about scanlines of course. *times* is the time of viewing of each
     angle relative to the start of the scanning, so it should have the same
-    size as the *fovs*. *attitude* is the attitude correction to apply (not
-    implemented right now).
+    size as the *fovs*. *attitude* is the attitude correction to apply.
     """
 
     def __init__(self,

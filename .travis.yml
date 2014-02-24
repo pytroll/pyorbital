@@ -11,7 +11,7 @@ deploy:
   provider: pypi
   user: Martin.Raspaud
   password:
-    secure: RuQzdaLTY4sryIzG8Hz1KWEsyYRxrLvbyfm7DurXDPcj2vsujRwJicNwBrJajIBkzZWwdmWE8db55BPWZwCsJtVUbE53vc742wSAcci2zzCgizSb/jjlDkwk1CE/PoMl4t3JsuIU6bklgw1Y1d4Xn4+BeZe8Blol5PD/FUovxfo=
+    secure: ghpr9u0Pa79QPAFzovGKKqW48mf7bUtgcOBj7kgJ+e+HWnowqwtWsLmfMyJb4sq36bHBvMndCpgeM1UodM/7JeJn5V3jD6ISCjRUjog/S6o18ZFfl5y0s0s7ldpPLhl3/PF4hs+CNHJU5NMELzctsVIKqwnAOgB1PKgcHZ8WXUI=
   on:
     tags: true
     repo: mraspaud/pyorbital

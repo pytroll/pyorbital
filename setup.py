@@ -25,7 +25,7 @@ import imp
 
 version = imp.load_source('pyorbital.version', 'pyorbital/version.py')
 
-setup(name='pyorbital',
+setup(name='SMHI-SAF-pyorbital',
       version=version.__version__,
       description='Orbital parameters and astronomical computations in Python',
       author='Martin Raspaud, Esben S. Nielsen',

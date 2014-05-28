@@ -266,7 +266,7 @@ class Orbital(object):
             """elevation
             """
             return self.get_observer_look(utc_time +
-                                          timedelta(minutes=minutes),
+                                          timedelta(minutes=np.float64(minutes)),
                                           lon, lat, alt)[1]
         def elevation_inv(minutes):
             """inverse of elevation

@@ -246,7 +246,7 @@ class Orbital(object):
             orbit += 1
         return orbit
 
-    def get_next_passes(self, utc_time, length, lon, lat, alt, tol=0.001):
+    def get_next_passes(self, utc_time, length, lon, lat, alt, tol=0.001, horizon=0):
         """Calculate passes for the next hours for a given start time and a
         given observer.
 
@@ -258,6 +258,7 @@ class Orbital(object):
         lat: Latitude of observer position on ground (float)
         alt: Altitude above sea-level (geoid) of observer position on ground (float)
         tol: precision of the result in seconds
+        horizon: the elevation of horizon to compute risetime and falltime.
 
         Return: [(rise-time, fall-time, max-elevation-time), ...]
         """
@@ -267,7 +268,7 @@ class Orbital(object):
             """
             return self.get_observer_look(utc_time +
                                           timedelta(minutes=np.float64(minutes)),
-                                          lon, lat, alt)[1]
+                                          lon, lat, alt)[1] - horizon
         def elevation_inv(minutes):
             """inverse of elevation
             """
@@ -318,7 +319,7 @@ class Orbital(object):
 
         times = utc_time + np.array([timedelta(minutes=minutes)
                                     for minutes in range(length * 60)])
-        elev = self.get_observer_look(times, lon, lat, alt)[1]
+        elev = self.get_observer_look(times, lon, lat, alt)[1] - horizon
         zcs = np.where(np.diff(np.sign(elev)))[0]
 
         res = []

@@ -31,11 +31,13 @@ tle_urls = ('http://celestrak.com/NORAD/elements/weather.txt',
 
 logger = logging.getLogger(__name__)
 
+
 def read(platform, tle_file=None, line1=None, line2=None):
     """Read TLE for *satellite* from *tle_file*, from *line1* and *line2*, or
     from internet if none is provided.
     """
     return Tle(platform, tle_file=tle_file, line1=line1, line2=line2)
+
 
 def fetch(destination):
     """fetch TLE from internet and save it to *destination*.
@@ -45,13 +47,15 @@ def fetch(destination):
             response = urllib2.urlopen(url)
             dest.write(response.read())
 
+
 class ChecksumError(Exception):
     pass
 
 
 class Tle(object):
+
     """Class holding TLE objects.
-    """    
+    """
 
     def __init__(self, platform, tle_file=None, line1=None, line2=None):
         platform = platform.strip().upper()
@@ -66,7 +70,7 @@ class Tle(object):
                 logger.debug("Fetch tle from the internet.")
                 urls = tle_urls
                 open_func = urllib2.urlopen
-            
+
             tle = ""
             for url in urls:
                 fp = open_func(url)
@@ -78,7 +82,7 @@ class Tle(object):
                 fp.close()
                 if tle:
                     break
-            
+
             if not tle:
                 raise AttributeError, "Found no TLE entry for '%s'" % platform
 
@@ -117,12 +121,14 @@ class Tle(object):
 
         def _read_tle_decimal(rep):
             if rep[0] in ["-", " "]:
-                val = rep[0] + "." + rep[1:-2] + "e" + rep[-2:]
+                digits = rep[1:-2].strip()
+                val = rep[0] + "." + digits + "e" + rep[-2:]
             else:
-                val = "." + rep[:-2] + "e" + rep[-2:]
+                digits = rep[:-2].strip()
+                val = "." + digits + "e" + rep[-2:]
 
             return float(val)
-        
+
         self.satnumber = self._line1[2:7]
         self.classification = self._line1[7]
         self.id_launch_year = self._line1[9:11]
@@ -131,10 +137,11 @@ class Tle(object):
         self.epoch_year = self._line1[18:20]
         self.epoch_day = float(self._line1[20:32])
         self.epoch = (datetime.datetime.strptime(self.epoch_year, "%y") +
-                             datetime.timedelta(days=self.epoch_day - 1))
+                      datetime.timedelta(days=self.epoch_day - 1))
         self.mean_motion_derivative = float(self._line1[33:43])
         self.mean_motion_sec_derivative = _read_tle_decimal(self._line1[44:52])
-        self.bstar = float(self._line1[53] + "." + self._line1[54:59] + "e" + self._line1[59:61])
+        self.bstar = float(
+            self._line1[53] + "." + self._line1[54:59] + "e" + self._line1[59:61])
         _read_tle_decimal(self._line1[53:61])
         try:
             self.ephemeris_type = int(self._line1[62])
@@ -151,7 +158,8 @@ class Tle(object):
         self.orbit = int(self._line2[63:68])
 
     def __str__(self):
-        import pprint, StringIO
+        import pprint
+        import StringIO
         s = StringIO.StringIO()
         d = dict(([(k, v) for k, v in self.__dict__.items() if k[0] != '_']))
         pprint.pprint(d, s)

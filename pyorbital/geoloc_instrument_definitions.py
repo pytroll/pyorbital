@@ -66,7 +66,30 @@ def avhrr(scans_nb, scan_points, scan_angle=55.37, decimate=1):
     #         + np.expand_dims(offset, 1))
     times = (np.tile(scan_points * 0.000025, [scans_nb, 1])
              + np.expand_dims(offset, 1))
+    return ScanGeometry(avhrr_inst, times.ravel())
 
+
+def avhrr_gac(scan_times, scan_points, scan_angle=55.37, decimate=1):
+    """Definition of the avhrr instrument.
+
+    Source: NOAA KLM User's Guide, Appendix J
+    http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
+    """
+    try:
+        offset = np.array([(t - scan_times[0]).seconds +
+                           (t - scan_times[0]).microseconds / 1000000.0 for t in scan_times])
+    except TypeError:
+        offset = np.arange(scans_nb) * decimate / 2.0
+    scans_nb = len(offset)
+    # build the avhrr instrument (scan angles)
+    avhrr_inst = np.vstack(((scan_points / 1023.5 - 1)
+                            * np.deg2rad(-scan_angle),
+                            np.zeros((len(scan_points),)))).transpose()
+    avhrr_inst = np.tile(avhrr_inst, [scans_nb, 1])
+
+    # building the corresponding times array
+    times = (np.tile(scan_points * 0.000025, [scans_nb, 1])
+             + np.expand_dims(offset, 1))
     return ScanGeometry(avhrr_inst, times.ravel())
 
 ################################################################

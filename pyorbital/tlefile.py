@@ -25,6 +25,8 @@
 import logging
 import datetime
 import urllib2
+import os
+import glob
 
 tle_urls = ('http://celestrak.com/NORAD/elements/weather.txt',
             'http://celestrak.com/NORAD/elements/resource.txt')
@@ -33,8 +35,9 @@ logger = logging.getLogger(__name__)
 
 
 def read(platform, tle_file=None, line1=None, line2=None):
-    """Read TLE for *satellite* from *tle_file*, from *line1* and *line2*, or
-    from internet if none is provided.
+    """Read TLE for *satellite* from *tle_file*, from *line1* and *line2*, from
+    the newest file provided in the TLES pattern, or from internet if none is
+    provided.
     """
     return Tle(platform, tle_file=tle_file, line1=line1, line2=line2)
 
@@ -65,6 +68,11 @@ class Tle(object):
         else:
             if tle_file:
                 urls = (tle_file,)
+                open_func = open
+            elif "TLES" in os.environ:
+                urls = (max(glob.glob(os.environ["TLES"]),
+                            key=os.path.getctime), )
+                logger.debug("Reading tle from %s", urls[0])
                 open_func = open
             else:
                 logger.debug("Fetch tle from the internet.")

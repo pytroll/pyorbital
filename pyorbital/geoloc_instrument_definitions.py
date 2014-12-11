@@ -79,7 +79,7 @@ def avhrr_gac(scan_times, scan_points,
         offset = np.array([(t - scan_times[0]).seconds +
                            (t - scan_times[0]).microseconds / 1000000.0 for t in scan_times])
     except TypeError:
-        offset = np.arange(scans_nb) * frequency
+        offset = np.arange(scan_times) * frequency
     scans_nb = len(offset)
     # build the avhrr instrument (scan angles)
     avhrr_inst = np.vstack(((scan_points / 1023.5 - 1)

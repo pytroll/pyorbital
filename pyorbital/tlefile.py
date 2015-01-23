@@ -128,7 +128,7 @@ class Tle(object):
     def _read_tle(self):
 
         def _read_tle_decimal(rep):
-            if rep[0] in ["-", " "]:
+            if rep[0] in ["-", " ", "+"]:
                 digits = rep[1:-2].strip()
                 val = rep[0] + "." + digits + "e" + rep[-2:]
             else:

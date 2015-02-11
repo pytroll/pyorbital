@@ -42,7 +42,7 @@ setup(name='SMHI-SAF-pyorbital',
       test_suite='pyorbital.tests.suite',
       package_dir = {'pyorbital': 'pyorbital'},
       packages = ['pyorbital'],      
-      install_requires=['numpy'],
+      install_requires=['numpy>=1.6.0'],
       zip_safe=False,
       )
 

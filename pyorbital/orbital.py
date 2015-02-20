@@ -648,8 +648,8 @@ class _SGDP4(object):
         if np.any(a < 1):
             raise Exception('Satellite crased at time %s', utc_time)
         elif np.any(e < ECC_LIMIT_LOW):
-            raise ValueError('Satellite modified eccentricity to low: %e < %e'
-                             % (e, ECC_LIMIT_LOW))
+            raise ValueError('Satellite modified eccentricity to low: %s < %e'
+                             % (str(e[e < ECC_LIMIT_LOW]), ECC_LIMIT_LOW))
 
         e = np.where(e < ECC_EPS, ECC_EPS, e)
         e = np.where(e > ECC_LIMIT_HIGH, ECC_LIMIT_HIGH, e)

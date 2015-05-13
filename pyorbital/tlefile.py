@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012, 2013, 2014.
+# Copyright (c) 2011, 2012, 2013, 2014, 2015.
 
 # Author(s):
 
 #   Esben S. Nielsen <esn@dmi.dk>
 #   Martin Raspaud <martin.raspaud@smhi.se>
+#   Panu Lahtinen <panu.lahtinen@fmi.fi>
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,11 +29,39 @@ import urllib2
 import os
 import glob
 
-tle_urls = ('http://celestrak.com/NORAD/elements/weather.txt',
+TLE_URLS = ('http://celestrak.com/NORAD/elements/weather.txt',
             'http://celestrak.com/NORAD/elements/resource.txt')
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
+def read_platform_numbers(in_upper=False, num_as_int=False):
+    '''Read platform numbers from $PPP_CONFIG_DIR/platforms.txt if available.
+    '''
+
+    out_dict = {}
+    if "PPP_CONFIG_DIR" in os.environ:
+        platform_file = os.path.join(os.environ["PPP_CONFIG_DIR"],
+                                     "platforms.txt")
+        try:
+            fid = open(platform_file, 'r')
+        except IOError:
+            LOGGER.error("Platform file %s not found.", platform_file)
+            return out_dict
+        for row in fid:
+            # skip comment lines
+            if not row.startswith('#'):
+                parts = row.split()
+                if in_upper:
+                    parts[0] = parts[0].upper()
+                if num_as_int:
+                    parts[1] = int(parts[1])
+                out_dict[parts[0]] = parts[1]
+        fid.close()
+
+    return out_dict
+
+
+SATELLITES = read_platform_numbers(in_upper=True, num_as_int=False)
 
 def read(platform, tle_file=None, line1=None, line2=None):
     """Read TLE for *satellite* from *tle_file*, from *line1* and *line2*, from
@@ -46,75 +75,71 @@ def fetch(destination):
     """fetch TLE from internet and save it to *destination*.
     """
     with open(destination, "w") as dest:
-        for url in tle_urls:
+        for url in TLE_URLS:
             response = urllib2.urlopen(url)
             dest.write(response.read())
 
 
 class ChecksumError(Exception):
+    '''ChecksumError.
+    '''
     pass
 
 
 class Tle(object):
-
     """Class holding TLE objects.
     """
 
     def __init__(self, platform, tle_file=None, line1=None, line2=None):
-        platform = platform.strip().upper()
+        self._platform = platform.strip().upper()
+        self._tle_file = tle_file
+        self._line1 = line1
+        self._line2 = line2
 
-        if line1 is not None and line2 is not None:
-            tle = line1.strip() + "\n" + line2.strip()
-        else:
-            if tle_file:
-                urls = (tle_file,)
-                open_func = open
-            elif "TLES" in os.environ:
-                urls = (max(glob.glob(os.environ["TLES"]),
-                            key=os.path.getctime), )
-                logger.debug("Reading tle from %s", urls[0])
-                open_func = open
-            else:
-                logger.debug("Fetch tle from the internet.")
-                urls = tle_urls
-                open_func = urllib2.urlopen
+        self.satnumber = None
+        self.classification = None
+        self.id_launch_year = None
+        self.id_launch_number = None
+        self.id_launch_piece = None
+        self.epoch_year = None
+        self.epoch_day = None
+        self.epoch = None
+        self.mean_motion_derivative = None
+        self.mean_motion_sec_derivative = None
+        self.bstar = None
+        self.ephemeris_type = None
+        self.element_number = None
+        self.inclination = None
+        self.right_ascension = None
+        self.excentricity = None
+        self.arg_perigee = None
+        self.mean_anomaly = None
+        self.mean_motion = None
+        self.orbit = None
 
-            tle = ""
-            for url in urls:
-                fp = open_func(url)
-                for l0 in fp:
-                    l1, l2 = fp.next(), fp.next()
-                    if l0.strip() == platform:
-                        tle = l1.strip() + "\n" + l2.strip()
-                        break
-                fp.close()
-                if tle:
-                    break
-
-            if not tle:
-                raise AttributeError, "Found no TLE entry for '%s'" % platform
-
-        self._platform = platform
-        self._line1, self._line2 = tle.split('\n')
-        self._checksum()
         self._read_tle()
+        self._checksum()
+        self._parse_tle()
 
     @property
     def line1(self):
+        '''Return first TLE line.'''
         return self._line1
 
     @property
     def line2(self):
+        '''Return second TLE line.'''
         return self._line2
 
     @property
     def platform(self):
+        '''Return satellite platform name.'''
         return self._platform
 
     def _checksum(self):
         """Performs the checksum for the current TLE.
         """
-        for line in [self.line1, self.line2]:
+        for line in [self._line1, self._line2]:
             check = 0
             for char in line[:-1]:
                 if char.isdigit():
@@ -126,8 +151,61 @@ class Tle(object):
                 raise ChecksumError(self._platform + " " + line)
 
     def _read_tle(self):
+        '''Read TLE data.
+        '''
 
+        if self._line1 is not None and self._line2 is not None:
+            tle = self._line1.strip() + "\n" + self._line2.strip()
+        else:
+            if self._tle_file:
+                urls = (self._tle_file,)
+                open_func = open
+            elif "TLES" in os.environ:
+                # TODO: get the TLE file closest to the actual satellite
+                # overpass, NOT the latest!
+                urls = (max(glob.glob(os.environ["TLES"]),
+                            key=os.path.getctime), )
+                LOGGER.debug("Reading TLE from %s", urls[0])
+                open_func = open
+            else:
+                LOGGER.debug("Fetch TLE from the internet.")
+                urls = TLE_URLS
+                open_func = urllib2.urlopen
+
+            tle = ""
+            designator = "1 " + SATELLITES.get(self._platform, '')
+            for url in urls:
+                fid = open_func(url)
+                for l_0 in fid:
+                    if l_0.strip() == self._platform:
+                        l_1, l_2 = fid.next(), fid.next()
+                        tle = l_1.strip() + "\n" + l_2.strip()
+                        break
+                    if(self._platform in SATELLITES and
+                       l_0.strip().startswith(designator)):
+                        l_1 = l_0
+                        l_2 = fid.next()
+                        tle = l_1.strip() + "\n" + l_2.strip()
+                        LOGGER.debug("Found platform %s, ID: %s",
+                                     self._platform,
+                                     SATELLITES[self._platform])
+                        break
+                fid.close()
+                if tle:
+                    break
+
+            if not tle:
+                raise KeyError("Found no TLE entry for '%s'" % self._platform)
+
+        self._line1, self._line2 = tle.split('\n')
+
+
+    def _parse_tle(self):
+        '''Parse values from TLE data.
+        '''
         def _read_tle_decimal(rep):
+            '''Convert *rep* to decimal value.
+            '''
             if rep[0] in ["-", " ", "+"]:
                 digits = rep[1:-2].strip()
                 val = rep[0] + "." + digits + "e" + rep[-2:]
@@ -148,9 +226,7 @@ class Tle(object):
                       datetime.timedelta(days=self.epoch_day - 1))
         self.mean_motion_derivative = float(self._line1[33:43])
         self.mean_motion_sec_derivative = _read_tle_decimal(self._line1[44:52])
-        self.bstar = float(
-            self._line1[53] + "." + self._line1[54:59] + "e" + self._line1[59:61])
-        _read_tle_decimal(self._line1[53:61])
+        self.bstar = _read_tle_decimal(self._line1[53:61])
         try:
             self.ephemeris_type = int(self._line1[62])
         except ValueError:
@@ -168,11 +244,17 @@ class Tle(object):
     def __str__(self):
         import pprint
         import StringIO
-        s = StringIO.StringIO()
-        d = dict(([(k, v) for k, v in self.__dict__.items() if k[0] != '_']))
-        pprint.pprint(d, s)
-        return s.getvalue()[:-1]
+        s_var = StringIO.StringIO()
+        d_var = dict(([(k, v) for k, v in
+                       self.__dict__.items() if k[0] != '_']))
+        pprint.pprint(d_var, s_var)
+        return s_var.getvalue()[:-1]
+
+def main():
+    '''Main for testing TLE reading.
+    '''
+    tle_data = read('Noaa-19')
+    print tle_data
 
 if __name__ == '__main__':
-    tle = read('noaa 19')
-    print tle
+    main()

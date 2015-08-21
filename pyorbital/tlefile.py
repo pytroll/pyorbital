@@ -34,6 +34,7 @@ TLE_URLS = ('http://celestrak.com/NORAD/elements/weather.txt',
 
 LOGGER = logging.getLogger(__name__)
 
+
 def read_platform_numbers(in_upper=False, num_as_int=False):
     '''Read platform numbers from $PPP_CONFIG_DIR/platforms.txt if available.
     '''
@@ -62,18 +63,81 @@ def read_platform_numbers(in_upper=False, num_as_int=False):
 
 
 SATELLITES = read_platform_numbers(in_upper=True, num_as_int=False)
+'''
+The platform numbers are given in a file $PPP_CONFIG/platforms.txt
+in the following format:
+
+# Mappings between satellite catalogue numbers and corresponding
+# platform names from OSCAR.
+ALOS-2 39766
+CloudSat 29107
+CryoSat-2 36508
+CSK-1 31598
+CSK-2 32376
+CSK-3 33412
+CSK-4 37216
+DMSP-F15 25991
+DMSP-F16 28054
+DMSP-F17 29522
+DMSP-F18 35951
+DMSP-F19 39630
+EOS-Aqua 27424
+EOS-Aura 28376
+EOS-Terra 25994
+FY-2D 29640
+FY-2E 33463
+FY-2F 38049
+FY-2G 40367
+FY-3A 32958
+FY-3B 37214
+FY-3C 39260
+GOES-13 29155
+GOES-14 35491
+GOES-15 36411
+Himawari-6 28622
+Himawari-7 28937
+Himawari-8 40267
+INSAT-3A 27714
+INSAT-3C 27298
+INSAT-3D 39216
+JASON-2 33105
+Kalpana-1 27525
+Landsat-7 25682
+Landsat-8 39084
+Meteosat-7 24932
+Meteosat-8 27509
+Meteosat-9 28912
+Meteosat-10 38552
+Metop-A 29499
+Metop-B 38771
+NOAA-15 25338
+NOAA-16 26536
+NOAA-17 27453
+NOAA-18 28654
+NOAA-19 33591
+RadarSat-2 32382
+Sentinel-1A 39634
+SMOS 36036
+SPOT-5 27421
+SPOT-6 38755
+SPOT-7 40053
+Suomi-NPP 37849
+TanDEM-X 36605
+TerraSAR-X 31698
+'''
+
 
 def read(platform, tle_file=None, line1=None, line2=None):
     """Read TLE for *satellite* from *tle_file*, from *line1* and *line2*, from
-    the newest file provided in the TLES pattern, or from internet if none is
-    provided.
-    """
+   the newest file provided in the TLES pattern, or from internet if none is
+   provided.
+   """
     return Tle(platform, tle_file=tle_file, line1=line1, line2=line2)
 
 
 def fetch(destination):
     """fetch TLE from internet and save it to *destination*.
-    """
+   """
     with open(destination, "w") as dest:
         for url in TLE_URLS:
             response = urllib2.urlopen(url)
@@ -88,7 +152,7 @@ class ChecksumError(Exception):
 
 class Tle(object):
     """Class holding TLE objects.
-    """
+   """
 
     def __init__(self, platform, tle_file=None, line1=None, line2=None):
         self._platform = platform.strip().upper()
@@ -161,7 +225,7 @@ class Tle(object):
                 urls = (self._tle_file,)
                 open_func = open
             elif "TLES" in os.environ:
-                # TODO: get the TLE file closest to the actual satellite
+                # TODO: get the TLE file closest in time to the actual satellite
                 # overpass, NOT the latest!
                 urls = (max(glob.glob(os.environ["TLES"]),
                             key=os.path.getctime), )
@@ -198,7 +262,6 @@ class Tle(object):
                 raise KeyError("Found no TLE entry for '%s'" % self._platform)
 
         self._line1, self._line2 = tle.split('\n')
-
 
     def _parse_tle(self):
         '''Parse values from TLE data.

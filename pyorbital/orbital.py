@@ -31,9 +31,9 @@ from pyorbital import tlefile
 from pyorbital import astronomy
 import warnings
 
-ECC_EPS = 1.0e-6	# Too low for computing further drops.
+ECC_EPS = 1.0e-6  # Too low for computing further drops.
 ECC_LIMIT_LOW = -1.0e-3
-ECC_LIMIT_HIGH = 1.0 - ECC_EPS	# Too close to 1
+ECC_LIMIT_HIGH = 1.0 - ECC_EPS  # Too close to 1
 ECC_ALL = 1.0e-4
 
 EPS_COS = 1.5e-12
@@ -54,8 +54,8 @@ XMNPDA = 1440.0
 AE = 1.0
 SECDAY = 8.6400E4
 
-F = 1 / 298.257223563 # Earth flattening WGS-84
-A = 6378.137 # WGS84 Equatorial radius
+F = 1 / 298.257223563  # Earth flattening WGS-84
+A = 6378.137  # WGS84 Equatorial radius
 
 
 SGDP4_ZERO_ECC = 0
@@ -66,11 +66,13 @@ SGDP4_NEAR_NORM = 3
 KS = AE * (1.0 + S0 / XKMPER)
 A3OVK2 = (-XJ3 / CK2) * AE**3
 
+
 class OrbitalError(Exception):
     pass
 
 
 class Orbital(object):
+
     """Class for orbital computations.
 
     The *satellite* parameter is the name of the satellite to work on and is
@@ -138,29 +140,29 @@ class Orbital(object):
 
         return pos, vel
 
-
     def get_lonlatalt(self, utc_time):
         """Calculate sublon, sublat and altitude of satellite.
         http://celestrak.com/columns/v02n03/
         """
-        (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(utc_time, normalize=True)
+        (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(
+            utc_time, normalize=True)
 
         lon = ((np.arctan2(pos_y * XKMPER, pos_x * XKMPER) - astronomy.gmst(utc_time))
                % (2 * np.pi))
 
         lon = np.where(lon > np.pi, lon - np.pi * 2, lon)
-        lon = np.where(lon <= -np.pi, lon + np.pi *2, lon)
+        lon = np.where(lon <= -np.pi, lon + np.pi * 2, lon)
 
         r = np.sqrt(pos_x ** 2 + pos_y ** 2)
         lat = np.arctan2(pos_z, r)
         e2 = F * (2 - F)
         while True:
             lat2 = lat
-            c = 1/(np.sqrt(1 - e2 * (np.sin(lat2) ** 2)))
-            lat = np.arctan2(pos_z + c * e2 *np.sin(lat2), r)
+            c = 1 / (np.sqrt(1 - e2 * (np.sin(lat2) ** 2)))
+            lat = np.arctan2(pos_z + c * e2 * np.sin(lat2), r)
             if np.all(abs(lat - lat2) < 1e-10):
                 break
-        alt = r / np.cos(lat)- c;
+        alt = r / np.cos(lat) - c
         alt *= A
         return np.rad2deg(lon), np.rad2deg(lat), alt
 
@@ -181,9 +183,10 @@ class Orbital(object):
 
         Return: (Azimuth, Elevation)
         """
-        (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(utc_time, normalize=False)
+        (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(
+            utc_time, normalize=False)
         (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \
-                                    astronomy.observer_position(utc_time, lon, lat, alt)
+            astronomy.observer_position(utc_time, lon, lat, alt)
 
         lon = np.deg2rad(lon)
         lat = np.deg2rad(lat)
@@ -199,9 +202,11 @@ class Orbital(object):
         sin_theta = np.sin(theta)
         cos_theta = np.cos(theta)
 
-        top_s = sin_lat * cos_theta * rx + sin_lat * sin_theta * ry - cos_lat * rz
+        top_s = sin_lat * cos_theta * rx + \
+            sin_lat * sin_theta * ry - cos_lat * rz
         top_e = -sin_theta * rx + cos_theta * ry
-        top_z = cos_lat * cos_theta * rx + cos_lat * sin_theta * ry + sin_lat * rz
+        top_z = cos_lat * cos_theta * rx + \
+            cos_lat * sin_theta * ry + sin_lat * rz
 
         az_ = np.arctan(-top_e / top_s)
 
@@ -222,25 +227,25 @@ class Orbital(object):
             orbit_period = astronomy._days(self.orbit_elements.an_period)
         except AttributeError:
             pos_epoch, vel_epoch = self.get_position(self.tle.epoch,
-                                                 normalize=False)
+                                                     normalize=False)
             if np.abs(pos_epoch[2]) > 1 or not vel_epoch[2] > 0:
                 # Epoch not at ascending node
-                self.orbit_elements.an_time = self.get_last_an_time(self.tle.epoch)
+                self.orbit_elements.an_time = self.get_last_an_time(
+                    self.tle.epoch)
             else:
                 # Epoch at ascending node (z < 1 km) and positive v_z
                 self.orbit_elements.an_time = self.tle.epoch
 
             self.orbit_elements.an_period = self.orbit_elements.an_time - \
-                                            self.get_last_an_time(self.orbit_elements.an_time
-                                                                  - timedelta(minutes=10))
+                self.get_last_an_time(self.orbit_elements.an_time
+                                      - timedelta(minutes=10))
 
             dt = astronomy._days(utc_time - self.orbit_elements.an_time)
             orbit_period = astronomy._days(self.orbit_elements.an_period)
 
-
         orbit = int(self.tle.orbit + dt / orbit_period +
-                 self.tle.mean_motion_derivative * dt**2 +
-                 self.tle.mean_motion_sec_derivative * dt**3)
+                    self.tle.mean_motion_derivative * dt**2 +
+                    self.tle.mean_motion_sec_derivative * dt**3)
 
         if tbus_style:
             orbit += 1
@@ -267,8 +272,10 @@ class Orbital(object):
             """elevation
             """
             return self.get_observer_look(utc_time +
-                                          timedelta(minutes=np.float64(minutes)),
+                                          timedelta(
+                                              minutes=np.float64(minutes)),
                                           lon, lat, alt)[1] - horizon
+
         def elevation_inv(minutes):
             """inverse of elevation
             """
@@ -306,7 +313,7 @@ class Orbital(object):
             while abs(c - a) > tol:
                 x = b - 0.5 * (((b - a) ** 2 * (f_b - f_c)
                                 - (b - c) ** 2 * (f_b - f_a)) /
-                               ((b - a) * (f_b - f_c)  - (b - c) * (f_b - f_a)))
+                               ((b - a) * (f_b - f_c) - (b - c) * (f_b - f_a)))
                 f_x = fun(x)
                 if x > b:
                     a, b, c = b, x, c
@@ -318,7 +325,7 @@ class Orbital(object):
             return x
 
         times = utc_time + np.array([timedelta(minutes=minutes)
-                                    for minutes in range(length * 60)])
+                                     for minutes in range(length * 60)])
         elev = self.get_observer_look(times, lon, lat, alt)[1] - horizon
         zcs = np.where(np.diff(np.sign(elev)))[0]
 
@@ -326,7 +333,8 @@ class Orbital(object):
         risetime = None
         falltime = None
         for guess in zcs:
-            horizon_mins = get_root_secant(elevation, guess, guess + 1.0, tol=tol/60.0)
+            horizon_mins = get_root_secant(
+                elevation, guess, guess + 1.0, tol=tol / 60.0)
             horizon_time = utc_time + timedelta(minutes=horizon_mins)
             if elev[guess] < 0:
                 risetime = horizon_time
@@ -339,9 +347,9 @@ class Orbital(object):
                     middle = (risemins + fallmins) / 2.0
                     highest = utc_time + \
                         timedelta(minutes=get_max_parab(
-                        elevation_inv,
-                        middle - 0.1, middle + 0.1,
-                        tol=tol/60.0
+                            elevation_inv,
+                            middle - 0.1, middle + 0.1,
+                            tol=tol / 60.0
                         ))
                     res += [(risetime, falltime, highest)]
                 risetime = None
@@ -367,7 +375,7 @@ class Orbital(object):
             nmax_iter = 100
 
         sec_step = 0.5
-        t_step = timedelta(seconds=sec_step/2.0)
+        t_step = timedelta(seconds=sec_step / 2.0)
 
         # Local derivative:
         def fprime(timex):
@@ -390,9 +398,9 @@ class Orbital(object):
             #var_scale = np.abs(np.sin(fpr[0] * np.pi/180.))
             #var_scale = np.sqrt(var_scale)
             var_scale = np.abs(fpr[0])
-            tx1 = tx0 - timedelta(seconds = (eps * var_scale * fpr[1]))
+            tx1 = tx0 - timedelta(seconds=(eps * var_scale * fpr[1]))
             idx = idx + 1
-            #print idx, tx0, tx1, var_scale, fpr
+            # print idx, tx0, tx1, var_scale, fpr
             if abs(tx1 - utc_time) < precision and idx < 2:
                 tx1 = tx1 + timedelta(seconds=1.0)
 
@@ -401,7 +409,9 @@ class Orbital(object):
         else:
             return None
 
+
 class OrbitElements(object):
+
     """Class holding the orbital elements.
     """
 
@@ -414,8 +424,10 @@ class OrbitElements(object):
         self.mean_anomaly = np.deg2rad(tle.mean_anomaly)
 
         self.mean_motion = tle.mean_motion * (np.pi * 2 / XMNPDA)
-        self.mean_motion_derivative = tle.mean_motion_derivative * np.pi * 2 / XMNPDA ** 2
-        self.mean_motion_sec_derivative = tle.mean_motion_sec_derivative * np.pi * 2 / XMNPDA ** 3
+        self.mean_motion_derivative = tle.mean_motion_derivative * \
+            np.pi * 2 / XMNPDA ** 2
+        self.mean_motion_sec_derivative = tle.mean_motion_sec_derivative * \
+            np.pi * 2 / XMNPDA ** 3
         self.bstar = tle.bstar * AE
 
         n_0 = self.mean_motion
@@ -424,14 +436,14 @@ class OrbitElements(object):
         i_0 = self.inclination
         e_0 = self.excentricity
 
-        a_1 = (k_e / n_0) ** (2.0/3)
-        delta_1 = ((3/2.0) * (k_2 / a_1**2) * ((3 * np.cos(i_0)**2 - 1) /
-                                              (1 - e_0**2)**(2.0/3)))
+        a_1 = (k_e / n_0) ** (2.0 / 3)
+        delta_1 = ((3 / 2.0) * (k_2 / a_1**2) * ((3 * np.cos(i_0)**2 - 1) /
+                                                 (1 - e_0**2)**(2.0 / 3)))
 
-        a_0 = a_1 * (1 - delta_1/3 - delta_1**2 - (134.0/81) * delta_1**3)
+        a_0 = a_1 * (1 - delta_1 / 3 - delta_1**2 - (134.0 / 81) * delta_1**3)
 
-        delta_0 = ((3/2.0) * (k_2 / a_0**2) * ((3 * np.cos(i_0)**2 - 1) /
-                                              (1 - e_0**2)**(2.0/3)))
+        delta_0 = ((3 / 2.0) * (k_2 / a_0**2) * ((3 * np.cos(i_0)**2 - 1) /
+                                                 (1 - e_0**2)**(2.0 / 3)))
 
         # original mean motion
         n_0pp = n_0 / (1 + delta_0)
@@ -446,13 +458,14 @@ class OrbitElements(object):
         self.perigee = (a_0pp * (1 - e_0) / AE - AE) * XKMPER
 
         self.right_ascension_lon = (self.right_ascension
-                                           - astronomy.gmst(self.epoch))
+                                    - astronomy.gmst(self.epoch))
 
         if self.right_ascension_lon > np.pi:
             self.right_ascension_lon -= 2 * np.pi
 
 
 class _SGDP4(object):
+
     """Class for the SGDP4 computations.
     """
 
@@ -498,7 +511,8 @@ class _SGDP4(object):
         betao = np.sqrt(betao2)
         temp0 = 1.5 * CK2 * self.x3thm1 / (betao * betao2)
         del1 = temp0 / (a1**2)
-        a0 = a1 * (1.0 - del1 * (1.0 / 3.0 + del1 * (1.0 + del1 * 134.0 / 81.0)))
+        a0 = a1 * \
+            (1.0 - del1 * (1.0 / 3.0 + del1 * (1.0 + del1 * 134.0 / 81.0)))
         del0 = temp0 / (a0**2)
         self.xnodp = self.xn_0 / (1.0 + del0)
         self.aodp = (a0 / (1.0 - del0))
@@ -537,27 +551,27 @@ class _SGDP4(object):
         coef_1 = coef / psisq**3.5
 
         self.c2 = (coef_1 * self.xnodp * (self.aodp *
-             (1.0 + 1.5 * etasq + eeta * (4.0 + etasq)) +
-             (0.75 * CK2) * tsi / psisq * self.x3thm1 *
-             (8.0 + 3.0 * etasq * (8.0 + etasq))))
+                                          (1.0 + 1.5 * etasq + eeta * (4.0 + etasq)) +
+                                          (0.75 * CK2) * tsi / psisq * self.x3thm1 *
+                                          (8.0 + 3.0 * etasq * (8.0 + etasq))))
 
         self.c1 = self.bstar * self.c2
 
         self.c4 = (2.0 * self.xnodp * coef_1 * self.aodp * betao2 * (self.eta *
-             (2.0 + 0.5 * etasq) + self.eo * (0.5 + 2.0 *
-             etasq) - (2.0 * CK2) * tsi / (self.aodp * psisq) * (-3.0 *
-             self.x3thm1 * (1.0 - 2.0 * eeta + etasq *
-             (1.5 - 0.5 * eeta)) + 0.75 * self.x1mth2 * (2.0 *
-             etasq - eeta * (1.0 + etasq)) * np.cos(2.0 * self.omegao))))
+                                                                     (2.0 + 0.5 * etasq) + self.eo * (0.5 + 2.0 *
+                                                                                                      etasq) - (2.0 * CK2) * tsi / (self.aodp * psisq) * (-3.0 *
+                                                                                                                                                          self.x3thm1 * (1.0 - 2.0 * eeta + etasq *
+                                                                                                                                                                         (1.5 - 0.5 * eeta)) + 0.75 * self.x1mth2 * (2.0 *
+                                                                                                                                                                                                                     etasq - eeta * (1.0 + etasq)) * np.cos(2.0 * self.omegao))))
 
         self.c5, self.c3, self.omgcof = 0.0, 0.0, 0.0
 
-
         if self.mode == SGDP4_NEAR_NORM:
             self.c5 = (2.0 * coef_1 * self.aodp * betao2 *
-             (1.0 + 2.75 * (etasq + eeta) + eeta * etasq))
+                       (1.0 + 2.75 * (etasq + eeta) + eeta * etasq))
             if self.eo > ECC_ALL:
-                self.c3 = coef * tsi * A3OVK2 * self.xnodp * AE * self.sinIO / self.eo
+                self.c3 = coef * tsi * A3OVK2 * \
+                    self.xnodp * AE * self.sinIO / self.eo
             self.omgcof = self.bstar * self.c3 * np.cos(self.omegao)
 
         temp1 = 3.0 * CK2 * pinvsq * self.xnodp
@@ -565,18 +579,18 @@ class _SGDP4(object):
         temp3 = 1.25 * CK4 * pinvsq**2 * self.xnodp
 
         self.xmdot = (self.xnodp + (0.5 * temp1 * betao * self.x3thm1 + 0.0625 *
-                temp2 * betao * (13.0 - 78.0 * theta2 +
-                137.0 * theta4)))
+                                    temp2 * betao * (13.0 - 78.0 * theta2 +
+                                                     137.0 * theta4)))
 
         x1m5th = 1.0 - 5.0 * theta2
 
         self.omgdot = (-0.5 * temp1 * x1m5th + 0.0625 * temp2 *
-                 (7.0 - 114.0 * theta2 + 395.0 * theta4) +
-                 temp3 * (3.0 - 36.0 * theta2 + 49.0 * theta4))
+                       (7.0 - 114.0 * theta2 + 395.0 * theta4) +
+                       temp3 * (3.0 - 36.0 * theta2 + 49.0 * theta4))
 
         xhdot1 = -temp1 * self.cosIO
         self.xnodot = (xhdot1 + (0.5 * temp2 * (4.0 - 19.0 * theta2) +
-                 2.0 * temp3 * (3.0 - 7.0 * theta2)) * self.cosIO)
+                                 2.0 * temp3 * (3.0 - 7.0 * theta2)) * self.cosIO)
 
         if self.eo > ECC_ALL:
             self.xmcof = (-(2. / 3) * AE) * coef * self.bstar / eeta
@@ -586,12 +600,14 @@ class _SGDP4(object):
         self.xnodcf = 3.5 * betao2 * xhdot1 * self.c1
         self.t2cof = 1.5 * self.c1
 
-        # Check for possible divide-by-zero for X/(1+cos(xincl)) when calculating xlcof */
-    	temp0 = 1.0 + self.cosIO
-    	if np.abs(temp0) < EPS_COS:
-    	    temp0 = np.sign(temp0) * EPS_COS
+        # Check for possible divide-by-zero for X/(1+cos(xincl)) when
+        # calculating xlcof */
+        temp0 = 1.0 + self.cosIO
+        if np.abs(temp0) < EPS_COS:
+            temp0 = np.sign(temp0) * EPS_COS
 
-    	self.xlcof = 0.125 * A3OVK2 * self.sinIO * (3.0 + 5.0 * self.cosIO) / temp0
+        self.xlcof = 0.125 * A3OVK2 * self.sinIO * \
+            (3.0 + 5.0 * self.cosIO) / temp0
 
         self.aycof = 0.25 * A3OVK2 * self.sinIO
 
@@ -604,11 +620,13 @@ class _SGDP4(object):
             self.d2 = 4.0 * self.aodp * tsi * c1sq
             temp0 = self.d2 * tsi * self.c1 / 3.0
             self.d3 = (17.0 * self.aodp + s4) * temp0
-            self.d4 = 0.5 * temp0 * self.aodp * tsi * (221.0 * self.aodp + 31.0 * s4) * self.c1
+            self.d4 = 0.5 * temp0 * self.aodp * tsi * \
+                (221.0 * self.aodp + 31.0 * s4) * self.c1
             self.t3cof = self.d2 + 2.0 * c1sq
-            self.t4cof = 0.25 * (3.0 * self.d3 + self.c1 * (12.0 * self.d2 + 10.0 * c1sq))
+            self.t4cof = 0.25 * \
+                (3.0 * self.d3 + self.c1 * (12.0 * self.d2 + 10.0 * c1sq))
             self.t5cof = (0.2 * (3.0 * self.d4 + 12.0 * self.c1 * self.d3 + 6.0 * self.d2**2 +
-                    15.0 * c1sq * (2.0 * self.d2 + c1sq)))
+                                 15.0 * c1sq * (2.0 * self.d2 + c1sq)))
 
         elif self.mode == SGDP4_DEEP_NORM:
             raise NotImplementedError('Deep space calculations not supported')
@@ -621,7 +639,7 @@ class _SGDP4(object):
         em = self.eo
         xinc = self.xincl
 
-        xmp   = self.xmo + self.xmdot * ts
+        xmp = self.xmo + self.xmdot * ts
         xnode = self.xnodeo + ts * (self.xnodot + ts * self.xnodcf)
         omega = self.omegao + self.omgdot * ts
 
@@ -631,19 +649,25 @@ class _SGDP4(object):
             raise NotImplementedError('Mode "Near-space, simplified equations"'
                                       ' not implemented')
         elif self.mode == SGDP4_NEAR_NORM:
-            delm  = self.xmcof * ((1.0 + self.eta * np.cos(xmp))**3 - self.delmo)
+            delm = self.xmcof * \
+                ((1.0 + self.eta * np.cos(xmp))**3 - self.delmo)
             temp0 = ts * self.omgcof + delm
             xmp += temp0
             omega -= temp0
-            tempa = 1.0 - (ts * (self.c1 + ts * (self.d2 + ts * (self.d3 + ts * self.d4))))
-            tempe = self.bstar * (self.c4 * ts + self.c5 * (np.sin(xmp) - self.sinXMO))
-            templ = ts * ts * (self.t2cof + ts * (self.t3cof + ts * (self.t4cof + ts * self.t5cof)))
+            tempa = 1.0 - \
+                (ts *
+                 (self.c1 + ts * (self.d2 + ts * (self.d3 + ts * self.d4))))
+            tempe = self.bstar * \
+                (self.c4 * ts + self.c5 * (np.sin(xmp) - self.sinXMO))
+            templ = ts * ts * \
+                (self.t2cof + ts *
+                 (self.t3cof + ts * (self.t4cof + ts * self.t5cof)))
             a = self.aodp * tempa**2
             e = em - tempe
             xl = xmp + omega + xnode + self.xnodp * templ
 
         else:
-            raise  NotImplementedError('Deep space calculations not supported')
+            raise NotImplementedError('Deep space calculations not supported')
 
         if np.any(a < 1):
             raise Exception('Satellite crased at time %s', utc_time)
@@ -694,7 +718,7 @@ class _SGDP4(object):
             # 2nd order Newton-Raphson correction.
             nr = np.where(np.logical_and(i == 0, np.abs(nr) > 1.25 * maxnr),
                           np.sign(nr) * maxnr,
-                          f / (df + 0.5*esinE*nr))
+                          f / (df + 0.5 * esinE * nr))
             epw += nr
 
         # Short period preliminary quantities
@@ -716,7 +740,8 @@ class _SGDP4(object):
 
         # Update for short term periodics to position terms.
 
-        rk = r * (1.0 - 1.5 * temp2 * betal * self.x3thm1) + 0.5 * temp1 * self.x1mth2 * cos2u
+        rk = r * (1.0 - 1.5 * temp2 * betal * self.x3thm1) + \
+            0.5 * temp1 * self.x1mth2 * cos2u
         uk = u - 0.25 * temp2 * self.x7thm1 * sin2u
         xnodek = xnode + 1.5 * temp2 * self.cosIO * sin2u
         xinck = xinc + 1.5 * temp2 * self.cosIO * self.sinIO * cos2u
@@ -726,10 +751,10 @@ class _SGDP4(object):
 
         temp0 = np.sqrt(a)
         temp2 = XKE / (a * temp0)
-        rdotk = ((XKE * temp0 * esinE * invR -temp2 * temp1 * self.x1mth2 * sin2u) *
+        rdotk = ((XKE * temp0 * esinE * invR - temp2 * temp1 * self.x1mth2 * sin2u) *
                  (XKMPER / AE * XMNPDA / 86400.0))
         rfdotk = ((XKE * np.sqrt(pl) * invR + temp2 * temp1 *
-                  (self.x1mth2 * cos2u + 1.5 * self.x3thm1)) *
+                   (self.x1mth2 * cos2u + 1.5 * self.x3thm1)) *
                   (XKMPER / AE * XMNPDA / 86400.0))
 
         kep['radius'] = rk * XKMPER / AE

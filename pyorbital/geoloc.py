@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012, 2013, 2014.
+# Copyright (c) 2011, 2012, 2013, 2014, 2015.
 
 # Author(s):
 
@@ -34,44 +34,46 @@ from numpy import cos, sin, sqrt
 from datetime import timedelta
 from pyorbital.orbital import Orbital
 
-a = 6378.137 # km
-b = 6356.75231414 # km, GRS80
-#b = 6356.752314245 # km, WGS84
+a = 6378.137  # km
+b = 6356.75231414  # km, GRS80
+# b = 6356.752314245 # km, WGS84
+
 
 def geodetic_lat(point, a=a, b=b):
 
     x, y, z = point
-    r = np.sqrt(x*x + y*y)
+    r = np.sqrt(x * x + y * y)
     geoc_lat = np.arctan2(z, r)
 
     geod_lat = geoc_lat
-    e2 = (a*a - b*b) / (a*a)
+    e2 = (a * a - b * b) / (a * a)
     while True:
         phi = geod_lat
-        C = 1  / sqrt(1 - e2 * sin(phi)**2)
-        geod_lat = np.arctan2(z + a*C*e2 * sin(phi), r)
+        C = 1 / sqrt(1 - e2 * sin(phi)**2)
+        geod_lat = np.arctan2(z + a * C * e2 * sin(phi), r)
         if np.allclose(geod_lat, phi):
             return geod_lat
-                      
+
 
 def subpoint(query_point, a=a, b=b):
     """Get the point on the ellipsoid under the *query_point*.
     """
     x, y, z = query_point
-    r = sqrt(x*x + y*y)
+    r = sqrt(x * x + y * y)
 
     lat = geodetic_lat(query_point)
     lon = np.arctan2(y, x)
-    e2_ = (a*a - b*b) / (a*a)
+    e2_ = (a * a - b * b) / (a * a)
     n__ = a / sqrt(1 - e2_ * sin(lat)**2)
     nx_ = n__ * cos(lat) * cos(lon)
     ny_ = n__ * cos(lat) * sin(lon)
-    nz_ = (1-e2_) * n__ * sin(lat)
+    nz_ = (1 - e2_) * n__ * sin(lat)
 
     return np.vstack([nx_, ny_, nz_])
-    
+
 
 class ScanGeometry(object):
+
     """Description of the geometry of an instrument.
 
     *fovs* is the x and y viewing angles of the instrument. y is zero if the we
@@ -95,8 +97,7 @@ class ScanGeometry(object):
         vectors. Returns vectors as stacked rows.
         """
         # TODO: yaw steering mode !
-        
-        
+
         # Fake nadir: This is the intersection point between the satellite
         # looking down at the centre of the ellipsoid and the surface of the
         # ellipsoid. Nadir on the other hand is the point which vertical goes
@@ -105,7 +106,7 @@ class ScanGeometry(object):
 
         nadir = subpoint(-pos)
         nadir /= vnorm(nadir)
-        
+
         # x is along track (roll)
         x = vel / vnorm(vel)
 
@@ -124,6 +125,7 @@ class ScanGeometry(object):
         tds = [timedelta(seconds=i) for i in self._times]
         return np.array(tds) + start_of_scan
 
+
 class Quaternion(object):
 
     def __init__(self, scalar, vector):
@@ -135,18 +137,19 @@ class Quaternion(object):
         zero = np.zeros_like(x)
         return np.array(
             ((w**2 + x**2 - y**2 - z**2,
-              2*x*y + 2*z*w,
-              2*x*z - 2*y*w,
+              2 * x * y + 2 * z * w,
+              2 * x * z - 2 * y * w,
               zero),
-             (2*x*y - 2*z*w,
+             (2 * x * y - 2 * z * w,
               w**2 - x**2 + y**2 - z**2,
-              2*y*z + 2*x*w,
+              2 * y * z + 2 * x * w,
               zero),
-             (2*x*z + 2*y*w,
-              2*y*z - 2*x*w,
+             (2 * x * z + 2 * y * w,
+              2 * y * z - 2 * x * w,
               w**2 - x**2 - y**2 + z**2,
               zero),
              (zero, zero, zero, w**2 + x**2 + y**2 + z**2)))
+
 
 def qrotate(vector, axis, angle):
     """Rotate *vector* around *axis* by *angle* (in radians).
@@ -155,24 +158,24 @@ def qrotate(vector, axis, angle):
     This function uses quaternion rotation.
     """
     n_axis = axis / vnorm(axis)
-    sin_angle = np.expand_dims(sin(angle/2), 0)
-    if np.rank(n_axis)==1:
+    sin_angle = np.expand_dims(sin(angle / 2), 0)
+    if np.rank(n_axis) == 1:
         n_axis = np.expand_dims(n_axis, 1)
         p__ = np.dot(n_axis, sin_angle)[:, np.newaxis]
     else:
         p__ = n_axis * sin_angle
 
-    q__ = Quaternion(cos(angle/2), p__)
+    q__ = Quaternion(cos(angle / 2), p__)
     return np.einsum("kj, ikj->ij",
                      vector,
                      q__.rotation_matrix()[:3, :3])
 
 
-
-### DIRTY STUFF. Needed the get_lonlatalt function to work on pos directly if
-### we want to print out lonlats in the end.
+# DIRTY STUFF. Needed the get_lonlatalt function to work on pos directly if
+# we want to print out lonlats in the end.
 from pyorbital import astronomy
 from pyorbital.orbital import *
+
 
 def get_lonlatalt(pos, utc_time):
     """Calculate sublon, sublat and altitude of satellite, considering the
@@ -185,7 +188,7 @@ def get_lonlatalt(pos, utc_time):
            % (2 * np.pi))
 
     lon = np.where(lon > np.pi, lon - np.pi * 2, lon)
-    lon = np.where(lon <= -np.pi, lon + np.pi *2, lon)
+    lon = np.where(lon <= -np.pi, lon + np.pi * 2, lon)
 
     r = np.sqrt(pos_x ** 2 + pos_y ** 2)
     lat = np.arctan2(pos_z, r)
@@ -193,15 +196,17 @@ def get_lonlatalt(pos, utc_time):
 
     while True:
         lat2 = lat
-        c = 1/(np.sqrt(1 - e2 * (np.sin(lat2) ** 2)))
-        lat = np.arctan2(pos_z + c * e2 *np.sin(lat2), r)
+        c = 1 / (np.sqrt(1 - e2 * (np.sin(lat2) ** 2)))
+        lat = np.arctan2(pos_z + c * e2 * np.sin(lat2), r)
         if np.all(abs(lat - lat2) < 1e-10):
             break
-    alt = r / np.cos(lat)- c
+    alt = r / np.cos(lat) - c
     alt *= A
     return np.rad2deg(lon), np.rad2deg(lat), alt
 
-### END OF DIRTY STUFF
+# END OF DIRTY STUFF
+
+
 def compute_pixels((tle1, tle2), sgeom, times, rpy=(0.0, 0.0, 0.0)):
     """Compute cartesian coordinates of the pixels in instrument scan.
     """
@@ -213,18 +218,17 @@ def compute_pixels((tle1, tle2), sgeom, times, rpy=(0.0, 0.0, 0.0)):
     # now, get the vectors pointing to each pixel
     vectors = sgeom.vectors(pos, vel, *rpy)
 
-    ## compute intersection of lines (directed by vectors and passing through
-    ## (0, 0, 0)) and ellipsoid. Derived from:
-    ## http://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
-    
+    # compute intersection of lines (directed by vectors and passing through
+    # (0, 0, 0)) and ellipsoid. Derived from:
+    # http://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
 
     # do the computation between line and ellipsoid (WGS 84)
     # NB: AAPP uses GRS 80...
     centre = -pos
-    a__ = 6378.137 # km
-    #b__ = 6356.75231414 # km, GRS80
-    b__ = 6356.752314245 # km, WGS84
-    radius = np.array([[1/a__, 1/a__, 1/b__]]).T
+    a__ = 6378.137  # km
+    # b__ = 6356.75231414 # km, GRS80
+    b__ = 6356.752314245  # km, WGS84
+    radius = np.array([[1 / a__, 1 / a__, 1 / b__]]).T
     xr_ = vectors * radius
     cr_ = centre * radius
     ldotc = np.einsum("ij,ij->j", xr_, cr_)
@@ -233,13 +237,13 @@ def compute_pixels((tle1, tle2), sgeom, times, rpy=(0.0, 0.0, 0.0)):
 
     d1_ = (ldotc - np.sqrt(ldotc ** 2 - csq * lsq + lsq)) / lsq
 
-
     # return the actual pixel positions
     return vectors * d1_ - centre
 
-    
+
 def norm(v):
     return np.sqrt(np.dot(v, v.conj()))
+
 
 def mnorm(m, axis=None):
     """norm of a matrix of vectors stacked along the *axis* dimension.
@@ -248,35 +252,36 @@ def mnorm(m, axis=None):
         axis = np.rank(m) - 1
     return np.sqrt((m**2).sum(axis))
 
+
 def vnorm(m):
     """norms of a matrix of column vectors.
     """
     return np.sqrt((m**2).sum(0))
+
+
 def hnorm(m):
     """norms of a matrix of row vectors.
     """
     return np.sqrt((m**2).sum(1))
 
 if __name__ == '__main__':
-    #NOAA 18 (from the 2011-10-12, 16:55 utc)                 
-    #1 28654U 05018A   11284.35271227  .00000478  00000-0  28778-3 0  9246
-    #2 28654  99.0096 235.8581 0014859 135.4286 224.8087 14.11526826329313
-    
-    
+    # NOAA 18 (from the 2011-10-12, 16:55 utc)
+    # 1 28654U 05018A   11284.35271227  .00000478  00000-0  28778-3 0  9246
+    # 2 28654  99.0096 235.8581 0014859 135.4286 224.8087 14.11526826329313
+
     noaa18_tle1 = "1 28654U 05018A   11284.35271227  .00000478  00000-0  28778-3 0  9246"
     noaa18_tle2 = "2 28654  99.0096 235.8581 0014859 135.4286 224.8087 14.11526826329313"
 
     from datetime import datetime
     t = datetime(2011, 10, 12, 13, 45)
 
-    ## edge and centre of an avhrr scanline
-    #sgeom = ScanGeometry([(-0.9664123687741623, 0),
+    # edge and centre of an avhrr scanline
+    # sgeom = ScanGeometry([(-0.9664123687741623, 0),
     #                      (0, 0)],
     #                     [0, 0.0, ])
-    #print compute_pixels((noaa18_tle1, noaa18_tle2), sgeom, t)
+    # print compute_pixels((noaa18_tle1, noaa18_tle2), sgeom, t)
 
-
-    ## avhrr swath
+    # avhrr swath
     scanline_nb = 1
 
     # building the avhrr angles, 2048 pixels from +55.37 to -55.37 degrees

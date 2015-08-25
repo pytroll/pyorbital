@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013, 2014 Martin Raspaud
+# Copyright (c) 2013, 2014, 2015 Martin Raspaud
 
 # Author(s):
 
@@ -65,6 +65,7 @@ def avhrr(scans_nb, scan_points,
     #         + np.expand_dims(offset, 1))
     times = (np.tile(scan_points * 0.000025, [scans_nb, 1])
              + np.expand_dims(offset, 1))
+
     return ScanGeometry(avhrr_inst, times.ravel())
 
 

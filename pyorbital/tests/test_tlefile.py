@@ -90,7 +90,12 @@ class TLETest(unittest.TestCase):
         finally:
             remove(filename)
 
-
+    def test_positive_sign_tle(self):
+        #See issue https://github.com/pytroll/pyorbital/issues/6
+        line1 = "1 25544U 98067A   15235.81765006 +.00009573 +00000-0 +14486-3 0  9999"
+        line2 = "2 25544 051.6452 106.3529 0001648 090.4174 004.9123 15.55401685958567"
+        tle = Tle("ISS (ZARYA)", line1=line1, line2=line2)
+        
 def suite():
     """The suite for test_tlefile
     """

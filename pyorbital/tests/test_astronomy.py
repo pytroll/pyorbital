@@ -50,9 +50,9 @@ class TestAstronomy(unittest.TestCase):
         time_slot = datetime(2011, 9, 23, 12, 0)
         
         sun_theta = astr.sun_zenith_angle(time_slot, lon, lat)
-        self.assertEqual(sun_theta, 60.371433482557833)
+        self.assertAlmostEqual(sun_theta, 60.371433482557833, places=8)
         sun_theta = astr.sun_zenith_angle(time_slot, 0., 0.)
-        self.assertEqual(sun_theta, 1.8751916863323426)
+        self.assertAlmostEqual(sun_theta, 1.8751916863323426, places=8)
 
 def suite():
     """The suite for test_astronomy

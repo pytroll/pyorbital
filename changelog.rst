@@ -1,6 +1,18 @@
 Changelog
 =========
 
+v1.0.1 (2016-02-17)
+-------------------
+
+- Update changelog. [Martin Raspaud]
+
+- Bump version: 1.0.0 → 1.0.1. [Martin Raspaud]
+
+- Change sun_angle test to AlmostEqual. [Martin Raspaud]
+
+  Signed-off-by: Martin Raspaud <martin.raspaud@smhi.se>
+
+
 v1.0.0 (2015-08-25)
 -------------------
 

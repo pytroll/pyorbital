@@ -634,7 +634,11 @@ class _SGDP4(object):
     def propagate(self, utc_time):
         kep = {}
 
-        ts = astronomy._days(utc_time - self.t_0) * XMNPDA
+        # get the time delta in minutes
+        #ts = astronomy._days(utc_time - self.t_0) * XMNPDA
+        print utc_time.shape
+        print self.t_0
+        ts = (utc_time - self.t_0) / np.timedelta64(1, 'm')
 
         em = self.eo
         xinc = self.xincl
@@ -747,7 +751,7 @@ class _SGDP4(object):
         xinck = xinc + 1.5 * temp2 * self.cosIO * self.sinIO * cos2u
 
         if np.any(rk < 1):
-            raise Exception('Satellite crased at time %s', utc_time)
+            raise Exception('Satellite crashed at time %s', utc_time)
 
         temp0 = np.sqrt(a)
         temp2 = XKE / (a * temp0)

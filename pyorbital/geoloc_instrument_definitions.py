@@ -66,7 +66,7 @@ def avhrr(scans_nb, scan_points,
     times = (np.tile(scan_points * 0.000025, [scans_nb, 1])
              + np.expand_dims(offset, 1))
 
-    return ScanGeometry(avhrr_inst, times.ravel())
+    return ScanGeometry(avhrr_inst, times)
 
 
 def avhrr_gac(scan_times, scan_points,

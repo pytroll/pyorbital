@@ -122,7 +122,8 @@ class ScanGeometry(object):
         return qrotate(xy_rotated, nadir, yaw)
 
     def times(self, start_of_scan):
-        tds = [timedelta(seconds=i) for i in self._times]
+        #tds = [timedelta(seconds=i) for i in self._times]
+        tds = self._times.astype('timedelta64[s]')
         return np.array(tds) + start_of_scan
 
 
@@ -207,10 +208,12 @@ def get_lonlatalt(pos, utc_time):
 # END OF DIRTY STUFF
 
 
-def compute_pixels((tle1, tle2), sgeom, times, rpy=(0.0, 0.0, 0.0)):
+def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0)):
     """Compute cartesian coordinates of the pixels in instrument scan.
     """
-    orb = Orbital("mysatellite", line1=tle1, line2=tle2)
+    if isinstance(orb, (list, tuple)):
+        tle1, tle2 = tle
+        orb = Orbital("mysatellite", line1=tle1, line2=tle2)
 
     # get position and velocity for each time of each pixel
     pos, vel = orb.get_position(times, normalize=False)

@@ -28,6 +28,7 @@ import datetime
 import urllib2
 import os
 import glob
+import numpy as np
 
 TLE_URLS = ('http://celestrak.com/NORAD/elements/weather.txt',
             'http://celestrak.com/NORAD/elements/resource.txt')
@@ -285,8 +286,8 @@ class Tle(object):
         self.id_launch_piece = self._line1[14:17]
         self.epoch_year = self._line1[18:20]
         self.epoch_day = float(self._line1[20:32])
-        self.epoch = (datetime.datetime.strptime(self.epoch_year, "%y") +
-                      datetime.timedelta(days=self.epoch_day - 1))
+        self.epoch = np.datetime64(datetime.datetime.strptime(self.epoch_year, "%y") +
+                      datetime.timedelta(days=self.epoch_day - 1), 'us')
         self.mean_motion_derivative = float(self._line1[33:43])
         self.mean_motion_sec_derivative = _read_tle_decimal(self._line1[44:52])
         self.bstar = _read_tle_decimal(self._line1[53:61])

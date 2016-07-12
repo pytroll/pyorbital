@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2015 Adam.Dybbroe
+# Copyright (c) 2015, 2016 Adam.Dybbroe
 
 # Author(s):
 
@@ -52,7 +52,12 @@ for idx in range(1000):
     time_t = time_t + delta_t
 
 
+# for item in pha:
+#    print "%f, " % item,
+# print
+
 pha = np.array(pha) * 100
+
 ephem_pha = np.array(ephem_pha)
 
 # Plot the moon phases to compare:

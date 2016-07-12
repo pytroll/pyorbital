@@ -50,6 +50,11 @@ satellite remote sensing for instance the Sun-zenith angle:
     >>> astronomy.sun_zenith_angle(utc_time, lon, lat)
     62.685986438071602
 
+
+.. include:: moon_calculations.rst
+
+
+
 API
 ---
 
@@ -79,7 +84,7 @@ Astronomical computations
    .. toctree::
       :maxdepth: 2
 
-   moon_calculations
+
 
 Indices and tables
 ==================

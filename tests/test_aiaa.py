@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012 SMHI
+# Copyright (c) 2011, 2012, 2016 SMHI
 
 # Author(s):
 
@@ -32,9 +32,12 @@ import os.path
 
 CWD, dummy = os.path.split(__file__)
 
+
 class LineOrbital(Orbital):
+
     """Read TLE lines instead of file.
     """
+
     def __init__(self, satellite, line1, line2):
         satellite = satellite.upper()
         self.satellite_name = satellite
@@ -51,7 +54,7 @@ def get_results(satnumber, delay):
         while(line):
             if line.endswith(" xx\n") and int(line[:-3]) == satnumber:
                 line = f_2.readline()
-                while(not line.startswith("%.8f"%delay)):
+                while(not line.startswith("%.8f" % delay)):
                     line = f_2.readline()
                 sline = line.split()
                 if delay == 0:
@@ -70,10 +73,12 @@ def get_results(satnumber, delay):
                         utc_time)
             line = f_2.readline()
 
+
 class AIAAIntegrationTest(unittest.TestCase):
+
     """Test against the AIAA test cases.
     """
-    
+
     def test_aiaa(self):
         """Do the tests against AIAA test cases.
         """
@@ -100,16 +105,17 @@ class AIAAIntegrationTest(unittest.TestCase):
                         try:
                             test_time = timedelta(minutes=delay) + o.tle.epoch
                             pos, vel = o.get_position(test_time, False)
-                            res = get_results(int(o.tle.satnumber), float(delay))
+                            res = get_results(
+                                int(o.tle.satnumber), float(delay))
                         except (NotImplementedError, ValueError), e:
                             # WARNING: TODO
                             from warnings import warn
                             warn(str(e))
                             break
 
-                        delta_pos = 5e-6 # km =  5 mm
-                        delta_vel = 5e-9 # km/s = 5 um/s
-                        delta_time = 50 # microseconds
+                        delta_pos = 5e-6  # km =  5 mm
+                        delta_vel = 5e-9  # km/s = 5 um/s
+                        delta_time = 50  # microseconds
 
                         self.assertTrue(abs(res[0] - pos[0]) < delta_pos)
                         self.assertTrue(abs(res[1] - pos[1]) < delta_pos)
@@ -120,9 +126,14 @@ class AIAAIntegrationTest(unittest.TestCase):
                         if res[6] is not None:
                             self.assertTrue(abs((res[6] - test_time)).microseconds
                                             < delta_time)
-                        
-                test_line = f__.readline()
-        
 
-if __name__ == '__main__':
-    unittest.main()
+                test_line = f__.readline()
+
+
+def suite():
+    """The suite for aiaa integration"""
+    loader = unittest.TestLoader()
+    mysuite = unittest.TestSuite()
+    mysuite.addTest(loader.loadTestsFromTestCase(AIAAIntegrationTest))
+
+    return mysuite

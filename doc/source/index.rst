@@ -23,7 +23,8 @@ If no path is given pyorbital tries to read the earth observation TLE-files from
     
 Computing satellite postion
 ---------------------------
-The orbital module enables computation of satellite position and velocity at a specific time:
+The orbital module enables computation of satellite position and velocity at a
+specific time:
 
     >>> from pyorbital.orbital import Orbital
     >>> from datetime import datetime
@@ -39,7 +40,8 @@ The orbital module enables computation of satellite position and velocity at a s
 
 Computing astronomical parameters
 ---------------------------------
-The astronomy module enables computation of certain parameters of interest for satellite remote sensing for instance the Sun-zenith angle:
+The astronomy module enables computation of certain parameters of interest for
+satellite remote sensing for instance the Sun-zenith angle:
 
     >>> from pyorbital import astronomy
     >>> from datetime import datetime
@@ -76,9 +78,12 @@ Astronomical computations
 .. Contents:
    .. toctree::
       :maxdepth: 2
-   Indices and tables
-   ==================
-   * :ref:`genindex`
-   * :ref:`modindex`
-   * :ref:`search`
+
+   moon_calculations
+
+Indices and tables
+==================
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
 

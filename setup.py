@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012 SMHI
+# Copyright (c) 2011, 2012, 2016 SMHI
 
 # Author(s):
 
@@ -37,11 +37,13 @@ setup(name='pyorbital',
                    "Topic :: Scientific/Engineering :: Astronomy"],
       url="https://github.com/mraspaud/pyorbital",
       download_url="https://github.com/mraspaud/pyorbital/tarball/v0.2.1#egg=pyorbital-v0.2.1",
-      test_suite="nose.collector",
-      tests_require="nose",
-      package_dir = {'pyorbital': 'pyorbital'},
-      packages = ['pyorbital'],      
+
+      test_suite='tests.suite',
+      #tests_require=['mock', ],
+      # test_suite="nose.collector",
+      # tests_require="nose",
+      package_dir={'pyorbital': 'pyorbital'},
+      packages=['pyorbital'],
       install_requires=['numpy'],
       zip_safe=False
       )
-

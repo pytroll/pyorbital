@@ -313,6 +313,61 @@ class Tle(object):
         pprint.pprint(d_var, s_var)
         return s_var.getvalue()[:-1]
 
+
+def get_norad_line(satname, satnumber):
+
+    #print "... start get_norad_line"
+
+    platform = satname.strip().upper() # only upper case
+    satnum = str(int(satnumber))   # get rid of leading zeros
+
+    print "... get orbital identification line (norad) for", platform, satnum
+    key = platform+" "+satnum
+    sat_dic = {"COMS 1"              :"COMS 1",\
+               "ELEKTRO-L 1"         :"ELEKTRO-L 1 (GOMS 2)",\
+               "ELEKTRO-L 1"         :"ELEKTRO-L 2",\
+               "FENGYUN 2D"          :"FENGYUN 2D",\
+               "FENGYUN 3A"          :"FENGYUN 3A",\
+               "FENGYUN 2E"          :"FENGYUN 2E",\
+               "FENGYUN 2F"          :"FENGYUN 2F",\
+               "FENGYUN 2G"          :"FENGYUN 2G",\
+               "FENGYUN 3B"          :"FENGYUN 3B",\
+               "FENGYUN 3C"          :"FENGYUN 3C",\
+               "FORMOSAT-3 FM1"      :"FORMOSAT-3 FM1",\
+               "FORMOSAT-3 FM2"      :"FORMOSAT-3 FM2",\
+               "FORMOSAT-3 FM3"      :"FORMOSAT-3 FM3",\
+               "FORMOSAT-3 FM4"      :"FORMOSAT-3 FM4",\
+               "FORMOSAT-3 FM5"      :"FORMOSAT-3 FM5",\
+               "FORMOSAT-3 FM6"      :"FORMOSAT-3 FM6",\
+               "GOES 13"             :"GOES 13",\
+               "GOES 14"             :"GOES 14",\
+               "GOES 15"             :"GOES 15",\
+               "HIMAWARI 8"          :"HIMAWARI 8",\
+               "INSAT 3A"            :"INSAT-3A",\
+               "KALPANA 1"           :"KALPANA-1 (METSAT 1)",\
+               "NOAA 15"             :"NOAA 15",\
+               "NOAA 18"             :"NOAA 18",\
+               "NOAA 19"             :"NOAA 19",\
+               "METEOR-M 1"          :"METEOR-M 1",\
+               "METEOR-M 2"          :"METEOR-M 2",\
+               "METEOSAT 7"          :"METEOSAT-7",\
+               "METEOSAT 8"          :"METEOSAT-8 (MSG-1)",\
+               "METEOSAT 9"          :"METEOSAT-9 (MSG-2)",\
+               "METEOSAT 10"         :"METEOSAT-10 (MSG-3)",\
+               "METEOSAT 11"         :"METEOSAT-11 (MSG-4)",\
+               "METOP A"             :"METOP-A",\
+               "METOP B"             :"METOP-B",\
+               "MTSAT 2"             :"MTSAT-2",\
+               "SUOMI NPP"           :"SUOMI NPP",\
+               "SUOMI"               :"SUOMI NPP",\
+               "NPP"                 :"SUOMI NPP"}
+
+    if key in sat_dic:
+        return sat_dic[key]
+    else:
+        print "*** Warning, unknown satellite ", key, " in get_norad_line (pyorbital/tlefile.py)"
+        return key
+
 def main():
     '''Main for testing TLE reading.
     '''

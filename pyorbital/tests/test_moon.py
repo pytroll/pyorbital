@@ -53,6 +53,13 @@ MOON_PHASE = np.array(
      0.601211,  0.544909,  0.487898,  0.430928,  0.374757,
      0.320146,  0.267844,  0.218581,  0.173048,  0.131881])
 
+LONARR = np.array([10.000, 11.000, 12.000, 13.000, 14.000, 14.989])
+LATARR = np.array([50.000, 51.000, 52.000, 53.000, 54.000, 54.989])
+RESULT1_ALT = np.array([6.46076487,  6.65664799,  6.82103169,
+                        6.95359249,  7.05405387, 7.12161456])
+RESULT1_AZI = np.array([112.50462386,  113.42950322,  114.3687665,
+                        115.32140457, 116.28639318,  117.25189999])
+
 
 class TestMoon(unittest.TestCase):
 
@@ -113,6 +120,14 @@ class TestMoon(unittest.TestCase):
         self.assertAlmostEqual(azi, 62.974637, 5)
         self.assertAlmostEqual(rasc, 24.15641340, 5)
         self.assertAlmostEqual(decl, 12.9278790, 5)
+
+    def test_moon_positions(self):
+
+        moon = planets.Moon(self.start_time)
+        rasc, decl, alt, azi = moon.topocentric_position(LONARR, LATARR)
+
+        self.assertNumpyArraysEqual(alt, RESULT1_ALT, 6)
+        self.assertNumpyArraysEqual(azi, RESULT1_AZI, 6)
 
 
 def suite():

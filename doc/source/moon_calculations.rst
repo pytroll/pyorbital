@@ -30,4 +30,25 @@ Computing the position of the moon
   6.33389454706 61.6795817556
 
 
+Accuracy
+--------
+
+In lack of an absolute truth or reference the moon calclations with Pyorbital
+have been compared to pyephem. There are indeed deviations, but for the moon
+phase they are in general rather small. See image below, where we compare the
+moon phase over 416 days starting from December 1st 2015. As seen from the figure the deviations are within 0.3 %.
+
+  .. image:: _static/moonphase_compare.png
+
+For moon height and azimuth differences are larger, as seen from the figures
+below. We have calculated the position of the moon relative to the City of
+Norrköping, Sweden, over four months from March 7, 2012. The deviations are
+within 4 degrees for the height, and within 9 degrees for the azimuth.
+
+
+  .. image:: _static/moonheight_compare.png
+  .. image:: _static/moonazimuth_compare.png
+
+
+
 .. _`Stjaernhimlen`:   http://www.stjarnhimlen.se/comp/ppcomp.html

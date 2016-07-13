@@ -37,8 +37,8 @@ if __name__ == "__main__":
     llon = 16 + 11.0 / 60. + 15. / 3600.
     llat = 58. + 35. / 60. + 15. / 3600.
 
-    currtime = datetime.datetime(2012, 1, 7, 12, 0)
-    endtime = datetime.datetime(2012, 1, 8, 12, 0)
+    currtime = datetime.datetime(2012, 3, 7, 12, 0)
+    endtime = datetime.datetime(2012, 7, 7, 12, 0)
     delta_t = datetime.timedelta(seconds=600)
     heights = []
     dtimes = []
@@ -91,7 +91,8 @@ if __name__ == "__main__":
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.scatter(ephem_azimuths, ephem_azimuths - azimuths)
+    x = np.mod((ephem_azimuths - azimuths), 360)
+    ax.scatter(ephem_azimuths, np.where(np.greater(x, 180), x - 360, x))
 
     ax.set_xlabel('Ephem moon azimuth (deg)', fontsize=20)
     ax.set_ylabel('Difference - Ephem-pyorbital (deg)', fontsize=20)

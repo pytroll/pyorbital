@@ -27,18 +27,19 @@ import datetime
 from pyorbital.moon_phase import moon_phase
 import numpy as np
 
-start_time = datetime.datetime(2011, 12, 1, hour=12)
+start_time = datetime.datetime(2015, 12, 1, 12)
 delta_t = datetime.timedelta(hours=1)
 
 norrk = ephem.Observer()
 norrk.lat, norrk.lon = '58.5875', '16.1875'
+#norrk.lat, norrk.lon = '0.0', '0.0'
 norrk.pressure = 0
 time_t = start_time
 
 tlist = []
 ephem_pha = []
 pha = []
-for idx in range(1000):
+for idx in range(10000):
     norrk.date = time_t.strftime('%Y/%m/%d %H:%M')
     m = ephem.Moon(norrk)
     ephem_phase = m.phase

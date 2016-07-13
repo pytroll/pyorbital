@@ -25,6 +25,8 @@
 
 from numpy import deg2rad, sin, cos, tan, arctan, fabs
 import numpy as np
+import datetime
+import collections
 
 import math
 PI = math.pi
@@ -35,14 +37,13 @@ def seqJulian(dobj):
     """Returns the number of julian days for the specified date-time.
     Input = datetime object.
     """
-    import collections
 
-    if type(dobj) == 'datetime.datetime':
-        dobj = np.array([dobj], 'datetime64[ms]')
+    if isinstance(dobj, datetime.datetime):
+        dobj = np.array([dobj], 'datetime64[us]')
     elif isinstance(dobj, np.ndarray):
-        dobj = dobj.astype('datetime64[ms]')
+        dobj = dobj.astype('datetime64[us]')
     elif isinstance(dobj, collections.Sequence):
-        dobj = np.array(dobj, 'datetime64[ms]')
+        dobj = np.array(dobj, 'datetime64[us]')
 
     day = (
         dobj - dobj.astype('datetime64[M]')).astype('f') / (24. * 3600. * 1000) + 1.0
@@ -93,48 +94,6 @@ def Julian(dobj):
     return b__ + c__ + e__ + day + 1720994.5
 
 
-def JulianToDate(jday):
-    """Get the current datetime object from the julian day"""
-    import datetime
-
-    jday = jday + 0.5
-    jdi = long(jday)
-    if (jdi > 2299160):
-        a__ = long((jdi - 1867216.25) / 36524.25)
-        b__ = long(jdi + 1 + a__ - a__ / 4)
-    else:
-        b__ = jdi
-
-    c__ = long(b__ + 1524)
-    d__ = long((c__ - 122.1) / 365.25)
-    e__ = long(365.25 * d__)
-    g__ = long((c__ - e__) / 30.6001)
-    g1_ = long(30.6001 * g__)
-
-    day = c__ - e__ - g1_
-    fhour = float((jday - jdi) * 24.0)
-    if (g__ <= 13):
-        month = g__ - 1
-    else:
-        month = g__ - 13
-
-    if (month > 2):
-        year = d__ - 4716
-    else:
-        year = d__ - 4715
-
-    hour = int(fhour)
-    minutes_of_hour = 60 * (fhour - int(hour))
-    minutes = int(minutes_of_hour)
-    seconds = 60 * (minutes_of_hour - minutes)
-    microsec = int((seconds - int(seconds)) * 1000000)
-    seconds = int(seconds)
-
-    return datetime.datetime(year, month, day,
-                             hour=hour, minute=minutes,
-                             second=seconds, microsecond=microsec)
-
-
 def sun_position(jday):
     """Get sun position"""
 
@@ -142,43 +101,88 @@ def sun_position(jday):
     # double m2;
     # int i;
 
+    if isinstance(jday, collections.Sequence):
+        jday = np.array(jday)
+    elif not isinstance(jday, np.ndarray):
+        jday = np.array([jday], 'f')
+
     n__ = 360. / 365.2422 * jday
-    i__ = int(n__ / 360.)
+    i__ = np.divide(n__, 360.).astype('i')
     n__ = n__ - i__ * 360.0
     x__ = n__ - 3.762863
-    if x__ < 0:
-        x__ = x__ + 360.
+    x__ = np.where(np.less(x__, 0), x__ + 360., x__)
+
     x__ = deg2rad(x__)
     e__ = x__
     while 1:
         dl_ = e__ - .016718 * sin(e__) - x__
         e__ = e__ - dl_ / (1 - .016718 * cos(e__))
-        if fabs(dl_) < SMALL_FLOAT:
+        if np.alltrue(np.less(np.fabs(dl_), SMALL_FLOAT)):
             break
 
     v__ = 360. / PI * arctan(1.01686011182 * tan(e__ / 2))
     sunpos = v__ + 282.596403
-    i__ = int(sunpos / 360.)
+    i__ = np.divide(sunpos, 360.).astype('i')
     sunpos = sunpos - i__ * 360.0
 
+    if isinstance(sunpos, np.ndarray) and len(sunpos) == 1:
+        return sunpos[0]
+    else:
+        return sunpos
+
     return sunpos
+
+# def moon_position(jday, lsun):
+#     """Get the moon position"""
+
+#     ms_ = 0.985647332099 * jday - 3.762863
+#     if ms_ < 0:
+#         ms_ = ms_ + 360.0
+
+#     mpos = 13.176396 * jday + 64.975464
+#     i__ = int(mpos / 360.0)
+#     mpos = mpos - i__ * 360.0
+#     if mpos < 0:
+#         mpos = mpos + 360.0
+
+#     mm_ = mpos - 0.1114041 * jday - 349.383063
+#     i__ = int(mm_ / 360.0)
+#     mm_ = mm_ - i__ * 360.0
+
+#     ev_ = 1.2739 * sin(deg2rad(2 * (mpos - lsun) - mm_))
+#     sms = sin(deg2rad(ms_))
+#     ae_ = 0.1858 * sms
+#     mm_ = mm_ + ev_ - ae_ - 0.37 * sms
+#     ec_ = 6.2886 * sin(deg2rad(mm_))
+#     mpos = mpos + ev_ + ec_ - ae_ + 0.214 * sin(deg2rad(2 * mm_))
+#     mpos = 0.6583 * sin(deg2rad(2 * (mpos - lsun))) + mpos
+
+#     return mpos
 
 
 def moon_position(jday, lsun):
     """Get the moon position"""
 
+    if isinstance(jday, collections.Sequence):
+        jday = np.array(jday)
+    elif not isinstance(jday, np.ndarray):
+        jday = np.array([jday], 'f')
+
+    if isinstance(lsun, collections.Sequence):
+        lsun = np.array(lsun)
+    elif not isinstance(lsun, np.ndarray):
+        lsun = np.array([lsun], 'f')
+
     ms_ = 0.985647332099 * jday - 3.762863
-    if ms_ < 0:
-        ms_ = ms_ + 360.0
+    ms_ = np.where(np.less(ms_, 0), ms_ + 360.0, ms_)
 
     mpos = 13.176396 * jday + 64.975464
-    i__ = int(mpos / 360.0)
+    i__ = np.divide(mpos, 360.0).astype('i')
     mpos = mpos - i__ * 360.0
-    if mpos < 0:
-        mpos = mpos + 360.0
+    mpos = np.where(np.less(mpos, 0), mpos + 360.0, mpos)
 
     mm_ = mpos - 0.1114041 * jday - 349.383063
-    i__ = int(mm_ / 360.0)
+    i__ = np.divide(mm_, 360.0).astype('i')
     mm_ = mm_ - i__ * 360.0
 
     ev_ = 1.2739 * sin(deg2rad(2 * (mpos - lsun) - mm_))
@@ -189,7 +193,10 @@ def moon_position(jday, lsun):
     mpos = mpos + ev_ + ec_ - ae_ + 0.214 * sin(deg2rad(2 * mm_))
     mpos = 0.6583 * sin(deg2rad(2 * (mpos - lsun))) + mpos
 
-    return mpos
+    if isinstance(mpos, np.ndarray) and len(mpos) == 1:
+        return mpos[0]
+    else:
+        return mpos
 
 
 def moon_phase(dobj):
@@ -199,4 +206,7 @@ def moon_phase(dobj):
     lsun = sun_position(jday)
     lmoon = moon_position(jday, lsun)
 
-    return (1.0 - cos(deg2rad(lmoon - lsun))) / 2.0
+    phase = (1.0 - cos(deg2rad(lmoon - lsun))) / 2.0
+    if isinstance(phase, np.ndarray) and len(phase) == 1:
+        phase = phase[0]
+    return phase

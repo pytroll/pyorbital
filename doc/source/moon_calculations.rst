@@ -36,7 +36,8 @@ Accuracy
 In lack of an absolute truth or reference the moon calclations with Pyorbital
 have been compared to pyephem. There are indeed deviations, but for the moon
 phase they are in general rather small. See image below, where we compare the
-moon phase over 416 days starting from December 1st 2015. As seen from the figure the deviations are within 0.3 %.
+moon phase over 416 days starting from December 1st 2015. As seen from the
+figure the deviations are within 0.3 %.
 
   .. image:: _static/moonphase_compare.png
 

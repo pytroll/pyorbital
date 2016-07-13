@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012, 2016 SMHI
-
+# Copyright (c) 2011, 2012, 2014, 2016 SMHI
 # Author(s):
 
 #   Martin Raspaud <martin.raspaud@smhi.se>
+#   Adam Dybbroe <adam.dybbroe@smhi.se>
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,14 +23,17 @@
 """Test cases from the AIAA article.
 """
 
+# TODO: right formal unit tests.
+from __future__ import with_statement
+
+import os
+
 from pyorbital.orbital import Orbital, OrbitElements, _SGDP4
-from pyorbital import tlefile
+from pyorbital.tlefile import ChecksumError
+from pyorbital import tlefile, astronomy
 import numpy as np
 from datetime import timedelta, datetime
 import unittest
-import os.path
-
-CWD, dummy = os.path.split(__file__)
 
 
 class LineOrbital(Orbital):
@@ -49,7 +52,8 @@ class LineOrbital(Orbital):
 def get_results(satnumber, delay):
     """Get expected results from result file.
     """
-    with open(os.path.join(CWD, "aiaa_results")) as f_2:
+    path = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(path, "aiaa_results")) as f_2:
         line = f_2.readline()
         while(line):
             if line.endswith(" xx\n") and int(line[:-3]) == satnumber:
@@ -82,11 +86,12 @@ class AIAAIntegrationTest(unittest.TestCase):
     def test_aiaa(self):
         """Do the tests against AIAA test cases.
         """
-        with open(os.path.join(CWD, "SGP4-VER.TLE")) as f__:
+        path = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(path, "SGP4-VER.TLE")) as f__:
             test_line = f__.readline()
             while(test_line):
                 if test_line.startswith("#"):
-                    pass
+                    test_name = test_line
                 if test_line.startswith("1 "):
                     line1 = test_line
                 if test_line.startswith("2 "):
@@ -95,27 +100,36 @@ class AIAAIntegrationTest(unittest.TestCase):
                     times = np.arange(float(times[0]),
                                       float(times[1]) + 1,
                                       float(times[2]))
-                    try:
-                        o = LineOrbital("unknown", line1, line2)
-                    except:
-                        # WARNING: skipping deep space computations
+                    if test_name.startswith("#   SL-14 DEB"):
+                        # FIXME: we have to handle decaying satellites!
                         test_line = f__.readline()
                         continue
+
+                    try:
+                        o = LineOrbital("unknown", line1, line2)
+                    except NotImplementedError, e:
+                        test_line = f__.readline()
+                        continue
+                    except ChecksumError, e:
+                        self.assertTrue(
+                            test_line.split()[1] in ["33333", "33334", "33335"])
                     for delay in times:
                         try:
                             test_time = timedelta(minutes=delay) + o.tle.epoch
                             pos, vel = o.get_position(test_time, False)
                             res = get_results(
                                 int(o.tle.satnumber), float(delay))
-                        except (NotImplementedError, ValueError), e:
-                            # WARNING: TODO
-                            from warnings import warn
-                            warn(str(e))
+                        except NotImplementedError:
+                            # Skipping deep-space
                             break
+                        # except ValueError, e:
+                        #     from warnings import warn
+                        #     warn(test_name + ' ' + str(e))
+                        #     break
 
                         delta_pos = 5e-6  # km =  5 mm
                         delta_vel = 5e-9  # km/s = 5 um/s
-                        delta_time = 50  # microseconds
+                        delta_time = 1e-3  # 1 milisecond
 
                         self.assertTrue(abs(res[0] - pos[0]) < delta_pos)
                         self.assertTrue(abs(res[1] - pos[1]) < delta_pos)
@@ -124,8 +138,8 @@ class AIAAIntegrationTest(unittest.TestCase):
                         self.assertTrue(abs(res[4] - vel[1]) < delta_vel)
                         self.assertTrue(abs(res[5] - vel[2]) < delta_vel)
                         if res[6] is not None:
-                            self.assertTrue(abs((res[6] - test_time)).microseconds
-                                            < delta_time)
+                            dt = astronomy._days(res[6] - test_time) * 24 * 60
+                            self.assertTrue(abs(dt) < delta_time)
 
                 test_line = f__.readline()
 

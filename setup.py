@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012, 2016 SMHI
+
+# Copyright (c) 2011-2016 SMHI
 
 # Author(s):
 
 #   Martin Raspaud <martin.raspaud@smhi.se>
+#   Adam Dybbroe <adam.dybbroe@smhi.se>
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,13 +23,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from setuptools import setup
+import imp
+
+version = imp.load_source('pyorbital.version', 'pyorbital/version.py')
 
 setup(name='pyorbital',
-      version="v0.2.1",
+      version=version.__version__,
       description='Orbital parameters and astronomical computations in Python',
       author='Martin Raspaud, Esben S. Nielsen',
       author_email='martin.raspaud@smhi.se, esn@dmi.dk',
-      classifiers=["Development Status :: 4 - Beta",
+      classifiers=["Development Status :: 5 - Production/Stable",
                    "Intended Audience :: Science/Research",
                    "License :: OSI Approved :: GNU General Public License v3 " +
                    "or later (GPLv3+)",
@@ -35,15 +40,13 @@ setup(name='pyorbital',
                    "Programming Language :: Python",
                    "Topic :: Scientific/Engineering",
                    "Topic :: Scientific/Engineering :: Astronomy"],
-      url="https://github.com/mraspaud/pyorbital",
-      download_url="https://github.com/mraspaud/pyorbital/tarball/v0.2.1#egg=pyorbital-v0.2.1",
-
+      url="https://github.com/pytroll/pyorbital",
       test_suite='tests.suite',
       #tests_require=['mock', ],
       # test_suite="nose.collector",
       # tests_require="nose",
       package_dir={'pyorbital': 'pyorbital'},
       packages=['pyorbital'],
-      install_requires=['numpy'],
-      zip_safe=False
+      install_requires=['numpy>=1.6.0'],
+      zip_safe=False,
       )

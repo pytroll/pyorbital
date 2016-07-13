@@ -1,0 +1,17 @@
+language: python
+python:
+- '2.6'
+- '2.7'
+install:
+- pip install .
+- pip install coveralls
+script: coverage run --source=pyorbital setup.py test
+after_success: coveralls
+deploy:
+  provider: pypi
+  user: Martin.Raspaud
+  password:
+    secure: P3WiHVzDAJyZmiIfSF3PhY7Xqp3P3pSHhogla8u3KOw4Sy5Ye6IWwMX1+pupAyhdXgo8ZgGT4+wOn9dBejaLEA0RGIRLMHXd1QxP9BbPD5te/k5aTpzHILx786g5R6G4yw/8s/sftQC6lJT+0jJd2OJjQJsnNUJJTG8OC2uwq3Y=
+  on:
+    tags: true
+    repo: mraspaud/pyorbital

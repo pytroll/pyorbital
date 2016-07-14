@@ -16,6 +16,21 @@ Computing the phase of the moon
   >>> print moon_phase(time_t)
   0.409752921579
 
+It works also with datetime sequences:
+
+  >>> import numpy as np
+  >>> from pyorbital.moon_phase import moon_phase
+  >>> time_t = np.arange('2005-02', '2005-03', dtype='datetime64[D]')
+  >>> print moon_phase(time_t)
+  [  6.36537786e-01   5.32201222e-01   4.23413367e-01   3.15141455e-01
+     2.13350898e-01   1.24769455e-01   5.62102473e-02   1.34598103e-02
+     4.68042562e-05   1.64235364e-02   5.99725484e-02   1.25824054e-01
+     2.08064456e-01   3.00824090e-01   3.98939205e-01   4.98161316e-01
+     5.95059508e-01   6.86787971e-01   7.70852355e-01   8.44942289e-01
+     9.06852663e-01   9.54487201e-01   9.85925226e-01   9.99530703e-01
+     9.94086558e-01   9.68941138e-01   9.24152715e-01   8.60612554e-01]
+
+
 Computing the position of the moon
 ----------------------------------
 
@@ -28,6 +43,17 @@ Computing the position of the moon
   >>> rasc, decl, alt, azi = moon.topocentric_position(lon, lat)
   >>> print alt, azi
   6.33389454706 61.6795817556
+
+And for an array of longitudes and latitudes:
+
+  >>> import numpy as np
+  >>> lons = np.arange(100).reshape(10,10)
+  >>> lats = np.arange(100).reshape(10,10) * 0.9
+  >>> rasc, decl, alt, azi = moon.topocentric_position(lons, lats)
+  >>> print alt.shape
+  (10, 10)
+  >>> print alt[4,8]
+  14.9564426346
 
 
 Accuracy

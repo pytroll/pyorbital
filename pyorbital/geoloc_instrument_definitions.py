@@ -37,7 +37,9 @@ Both scan angles and scan times are then combined into a ScanGeometry object.
 """
 
 import numpy as np
+
 from pyorbital.geoloc import ScanGeometry
+
 
 ################################################################
 #
@@ -47,7 +49,7 @@ from pyorbital.geoloc import ScanGeometry
 
 
 def avhrr(scans_nb, scan_points,
-          scan_angle=55.37, frequency=1 / 6.0):
+          scan_angle=55.37, frequency=1 / 6.0, apply_offset=True):
     """Definition of the avhrr instrument.
 
     Source: NOAA KLM User's Guide, Appendix J
@@ -60,11 +62,13 @@ def avhrr(scans_nb, scan_points,
     avhrr_inst = np.tile(avhrr_inst, [scans_nb, 1])
 
     # building the corresponding times array
-    offset = np.arange(scans_nb) * frequency
     # times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
     #         + np.expand_dims(offset, 1))
-    times = (np.tile(scan_points * 0.000025, [scans_nb, 1])
-             + np.expand_dims(offset, 1))
+
+    times = np.tile(scan_points * 0.000025, [scans_nb, 1])
+    if apply_offset:
+        offset = np.arange(scans_nb) * frequency
+        times += np.expand_dims(offset, 1)
 
     return ScanGeometry(avhrr_inst, times.ravel())
 

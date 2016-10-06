@@ -34,7 +34,7 @@ MFACTOR = 7.292115E-5
 def jdays2000(utc_time):
     """Get the days since year 2000.
     """
-    return _days(utc_time - np.datetime64('2000-01-01T12:00'))
+    return _days(utc_time.astype('datetime64[us]') - np.datetime64('2000-01-01T12:00'))
 
 
 def jdays(utc_time):
@@ -137,7 +137,6 @@ def cos_zen(utc_time, lon, lat):
     lon = np.deg2rad(lon)
     lat = np.deg2rad(lat)
 
-    utc_time = np.datetime64(utc_time)
     r_a, dec = sun_ra_dec(utc_time)
     h__ = _local_hour_angle(utc_time, lon, r_a)
     return (np.sin(lat) * np.sin(dec) + np.cos(lat) * np.cos(dec) * np.cos(h__))

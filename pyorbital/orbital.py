@@ -25,11 +25,12 @@
 """Module for computing the orbital parameters of satellites.
 """
 
-from datetime import datetime, timedelta
-import numpy as np
-from pyorbital import tlefile
-from pyorbital import astronomy
 import warnings
+from datetime import datetime, timedelta
+
+import numpy as np
+
+from pyorbital import astronomy, tlefile
 
 ECC_EPS = 1.0e-6  # Too low for computing further drops.
 ECC_LIMIT_LOW = -1.0e-3
@@ -183,6 +184,9 @@ class Orbital(object):
 
         Return: (Azimuth, Elevation)
         """
+
+        utc_time = utc_time.astype('datetime64[us]')
+
         (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(
             utc_time, normalize=False)
         (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \

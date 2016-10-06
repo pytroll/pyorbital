@@ -29,9 +29,15 @@
 # - optimize !!!
 # - test !!!
 
+from datetime import timedelta
+
 import numpy as np
 from numpy import cos, sin, sqrt
-from datetime import timedelta
+
+# DIRTY STUFF. Needed the get_lonlatalt function to work on pos directly if
+# we want to print out lonlats in the end.
+from pyorbital import astronomy
+from pyorbital.orbital import *
 from pyorbital.orbital import Orbital
 
 a = 6378.137  # km
@@ -87,7 +93,7 @@ class ScanGeometry(object):
                  times,
                  attitude=(0, 0, 0)):
         self.fovs = np.array(fovs)
-        self._times = np.array(times)
+        self._times = np.array(times.astype('timedelta64[us]'))
         self.attitude = attitude
 
     def vectors(self, pos, vel, roll=0.0, pitch=0.0, yaw=0.0):
@@ -124,7 +130,7 @@ class ScanGeometry(object):
     def times(self, start_of_scan):
         #tds = [timedelta(seconds=i) for i in self._times]
         tds = self._times.astype('timedelta64[s]')
-        return np.array(tds) + start_of_scan
+        return np.array(self._times) + np.datetime64(start_of_scan)
 
 
 class Quaternion(object):
@@ -172,12 +178,6 @@ def qrotate(vector, axis, angle):
                      q__.rotation_matrix()[:3, :3])
 
 
-# DIRTY STUFF. Needed the get_lonlatalt function to work on pos directly if
-# we want to print out lonlats in the end.
-from pyorbital import astronomy
-from pyorbital.orbital import *
-
-
 def get_lonlatalt(pos, utc_time):
     """Calculate sublon, sublat and altitude of satellite, considering the
     earth an ellipsoid.
@@ -212,7 +212,7 @@ def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0)):
     """Compute cartesian coordinates of the pixels in instrument scan.
     """
     if isinstance(orb, (list, tuple)):
-        tle1, tle2 = tle
+        tle1, tle2 = orb
         orb = Orbital("mysatellite", line1=tle1, line2=tle2)
 
     # get position and velocity for each time of each pixel

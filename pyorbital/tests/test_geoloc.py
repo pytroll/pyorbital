@@ -98,9 +98,9 @@ class TestGeoloc(unittest.TestCase):
 
         start_of_scan = datetime(2014, 1, 8, 11, 30)
         times = instrument.times(start_of_scan)
-        self.assertEquals(times[1], start_of_scan)
-        self.assertEquals(times[0], start_of_scan - timedelta(seconds=0.1))
-        self.assertEquals(times[2], start_of_scan + timedelta(seconds=0.1))
+        self.assertEqual(times[1], start_of_scan)
+        self.assertEqual(times[0], start_of_scan - timedelta(seconds=0.1))
+        self.assertEqual(times[2], start_of_scan + timedelta(seconds=0.1))
 
     def test_geodetic_lat(self):
         """Test the determination of the geodetic latitude.

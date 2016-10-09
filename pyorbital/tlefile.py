@@ -25,7 +25,10 @@
 
 import logging
 import datetime
-import urllib2
+try:
+    import urllib2 as urllib
+except ImportError:
+    import urllib.request, urllib.error, urllib.parse
 import os
 import glob
 
@@ -140,7 +143,7 @@ def fetch(destination):
    """
     with open(destination, "w") as dest:
         for url in TLE_URLS:
-            response = urllib2.urlopen(url)
+            response = urllib.request.urlopen(url)
             dest.write(response.read())
 
 
@@ -223,32 +226,34 @@ class Tle(object):
         else:
             if self._tle_file:
                 urls = (self._tle_file,)
-                open_func = open
+                open_func = lambda url: open(url, 'rb')
             elif "TLES" in os.environ:
                 # TODO: get the TLE file closest in time to the actual satellite
                 # overpass, NOT the latest!
                 urls = (max(glob.glob(os.environ["TLES"]),
                             key=os.path.getctime), )
                 LOGGER.debug("Reading TLE from %s", urls[0])
-                open_func = open
+                open_func = lambda url: open(url, 'rb')
             else:
                 LOGGER.debug("Fetch TLE from the internet.")
                 urls = TLE_URLS
-                open_func = urllib2.urlopen
+                open_func = urllib.request.urlopen
 
             tle = ""
             designator = "1 " + SATELLITES.get(self._platform, '')
+            import io
             for url in urls:
                 fid = open_func(url)
+                fid = io.TextIOWrapper(fid)
                 for l_0 in fid:
                     if l_0.strip() == self._platform:
-                        l_1, l_2 = fid.next(), fid.next()
+                        l_1, l_2 = next(fid), next(fid)
                         tle = l_1.strip() + "\n" + l_2.strip()
                         break
                     if(self._platform in SATELLITES and
                        l_0.strip().startswith(designator)):
                         l_1 = l_0
-                        l_2 = fid.next()
+                        l_2 = next(fid)
                         tle = l_1.strip() + "\n" + l_2.strip()
                         LOGGER.debug("Found platform %s, ID: %s",
                                      self._platform,
@@ -306,10 +311,14 @@ class Tle(object):
 
     def __str__(self):
         import pprint
-        import StringIO
-        s_var = StringIO.StringIO()
+        import sys
+        if sys.version_info < (3,0):
+            from StringIO import StringIO
+        else:
+            from io import StringIO
+        s_var = StringIO()
         d_var = dict(([(k, v) for k, v in
-                       self.__dict__.items() if k[0] != '_']))
+                       list(self.__dict__.items()) if k[0] != '_']))
         pprint.pprint(d_var, s_var)
         return s_var.getvalue()[:-1]
 
@@ -317,7 +326,7 @@ def main():
     '''Main for testing TLE reading.
     '''
     tle_data = read('Noaa-19')
-    print tle_data
+    print(tle_data)
 
 if __name__ == '__main__':
     main()

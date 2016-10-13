@@ -42,7 +42,7 @@ class TLETest(unittest.TestCase):
      ISS (ZARYA)
      1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927
      2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537
-    
+
     """
 
     def check_example(self, tle):
@@ -83,7 +83,7 @@ class TLETest(unittest.TestCase):
         from os import write, close, remove
         filehandle, filename = mkstemp()
         try:
-            write(filehandle, "\n".join([line0, line1, line2]))
+            write(filehandle, "\n".join([line0, line1, line2]).encode('utf-8'))
             close(filehandle)
             tle = Tle("ISS (ZARYA)", filename)
             self.check_example(tle)
@@ -97,6 +97,6 @@ def suite():
     loader = unittest.TestLoader()
     mysuite = unittest.TestSuite()
     mysuite.addTest(loader.loadTestsFromTestCase(TLETest))
-    
+
     return mysuite
 

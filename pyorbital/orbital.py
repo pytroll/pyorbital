@@ -25,11 +25,12 @@
 """Module for computing the orbital parameters of satellites.
 """
 
-from datetime import datetime, timedelta
-import numpy as np
-from pyorbital import tlefile
-from pyorbital import astronomy
 import warnings
+from datetime import datetime, timedelta
+
+import numpy as np
+
+from pyorbital import astronomy, tlefile
 
 ECC_EPS = 1.0e-6  # Too low for computing further drops.
 ECC_LIMIT_LOW = -1.0e-3
@@ -69,6 +70,54 @@ A3OVK2 = (-XJ3 / CK2) * AE**3
 
 class OrbitalError(Exception):
     pass
+
+
+def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
+    """Calculate observers look angle to a satellite.
+    http://celestrak.com/columns/v02n02/
+
+    utc_time: Observation time (datetime object)
+    lon: Longitude of observer position on ground
+    lat: Latitude of observer position on ground
+    alt: Altitude above sea-level (geoid) of observer position on ground
+
+    Return: (Azimuth, Elevation)
+    """
+    (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = astronomy.observer_position(
+        utc_time, sat_lon, sat_lat, sat_alt)
+
+    (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \
+        astronomy.observer_position(utc_time, lon, lat, alt)
+
+    lon = np.deg2rad(lon)
+    lat = np.deg2rad(lat)
+
+    theta = (astronomy.gmst(utc_time) + lon) % (2 * np.pi)
+
+    rx = pos_x - opos_x
+    ry = pos_y - opos_y
+    rz = pos_z - opos_z
+
+    sin_lat = np.sin(lat)
+    cos_lat = np.cos(lat)
+    sin_theta = np.sin(theta)
+    cos_theta = np.cos(theta)
+
+    top_s = sin_lat * cos_theta * rx + \
+        sin_lat * sin_theta * ry - cos_lat * rz
+    top_e = -sin_theta * rx + cos_theta * ry
+    top_z = cos_lat * cos_theta * rx + \
+        cos_lat * sin_theta * ry + sin_lat * rz
+
+    az_ = np.arctan(-top_e / top_s)
+
+    az_ = np.where(top_s > 0, az_ + np.pi, az_)
+    az_ = np.where(az_ < 0, az_ + 2 * np.pi, az_)
+
+    rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
+    el_ = np.arcsin(top_z / rg_)
+
+    return np.rad2deg(az_), np.rad2deg(el_)
 
 
 class Orbital(object):
@@ -814,4 +863,4 @@ if __name__ == "__main__":
         lon, lat = np.rad2deg((lon, lat))
         az, el = o.get_observer_look(t, obs_lon, obs_lat, obs_alt)
         ob = o.get_orbit_number(t, tbus_style=True)
-        print az, el, ob
+        print(az, el, ob)

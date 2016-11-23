@@ -130,7 +130,10 @@ class ScanGeometry(object):
     def times(self, start_of_scan):
         #tds = [timedelta(seconds=i) for i in self._times]
         tds = self._times.astype('timedelta64[s]')
-        return np.array(self._times) + np.datetime64(start_of_scan)
+        try:
+            return np.array(self._times) + np.datetime64(start_of_scan)
+        except ValueError:
+            return np.array(self._times) + start_of_scan
 
 
 class Quaternion(object):

@@ -1,6 +1,28 @@
 Changelog
 =========
 
+v1.1.1 (2017-01-10)
+-------------------
+
+- Update changelog. [Martin Raspaud]
+
+- Bump version: 1.1.0 → 1.1.1. [Martin Raspaud]
+
+- Allow offset application to be turned off (avhrr) [Martin Raspaud]
+
+  Signed-off-by: Martin Raspaud <martin.raspaud@smhi.se>
+
+
+- Add a generic get_observer_look function. [Martin Raspaud]
+
+  Signed-off-by: Martin Raspaud <martin.raspaud@smhi.se>
+
+
+- Add bump and changelog config files. [Martin Raspaud]
+
+  Signed-off-by: Martin Raspaud <martin.raspaud@smhi.se>
+
+
 v1.1.0 (2016-10-27)
 -------------------
 

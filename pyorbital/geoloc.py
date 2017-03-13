@@ -93,7 +93,7 @@ class ScanGeometry(object):
                  times,
                  attitude=(0, 0, 0)):
         self.fovs = np.array(fovs)
-        self._times = np.array(times.astype('timedelta64[us]'))
+        self._times = np.array(times) * np.timedelta64(1000000000, 'ns')
         self.attitude = attitude
 
     def vectors(self, pos, vel, roll=0.0, pitch=0.0, yaw=0.0):
@@ -129,7 +129,7 @@ class ScanGeometry(object):
 
     def times(self, start_of_scan):
         #tds = [timedelta(seconds=i) for i in self._times]
-        tds = self._times.astype('timedelta64[s]')
+        tds = self._times.astype('timedelta64[us]')
         try:
             return np.array(self._times) + np.datetime64(start_of_scan)
         except ValueError:

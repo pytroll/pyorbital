@@ -24,11 +24,13 @@
 """
 
 import unittest
-from pyorbital.geoloc_instrument_definitions import avhrr
-from pyorbital.geoloc import (ScanGeometry, qrotate,
-                              subpoint, geodetic_lat)
-import numpy as np
 from datetime import datetime, timedelta
+
+import numpy as np
+
+from pyorbital.geoloc import ScanGeometry, geodetic_lat, qrotate, subpoint
+from pyorbital.geoloc_instrument_definitions import avhrr
+
 
 class TestQuaternion(unittest.TestCase):
     """Test the quaternion rotation.
@@ -59,7 +61,7 @@ class TestQuaternion(unittest.TestCase):
         self.assertTrue(np.allclose(qrotate(vector, axis, angle),
                                     np.array([[0, 0, 1],
                                               [-1, 0, 0]]).T))
-    
+
 
 class TestGeoloc(unittest.TestCase):
     """Test for the core computing part.
@@ -76,7 +78,7 @@ class TestGeoloc(unittest.TestCase):
                                     np.array([10, 0, -10])))
 
         # Test vectors
-        
+
         pos = np.array([[0, 0, 7000]]).T
         vel = np.array([[1, 0, 0]]).T
         vec = instrument.vectors(pos, vel)
@@ -84,7 +86,7 @@ class TestGeoloc(unittest.TestCase):
                                     vec[:, 1]))
 
         # minus sin because we use trigonometrical direction of angles
-        
+
         self.assertTrue(np.allclose(np.array([[0,
                                                -np.sin(np.deg2rad(10)),
                                                -np.cos(np.deg2rad(10))]]),
@@ -96,18 +98,18 @@ class TestGeoloc(unittest.TestCase):
 
         # Test times
 
-        start_of_scan = datetime(2014, 1, 8, 11, 30)
+        start_of_scan = np.datetime64(datetime(2014, 1, 8, 11, 30))
         times = instrument.times(start_of_scan)
         self.assertEquals(times[1], start_of_scan)
-        self.assertEquals(times[0], start_of_scan - timedelta(seconds=0.1))
-        self.assertEquals(times[2], start_of_scan + timedelta(seconds=0.1))
+        self.assertEquals(times[0], start_of_scan - np.timedelta64(100, 'ms'))
+        self.assertEquals(times[2], start_of_scan + np.timedelta64(100, 'ms'))
 
     def test_geodetic_lat(self):
         """Test the determination of the geodetic latitude.
         """
 
-        a = 6378.137 # km
-        b = 6356.75231414 # km, GRS80
+        a = 6378.137  # km
+        b = 6356.75231414  # km, GRS80
 
         point = np.array([7000, 0, 7000])
         self.assertEqual(geodetic_lat(point), 0.78755832699854733)
@@ -116,13 +118,12 @@ class TestGeoloc(unittest.TestCase):
         self.assertTrue(np.allclose(geodetic_lat(points),
                                     np.array([0.78755832699854733,
                                               0.78755832699854733])))
-        
-        
+
     def test_subpoint(self):
         """Test nadir determination.
         """
-        a = 6378.137 # km
-        b = 6356.75231414 # km, GRS80
+        a = 6378.137  # km
+        b = 6356.75231414  # km, GRS80
         point = np.array([0, 0, 7000])
         nadir = subpoint(point, a, b)
         self.assertTrue(np.allclose(nadir, np.array([[0, 0, b]]).T))
@@ -142,21 +143,21 @@ class TestGeoloc(unittest.TestCase):
                                                4497.06396339]]).T))
 
 
-        
-
 class TestGeolocDefs(unittest.TestCase):
     """Test the instrument definitions.
     """
+
     def test_avhrr(self):
         """Test the definition of the avhrr instrument
         """
-        avh = avhrr(1, np.array([0, 1023.5 ,2047]))
+        avh = avhrr(1, np.array([0, 1023.5, 2047]))
         self.assertTrue(np.allclose(np.rad2deg(avh.fovs[:, 0]),
                                     np.array([55.37, 0, -55.37])))
 
-        avh = avhrr(1, np.array([0, 1023.5 ,2047]), 10)
+        avh = avhrr(1, np.array([0, 1023.5, 2047]), 10)
         self.assertTrue(np.allclose(np.rad2deg(avh.fovs[:, 0]),
                                     np.array([10, 0, -10])))
+
 
 def suite():
     """The suite for test_geoloc
@@ -166,5 +167,5 @@ def suite():
     mysuite.addTest(loader.loadTestsFromTestCase(TestQuaternion))
     mysuite.addTest(loader.loadTestsFromTestCase(TestGeoloc))
     mysuite.addTest(loader.loadTestsFromTestCase(TestGeolocDefs))
-    
+
     return mysuite

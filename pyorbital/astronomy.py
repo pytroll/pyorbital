@@ -26,6 +26,8 @@ Parts taken from http://www.geoastro.de/elevaz/basics/index.htm
 
 import numpy as np
 
+from pyorbital import dt2np
+
 F = 1 / 298.257223563  # Earth flattening WGS-84
 A = 6378.137  # WGS84 Equatorial radius
 MFACTOR = 7.292115E-5
@@ -34,7 +36,7 @@ MFACTOR = 7.292115E-5
 def jdays2000(utc_time):
     """Get the days since year 2000.
     """
-    return _days(utc_time.astype('datetime64[us]') - np.datetime64('2000-01-01T12:00'))
+    return _days(dt2np(utc_time) - np.datetime64('2000-01-01T12:00'))
 
 
 def jdays(utc_time):

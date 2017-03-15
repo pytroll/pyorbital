@@ -24,7 +24,7 @@
 """
 
 # TODO: right formal unit tests.
-from __future__ import with_statement
+from __future__ import with_statement, print_function
 
 import os
 import unittest
@@ -107,12 +107,14 @@ class AIAAIntegrationTest(unittest.TestCase):
 
                     try:
                         o = LineOrbital("unknown", line1, line2)
-                    except NotImplementedError, e:
+                    except NotImplementedError as e:
                         test_line = f__.readline()
                         continue
+
                     except ChecksumError, e:
                         self.assertTrue(test_line.split()[1] in [
                                         "33333", "33334", "33335"])
+
                     for delay in times:
                         try:
                             test_time = delay.astype(

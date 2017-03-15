@@ -70,6 +70,11 @@ def avhrr(scans_nb, scan_points,
         offset = np.arange(scans_nb) * frequency
         times += np.expand_dims(offset, 1)
 
+    times = np.tile(scan_points * 0.000025, [scans_nb, 1])
+    if apply_offset:
+        offset = np.arange(scans_nb) * frequency
+        times += np.expand_dims(offset, 1)
+
     return ScanGeometry(avhrr_inst, times)
 
 

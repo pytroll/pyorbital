@@ -29,7 +29,7 @@
 # - optimize !!!
 # - test !!!
 
-from datetime import timedelta
+from __future__ import print_function
 
 import numpy as np
 from numpy import cos, sin, sqrt
@@ -211,6 +211,7 @@ def get_lonlatalt(pos, utc_time):
 # END OF DIRTY STUFF
 
 
+
 def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0)):
     """Compute cartesian coordinates of the pixels in instrument scan.
     """
@@ -304,4 +305,4 @@ if __name__ == '__main__':
     # print the lonlats for the pixel positions
     s_times = sgeom.times(t)
     pixels_pos = compute_pixels((noaa18_tle1, noaa18_tle2), sgeom, s_times)
-    print get_lonlatalt(pixels_pos, s_times)
+    print(get_lonlatalt(pixels_pos, s_times))

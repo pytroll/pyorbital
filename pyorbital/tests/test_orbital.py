@@ -53,13 +53,10 @@ class Test(unittest.TestCase):
         expected_lon = -68.199894472013213
         expected_lat = 23.159747677881075
         expected_alt = 392.01953430856935
-        self.failUnless(np.abs(lon - expected_lon) < eps_deg,
-                        'Calculation of sublon failed')
-        self.failUnless(np.abs(lat - expected_lat) < eps_deg,
-                        'Calculation of sublat failed')
-        self.failUnless(np.abs(alt - expected_alt) < eps_deg,
-                        'Calculation of altitude failed')
-
+        self.assertTrue(np.abs(lon - expected_lon) < eps_deg, 'Calculation of sublon failed')
+        self.assertTrue(np.abs(lat - expected_lat) < eps_deg, 'Calculation of sublat failed')
+        self.assertTrue(np.abs(alt - expected_alt) < eps_deg, 'Calculation of altitude failed')
+        
     def test_observer_look(self):
         sat = orbital.Orbital("ISS (ZARYA)",
                               line1="1 25544U 98067A   03097.78853147  .00021906  00000-0  28403-3 0  8652",
@@ -68,11 +65,9 @@ class Test(unittest.TestCase):
         az, el = sat.get_observer_look(d, -84.39733, 33.775867, 0)
         expected_az = 122.45169655331965
         expected_el = 1.9800219611255456
-        self.failUnless(np.abs(az - expected_az) < eps_deg,
-                        'Calculation of azimut failed')
-        self.failUnless(np.abs(el - expected_el) < eps_deg,
-                        'Calculation of elevation failed')
-
+        self.assertTrue(np.abs(az - expected_az) < eps_deg, 'Calculation of azimut failed')
+        self.assertTrue(np.abs(el - expected_el) < eps_deg, 'Calculation of elevation failed')
+        
     def test_orbit_num_an(self):
         sat = orbital.Orbital("METOP-A",
                               line1="1 29499U 06044A   11254.96536486  .00000092  00000-0  62081-4 0  5221",

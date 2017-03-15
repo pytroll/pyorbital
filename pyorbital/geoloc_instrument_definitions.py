@@ -59,13 +59,13 @@ def avhrr(scans_nb, scan_points,
     avhrr_inst = np.vstack(((scan_points / 1023.5 - 1)
                             * np.deg2rad(-scan_angle),
                             np.zeros((len(scan_points),)))).transpose()
-    avhrr_inst = np.tile(avhrr_inst, [scans_nb, 1])
+    avhrr_inst = np.tile(avhrr_inst, [np.int(scans_nb), 1])
 
     # building the corresponding times array
     # times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
     #         + np.expand_dims(offset, 1))
 
-    times = np.tile(scan_points * 0.000025, [scans_nb, 1])
+    times = np.tile(scan_points * 0.000025, [np.int(scans_nb), 1])
     if apply_offset:
         offset = np.arange(scans_nb) * frequency
         times += np.expand_dims(offset, 1)

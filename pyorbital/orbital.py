@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from pyorbital import astronomy, tlefile
+from pyorbital import astronomy, dt2np, tlefile
 
 ECC_EPS = 1.0e-6  # Too low for computing further drops.
 ECC_LIMIT_LOW = -1.0e-3
@@ -146,7 +146,7 @@ class Orbital(object):
         """
 
         # Propagate backwards to ascending node
-        dt = timedelta(minutes=10)
+        dt = np.timedelta64(10, 'm')
         t_old = utc_time
         t_new = t_old - dt
         pos0, vel0 = self.get_position(t_old, normalize=False)
@@ -232,6 +232,10 @@ class Orbital(object):
 
         Return: (Azimuth, Elevation)
         """
+
+        #utc_time = utc_time.astype('datetime64[us]')
+        utc_time = np.datetime64(utc_time, 'us')
+
         (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(
             utc_time, normalize=False)
         (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \
@@ -271,6 +275,7 @@ class Orbital(object):
         """Calculate orbit number at specified time.
         Optionally use TBUS-style orbit numbering (TLE orbit number + 1)
         """
+        utc_time = np.datetime64(utc_time)
         try:
             dt = astronomy._days(utc_time - self.orbit_elements.an_time)
             orbit_period = astronomy._days(self.orbit_elements.an_period)
@@ -287,7 +292,7 @@ class Orbital(object):
 
             self.orbit_elements.an_period = self.orbit_elements.an_time - \
                 self.get_last_an_time(self.orbit_elements.an_time
-                                      - timedelta(minutes=10))
+                                      - np.timedelta64(10, 'm'))
 
             dt = astronomy._days(utc_time - self.orbit_elements.an_time)
             orbit_period = astronomy._days(self.orbit_elements.an_period)
@@ -683,7 +688,12 @@ class _SGDP4(object):
     def propagate(self, utc_time):
         kep = {}
 
-        ts = astronomy._days(utc_time - self.t_0) * XMNPDA
+        # get the time delta in minutes
+        #ts = astronomy._days(utc_time - self.t_0) * XMNPDA
+        # print utc_time.shape
+        # print self.t_0
+        utc_time = dt2np(utc_time)
+        ts = (utc_time - self.t_0) / np.timedelta64(1, 'm')
 
         em = self.eo
         xinc = self.xincl
@@ -796,7 +806,7 @@ class _SGDP4(object):
         xinck = xinc + 1.5 * temp2 * self.cosIO * self.sinIO * cos2u
 
         if np.any(rk < 1):
-            raise Exception('Satellite crased at time %s', utc_time)
+            raise Exception('Satellite crashed at time %s', utc_time)
 
         temp0 = np.sqrt(a)
         temp2 = XKE / (a * temp0)

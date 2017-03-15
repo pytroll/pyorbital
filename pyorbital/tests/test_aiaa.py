@@ -68,6 +68,7 @@ def get_results(satnumber, delay):
                     utc_time = utc_time.replace(year=int(sline[-4]),
                                                 month=int(sline[-3]),
                                                 day=int(sline[-2]))
+                    utc_time = np.datetime64(utc_time)
                 return (float(sline[1]),
                         float(sline[2]),
                         float(sline[3]),
@@ -114,7 +115,8 @@ class AIAAIntegrationTest(unittest.TestCase):
                                         "33333", "33334", "33335"])
                     for delay in times:
                         try:
-                            test_time = timedelta(minutes=delay) + o.tle.epoch
+                            test_time = delay.astype(
+                                'timedelta64[m]') + o.tle.epoch
                             pos, vel = o.get_position(test_time, False)
                             res = get_results(
                                 int(o.tle.satnumber), float(delay))

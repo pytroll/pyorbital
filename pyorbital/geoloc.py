@@ -75,7 +75,7 @@ def subpoint(query_point, a=a, b=b):
     ny_ = n__ * cos(lat) * sin(lon)
     nz_ = (1 - e2_) * n__ * sin(lat)
 
-    return np.vstack([nx_, ny_, nz_])
+    return np.stack([nx_, ny_, nz_], axis=0)
 
 
 class ScanGeometry(object):
@@ -121,9 +121,9 @@ class ScanGeometry(object):
         y /= vnorm(y)
 
         # rotate first around x
-        x_rotated = qrotate(nadir, x, self.fovs[:, 0] + roll)
+        x_rotated = qrotate(nadir, x, self.fovs[0] + roll)
         # then around y
-        xy_rotated = qrotate(x_rotated, y, self.fovs[:, 1] + pitch)
+        xy_rotated = qrotate(x_rotated, y, self.fovs[1] + pitch)
         # then around z
         return qrotate(xy_rotated, nadir, yaw)
 
@@ -139,8 +139,8 @@ class ScanGeometry(object):
 class Quaternion(object):
 
     def __init__(self, scalar, vector):
-        self.__x, self.__y, self.__z = vector
-        self.__w = scalar
+        self.__x, self.__y, self.__z = vector.reshape((3, -1))
+        self.__w = scalar.ravel()
 
     def rotation_matrix(self):
         x, y, z, w = self.__x, self.__y, self.__z, self.__w
@@ -176,9 +176,10 @@ def qrotate(vector, axis, angle):
         p__ = n_axis * sin_angle
 
     q__ = Quaternion(cos(angle / 2), p__)
+    shape = vector.shape
     return np.einsum("kj, ikj->ij",
-                     vector,
-                     q__.rotation_matrix()[:3, :3])
+                     vector.reshape((3, -1)),
+                     q__.rotation_matrix()[:3, :3]).reshape(shape)
 
 
 def get_lonlatalt(pos, utc_time):
@@ -211,7 +212,6 @@ def get_lonlatalt(pos, utc_time):
 # END OF DIRTY STUFF
 
 
-
 def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0)):
     """Compute cartesian coordinates of the pixels in instrument scan.
     """
@@ -236,8 +236,10 @@ def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0)):
     # b__ = 6356.75231414 # km, GRS80
     b__ = 6356.752314245  # km, WGS84
     radius = np.array([[1 / a__, 1 / a__, 1 / b__]]).T
-    xr_ = vectors * radius
-    cr_ = centre * radius
+    shape = vectors.shape
+
+    xr_ = vectors.reshape([3, -1]) * radius
+    cr_ = centre.reshape([3, -1]) * radius
     ldotc = np.einsum("ij,ij->j", xr_, cr_)
     lsq = np.einsum("ij,ij->j", xr_, xr_)
     csq = np.einsum("ij,ij->j", cr_, cr_)
@@ -245,7 +247,7 @@ def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0)):
     d1_ = (ldotc - np.sqrt(ldotc ** 2 - csq * lsq + lsq)) / lsq
 
     # return the actual pixel positions
-    return vectors * d1_ - centre
+    return vectors * d1_.reshape(shape[1:]) - centre
 
 
 def norm(v):

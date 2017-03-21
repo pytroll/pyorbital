@@ -87,16 +87,16 @@ def avhrr_gac(scan_times, scan_points,
     except TypeError:
         offset = np.arange(scan_times) * frequency
     scans_nb = len(offset)
-    # build the avhrr instrument (scan angles)
+
     avhrr_inst = np.vstack(((scan_points / 1023.5 - 1)
                             * np.deg2rad(-scan_angle),
-                            np.zeros((len(scan_points),)))).transpose()
-    avhrr_inst = np.tile(avhrr_inst, [scans_nb, 1])
+                            np.zeros((len(scan_points),))))
 
+    avhrr_inst = np.tile(avhrr_inst[:, np.newaxis, :], [1, np.int(scans_nb), 1])
     # building the corresponding times array
     times = (np.tile(scan_points * 0.000025, [scans_nb, 1])
              + np.expand_dims(offset, 1))
-    return ScanGeometry(avhrr_inst, times.ravel())
+    return ScanGeometry(avhrr_inst, times)
 
 ################################################################
 # avhrr, all pixels

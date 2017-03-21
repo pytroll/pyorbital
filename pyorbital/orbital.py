@@ -233,9 +233,7 @@ class Orbital(object):
         Return: (Azimuth, Elevation)
         """
 
-        #utc_time = utc_time.astype('datetime64[us]')
-        utc_time = np.datetime64(utc_time, 'us')
-
+        utc_time = dt2np(utc_time)
         (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(
             utc_time, normalize=False)
         (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \

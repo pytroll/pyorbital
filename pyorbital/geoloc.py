@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012, 2013, 2014, 2015.
+# Copyright (c) 2011, 2012, 2013, 2014, 2015, 2017.
 
 # Author(s):
 
@@ -169,7 +169,7 @@ def qrotate(vector, axis, angle):
     """
     n_axis = axis / vnorm(axis)
     sin_angle = np.expand_dims(sin(angle / 2), 0)
-    if np.rank(n_axis) == 1:
+    if np.ndim(n_axis) == 1:
         n_axis = np.expand_dims(n_axis, 1)
         p__ = np.dot(n_axis, sin_angle)[:, np.newaxis]
     else:
@@ -258,7 +258,7 @@ def mnorm(m, axis=None):
     """norm of a matrix of vectors stacked along the *axis* dimension.
     """
     if axis is None:
-        axis = np.rank(m) - 1
+        axis = np.ndim(m) - 1
     return np.sqrt((m**2).sum(axis))
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013, 2014, 2015 Martin Raspaud
+# Copyright (c) 2013, 2014, 2015, 2017 Martin Raspaud
 
 # Author(s):
 
@@ -60,7 +60,8 @@ def avhrr(scans_nb, scan_points,
                             * np.deg2rad(-scan_angle),
                             np.zeros((len(scan_points),))))
 
-    avhrr_inst = np.tile(avhrr_inst[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+    avhrr_inst = np.tile(
+        avhrr_inst[:, np.newaxis, :], [1, np.int(scans_nb), 1])
 
     # building the corresponding times array
     # times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
@@ -68,7 +69,7 @@ def avhrr(scans_nb, scan_points,
 
     times = np.tile(scan_points * 0.000025, [np.int(scans_nb), 1])
     if apply_offset:
-        offset = np.arange(scans_nb) * frequency
+        offset = np.arange(np.int(scans_nb)) * frequency
         times += np.expand_dims(offset, 1)
 
     return ScanGeometry(avhrr_inst, times)
@@ -92,7 +93,8 @@ def avhrr_gac(scan_times, scan_points,
                             * np.deg2rad(-scan_angle),
                             np.zeros((len(scan_points),))))
 
-    avhrr_inst = np.tile(avhrr_inst[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+    avhrr_inst = np.tile(
+        avhrr_inst[:, np.newaxis, :], [1, np.int(scans_nb), 1])
     # building the corresponding times array
     times = (np.tile(scan_points * 0.000025, [scans_nb, 1])
              + np.expand_dims(offset, 1))

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2014 Martin Raspaud
+# Copyright (c) 2014, 2017 Martin Raspaud
 
 # Author(s):
 
@@ -33,6 +33,7 @@ from pyorbital.geoloc_instrument_definitions import avhrr
 
 
 class TestQuaternion(unittest.TestCase):
+
     """Test the quaternion rotation.
     """
 
@@ -64,6 +65,7 @@ class TestQuaternion(unittest.TestCase):
 
 
 class TestGeoloc(unittest.TestCase):
+
     """Test for the core computing part.
     """
 
@@ -161,6 +163,7 @@ class TestGeoloc(unittest.TestCase):
 
 
 class TestGeolocDefs(unittest.TestCase):
+
     """Test the instrument definitions.
     """
 
@@ -172,6 +175,12 @@ class TestGeolocDefs(unittest.TestCase):
                                     np.array([55.37, 0, -55.37])))
 
         avh = avhrr(1, np.array([0, 1023.5, 2047]), 10)
+        self.assertTrue(np.allclose(np.rad2deg(avh.fovs[0]),
+                                    np.array([10, 0, -10])))
+
+        # This is perhaps a bit odd, to require avhrr to accept floats for
+        # the number of scans? FIXME!
+        avh = avhrr(1.1, np.array([0, 1023.5, 2047]), 10)
         self.assertTrue(np.allclose(np.rad2deg(avh.fovs[0]),
                                     np.array([10, 0, -10])))
 

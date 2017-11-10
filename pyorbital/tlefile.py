@@ -61,6 +61,8 @@ def read_platform_numbers(in_upper=False, num_as_int=False):
             # skip comment lines
             if not row.startswith('#'):
                 parts = row.split()
+                if len(parts) < 2:
+                    continue
                 if in_upper:
                     parts[0] = parts[0].upper()
                 if num_as_int:
@@ -154,12 +156,14 @@ def fetch(destination):
 
 
 class ChecksumError(Exception):
+
     '''ChecksumError.
     '''
     pass
 
 
 class Tle(object):
+
     """Class holding TLE objects.
    """
 
@@ -299,8 +303,9 @@ class Tle(object):
         self.id_launch_piece = self._line1[14:17]
         self.epoch_year = self._line1[18:20]
         self.epoch_day = float(self._line1[20:32])
-        self.epoch = np.datetime64(datetime.datetime.strptime(self.epoch_year, "%y") +
-                      datetime.timedelta(days=self.epoch_day - 1), 'us')
+        self.epoch = \
+            np.datetime64(datetime.datetime.strptime(self.epoch_year, "%y") +
+                          datetime.timedelta(days=self.epoch_day - 1), 'us')
         self.mean_motion_derivative = float(self._line1[33:43])
         self.mean_motion_sec_derivative = _read_tle_decimal(self._line1[44:52])
         self.bstar = _read_tle_decimal(self._line1[53:61])
@@ -330,6 +335,7 @@ class Tle(object):
                        list(self.__dict__.items()) if k[0] != '_']))
         pprint.pprint(d_var, s_var)
         return s_var.getvalue()[:-1]
+
 
 def main():
     '''Main for testing TLE reading.

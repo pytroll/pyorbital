@@ -142,10 +142,10 @@ def read(platform, tle_file=None, line1=None, line2=None):
 def fetch(destination):
     """fetch TLE from internet and save it to *destination*.
    """
-    with open(destination, "w") as dest:
+    with io.open(destination, mode="w", encoding="utf-8") as dest:
         for url in TLE_URLS:
             response = urlopen(url)
-            dest.write(response.read())
+            dest.write(response.read().decode("utf-8"))
 
 
 class ChecksumError(Exception):

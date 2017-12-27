@@ -77,9 +77,9 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     http://celestrak.com/columns/v02n02/
 
     utc_time: Observation time (datetime object)
-    lon: Longitude of observer position on ground
-    lat: Latitude of observer position on ground
-    alt: Altitude above sea-level (geoid) of observer position on ground
+    lon: Longitude of observer position on ground in degrees east
+    lat: Latitude of observer position on ground in degrees north
+    alt: Altitude above sea-level (geoid) of observer position on ground in km
 
     Return: (Azimuth, Elevation)
     """
@@ -226,9 +226,9 @@ class Orbital(object):
         http://celestrak.com/columns/v02n02/
 
         utc_time: Observation time (datetime object)
-        lon: Longitude of observer position on ground
-        lat: Latitude of observer position on ground
-        alt: Altitude above sea-level (geoid) of observer position on ground
+        lon: Longitude of observer position on ground in degrees east
+        lat: Latitude of observer position on ground in degrees north
+        alt: Altitude above sea-level (geoid) of observer position on ground in km
 
         Return: (Azimuth, Elevation)
         """

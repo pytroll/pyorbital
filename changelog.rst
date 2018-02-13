@@ -1,6 +1,129 @@
 Changelog
 =========
 
+v1.2.0 (2018-02-13)
+-------------------
+
+- Update changelog. [Adam.Dybbroe]
+
+- Bump version: 1.1.1 → 1.2.0. [Adam.Dybbroe]
+
+- Merge branch 'develop' into new_release. [Adam.Dybbroe]
+
+- Add for NOAA-20. [Adam.Dybbroe]
+
+  Signed-off-by: Adam.Dybbroe <adam.dybbroe@smhi.se>
+
+
+- Add github issue and PR templates. [Adam.Dybbroe]
+
+  Signed-off-by: Adam.Dybbroe <adam.dybbroe@smhi.se>
+
+
+- Provide units in the get_observer_look documentation. [Martin Raspaud]
+
+  Fixes #17
+
+- Check that there are required amount of items in the row. [Panu
+  Lahtinen]
+
+- Improve documentation: Emphasize the importance of fresh/actual TLEs.
+  [Adam.Dybbroe]
+
+  Signed-off-by: Adam.Dybbroe <adam.dybbroe@smhi.se>
+
+
+- Add GOES-16 and Himawari-9. [Adam.Dybbroe]
+
+  Signed-off-by: Adam.Dybbroe <adam.dybbroe@smhi.se>
+
+
+- Merge pull request #16 from jordanlui/newTLEurl. [Martin Raspaud]
+
+  New TLE URLs
+
+- Additional TLE URLs from CelesTrak added. [Jordan Lui]
+
+- Added additional TLE paths to TLE_URL. [Jordan Lui]
+
+- Replace numpy.rank with numpy.ndim to make compatible with future
+  numpy versions. [Adam.Dybbroe]
+
+  Currently at 1.13.0 a VisibleDeprecationWarning is raised using numpy.rank
+
+  Signed-off-by: Adam.Dybbroe <a000680@c20671.ad.smhi.se>
+
+
+- Numpy 1.12 compatible - accepting number of scans to be a float.
+  [Adam.Dybbroe]
+
+  Signed-off-by: Adam.Dybbroe <a000680@c20671.ad.smhi.se>
+
+
+- Fix avhrr_gac instrument definition. [Martin Raspaud]
+
+- Fix conversion to datetime64. [Martin Raspaud]
+
+- Fix geoloc tests. [Martin Raspaud]
+
+- Add support for 2d time arrays in geoloc. [Martin Raspaud]
+
+- Merge branch 'develop' of github.com:pytroll/pyorbital into develop.
+  [Martin Raspaud]
+
+  Conflicts:
+  	pyorbital/tests/test_aiaa.py
+
+
+- Merge pull request #13 from pytroll/feature_np_datetime64. [Martin
+  Raspaud]
+
+  Feature np datetime64
+
+- Merge branch 'develop' into feature_np_datetime64. [Martin Raspaud]
+
+- Finish conversion to np datetime64. [Martin Raspaud]
+
+- Add conversion func between datetime and np.datetime64. [Martin
+  Raspaud]
+
+- Do not crash when start_of_scan already is datetime64. [Martin
+  Raspaud]
+
+  Signed-off-by: Martin Raspaud <martin.raspaud@smhi.se>
+
+
+- Convert input times to datetime64. [Martin Raspaud]
+
+  Signed-off-by: Martin Raspaud <martin.raspaud@smhi.se>
+
+
+- Allow offset application to be turned off (avhrr) [Martin Raspaud]
+
+  Signed-off-by: Martin Raspaud <martin.raspaud@smhi.se>
+
+
+- Adapt to datetime64. [Martin Raspaud]
+
+  Signed-off-by: Martin Raspaud <martin.raspaud@smhi.se>
+
+
+- Cleanup style. [Martin Raspaud]
+
+- Fix indexing. [Martin Raspaud]
+
+- Merge pull request #19 from howff/patch-1. [Adam Dybbroe]
+
+  Update platforms.txt with NOAA-20, MSG 4, GOES-16
+
+- Update platforms.txt with NOAA-20, MSG 4, GOES-16. [howff]
+
+- Merge pull request #14 from kconkas/master. [Martin Raspaud]
+
+  Python3 fixes for fetch()
+
+- Python3 fixes for fetch() [Kristijan Conkas]
+
 v1.1.1 (2017-01-10)
 -------------------
 

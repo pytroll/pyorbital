@@ -24,20 +24,23 @@
 """
 
 # TODO: right formal unit tests.
-from __future__ import with_statement, print_function
+from __future__ import print_function, with_statement
 
 import os
-
-from pyorbital.orbital import Orbital, OrbitElements, _SGDP4
-from pyorbital.tlefile import ChecksumError
-from pyorbital import tlefile, astronomy
-import numpy as np
-from datetime import timedelta, datetime
 import unittest
+from datetime import datetime, timedelta
+
+import numpy as np
+
+from pyorbital import astronomy, tlefile
+from pyorbital.orbital import _SGDP4, Orbital, OrbitElements
+from pyorbital.tlefile import ChecksumError
+
 
 class LineOrbital(Orbital):
     """Read TLE lines instead of file.
     """
+
     def __init__(self, satellite, line1, line2):
         satellite = satellite.upper()
         self.satellite_name = satellite
@@ -55,7 +58,7 @@ def get_results(satnumber, delay):
         while(line):
             if line.endswith(" xx\n") and int(line[:-3]) == satnumber:
                 line = f_2.readline()
-                while(not line.startswith("%.8f"%delay)):
+                while(not line.startswith("%.8f" % delay)):
                     line = f_2.readline()
                 sline = line.split()
                 if delay == 0:
@@ -65,6 +68,7 @@ def get_results(satnumber, delay):
                     utc_time = utc_time.replace(year=int(sline[-4]),
                                                 month=int(sline[-3]),
                                                 day=int(sline[-2]))
+                    utc_time = np.datetime64(utc_time)
                 return (float(sline[1]),
                         float(sline[2]),
                         float(sline[3]),
@@ -74,10 +78,11 @@ def get_results(satnumber, delay):
                         utc_time)
             line = f_2.readline()
 
+
 class AIAAIntegrationTest(unittest.TestCase):
     """Test against the AIAA test cases.
     """
-    
+
     def test_aiaa(self):
         """Do the tests against AIAA test cases.
         """
@@ -106,12 +111,15 @@ class AIAAIntegrationTest(unittest.TestCase):
                         test_line = f__.readline()
                         continue
                     except ChecksumError as e:
-                        self.assertTrue(test_line.split()[1] in ["33333", "33334", "33335"])
+                        self.assertTrue(test_line.split()[1] in [
+                                        "33333", "33334", "33335"])
                     for delay in times:
                         try:
-                            test_time = timedelta(minutes=delay) + o.tle.epoch
+                            test_time = delay.astype(
+                                'timedelta64[m]') + o.tle.epoch
                             pos, vel = o.get_position(test_time, False)
-                            res = get_results(int(o.tle.satnumber), float(delay))
+                            res = get_results(
+                                int(o.tle.satnumber), float(delay))
                         except NotImplementedError:
                             # Skipping deep-space
                             break
@@ -119,10 +127,10 @@ class AIAAIntegrationTest(unittest.TestCase):
                         #     from warnings import warn
                         #     warn(test_name + ' ' + str(e))
                         #     break
-                            
-                        delta_pos = 5e-6 # km =  5 mm
-                        delta_vel = 5e-9 # km/s = 5 um/s
-                        delta_time = 1e-3 # 1 milisecond
+
+                        delta_pos = 5e-6  # km =  5 mm
+                        delta_vel = 5e-9  # km/s = 5 um/s
+                        delta_time = 1e-3  # 1 milisecond
                         self.assertTrue(abs(res[0] - pos[0]) < delta_pos)
                         self.assertTrue(abs(res[1] - pos[1]) < delta_pos)
                         self.assertTrue(abs(res[2] - pos[2]) < delta_pos)
@@ -132,9 +140,9 @@ class AIAAIntegrationTest(unittest.TestCase):
                         if res[6] is not None:
                             dt = astronomy._days(res[6] - test_time) * 24 * 60
                             self.assertTrue(abs(dt) < delta_time)
-                        
+
                 test_line = f__.readline()
-        
+
 
 def suite():
     """The suite for test_aiaa
@@ -142,6 +150,5 @@ def suite():
     loader = unittest.TestLoader()
     mysuite = unittest.TestSuite()
     mysuite.addTest(loader.loadTestsFromTestCase(AIAAIntegrationTest))
-    
-    return mysuite
 
+    return mysuite

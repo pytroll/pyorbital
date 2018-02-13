@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012, 2013, 2014, 2015.
+# Copyright (c) 2011, 2012, 2013, 2014, 2015, 2017.
 
 # Author(s):
 
@@ -33,7 +33,11 @@ from __future__ import print_function
 
 import numpy as np
 from numpy import cos, sin, sqrt
-from datetime import timedelta
+
+# DIRTY STUFF. Needed the get_lonlatalt function to work on pos directly if
+# we want to print out lonlats in the end.
+from pyorbital import astronomy
+from pyorbital.orbital import *
 from pyorbital.orbital import Orbital
 
 a = 6378.137  # km
@@ -71,7 +75,7 @@ def subpoint(query_point, a=a, b=b):
     ny_ = n__ * cos(lat) * sin(lon)
     nz_ = (1 - e2_) * n__ * sin(lat)
 
-    return np.vstack([nx_, ny_, nz_])
+    return np.stack([nx_, ny_, nz_], axis=0)
 
 
 class ScanGeometry(object):
@@ -89,7 +93,7 @@ class ScanGeometry(object):
                  times,
                  attitude=(0, 0, 0)):
         self.fovs = np.array(fovs)
-        self._times = np.array(times)
+        self._times = np.array(times) * np.timedelta64(1000000000, 'ns')
         self.attitude = attitude
 
     def vectors(self, pos, vel, roll=0.0, pitch=0.0, yaw=0.0):
@@ -117,22 +121,26 @@ class ScanGeometry(object):
         y /= vnorm(y)
 
         # rotate first around x
-        x_rotated = qrotate(nadir, x, self.fovs[:, 0] + roll)
+        x_rotated = qrotate(nadir, x, self.fovs[0] + roll)
         # then around y
-        xy_rotated = qrotate(x_rotated, y, self.fovs[:, 1] + pitch)
+        xy_rotated = qrotate(x_rotated, y, self.fovs[1] + pitch)
         # then around z
         return qrotate(xy_rotated, nadir, yaw)
 
     def times(self, start_of_scan):
-        tds = [timedelta(seconds=i) for i in self._times]
-        return np.array(tds) + start_of_scan
+        #tds = [timedelta(seconds=i) for i in self._times]
+        tds = self._times.astype('timedelta64[us]')
+        try:
+            return np.array(self._times) + np.datetime64(start_of_scan)
+        except ValueError:
+            return np.array(self._times) + start_of_scan
 
 
 class Quaternion(object):
 
     def __init__(self, scalar, vector):
-        self.__x, self.__y, self.__z = vector
-        self.__w = scalar
+        self.__x, self.__y, self.__z = vector.reshape((3, -1))
+        self.__w = scalar.ravel()
 
     def rotation_matrix(self):
         x, y, z, w = self.__x, self.__y, self.__z, self.__w
@@ -161,22 +169,17 @@ def qrotate(vector, axis, angle):
     """
     n_axis = axis / vnorm(axis)
     sin_angle = np.expand_dims(sin(angle / 2), 0)
-    if np.rank(n_axis) == 1:
+    if np.ndim(n_axis) == 1:
         n_axis = np.expand_dims(n_axis, 1)
         p__ = np.dot(n_axis, sin_angle)[:, np.newaxis]
     else:
         p__ = n_axis * sin_angle
 
     q__ = Quaternion(cos(angle / 2), p__)
+    shape = vector.shape
     return np.einsum("kj, ikj->ij",
-                     vector,
-                     q__.rotation_matrix()[:3, :3])
-
-
-# DIRTY STUFF. Needed the get_lonlatalt function to work on pos directly if
-# we want to print out lonlats in the end.
-from pyorbital import astronomy
-from pyorbital.orbital import *
+                     vector.reshape((3, -1)),
+                     q__.rotation_matrix()[:3, :3]).reshape(shape)
 
 
 def get_lonlatalt(pos, utc_time):
@@ -209,11 +212,12 @@ def get_lonlatalt(pos, utc_time):
 # END OF DIRTY STUFF
 
 
-def compute_pixels(tle, sgeom, times, rpy=(0.0, 0.0, 0.0)):
+def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0)):
     """Compute cartesian coordinates of the pixels in instrument scan.
     """
-    (tle1, tle2) = tle
-    orb = Orbital("mysatellite", line1=tle1, line2=tle2)
+    if isinstance(orb, (list, tuple)):
+        tle1, tle2 = orb
+        orb = Orbital("mysatellite", line1=tle1, line2=tle2)
 
     # get position and velocity for each time of each pixel
     pos, vel = orb.get_position(times, normalize=False)
@@ -232,8 +236,10 @@ def compute_pixels(tle, sgeom, times, rpy=(0.0, 0.0, 0.0)):
     # b__ = 6356.75231414 # km, GRS80
     b__ = 6356.752314245  # km, WGS84
     radius = np.array([[1 / a__, 1 / a__, 1 / b__]]).T
-    xr_ = vectors * radius
-    cr_ = centre * radius
+    shape = vectors.shape
+
+    xr_ = vectors.reshape([3, -1]) * radius
+    cr_ = centre.reshape([3, -1]) * radius
     ldotc = np.einsum("ij,ij->j", xr_, cr_)
     lsq = np.einsum("ij,ij->j", xr_, xr_)
     csq = np.einsum("ij,ij->j", cr_, cr_)
@@ -241,7 +247,7 @@ def compute_pixels(tle, sgeom, times, rpy=(0.0, 0.0, 0.0)):
     d1_ = (ldotc - np.sqrt(ldotc ** 2 - csq * lsq + lsq)) / lsq
 
     # return the actual pixel positions
-    return vectors * d1_ - centre
+    return vectors * d1_.reshape(shape[1:]) - centre
 
 
 def norm(v):
@@ -252,7 +258,7 @@ def mnorm(m, axis=None):
     """norm of a matrix of vectors stacked along the *axis* dimension.
     """
     if axis is None:
-        axis = np.rank(m) - 1
+        axis = np.ndim(m) - 1
     return np.sqrt((m**2).sum(axis))
 
 

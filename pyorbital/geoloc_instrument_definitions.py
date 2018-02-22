@@ -231,3 +231,114 @@ def amsua(scans_nb, edges_only=False):
 
     # build the scan geometry object
     return ScanGeometry(samples, times)
+
+
+def amsua_edge_geom(scans_nb):
+    # we take only edge pixels
+    return amsua(scans_nb, edges_only=True)
+
+
+################################################################
+#
+#   MHS
+#
+################################################################
+
+def mhs(scans_nb, edges_only=False):
+    """ Describe MHS instrument geometry
+    See:
+    https://www.eumetsat.int/website/home/Satellites/CurrentSatellites/Metop/MetopDesign/MHS/index.html
+    https://www1.ncdc.noaa.gov/pub/data/satellite/publications/podguides/N-15%20thru%20N-19/pdf/0.0%20NOAA%20KLM%20Users%20Guide.pdf (NOAA KLM Users Guide –August 2014 Revision)
+
+    Parameters:
+       scans_nb | int -  number of scan lines
+
+     Keywords:
+     * edges_only - use only edge pixels
+
+    Returns:
+       pyorbital.geoloc.ScanGeometry object
+
+    """
+
+    scan_len = 90  # 90 samples per scan
+    scan_rate = 8/3.  # single scan, seconds
+    scan_angle = -49.444  # swath, degrees
+    sampling_interval = (8/3.-1)/90.  # single view, seconds
+
+    if edges_only:
+        scan_points = np.array([0, scan_len - 1])
+    else:
+        scan_points = np.arange(0, scan_len)
+
+    # build the instrument (scan angles)
+    samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1)
+                         * np.deg2rad(scan_angle),
+                         np.zeros((len(scan_points),))))
+    samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+
+    # building the corresponding times array
+    offset = np.arange(scans_nb) * scan_rate
+    times = (np.tile(scan_points * sampling_interval, [np.int(scans_nb), 1])
+             + np.expand_dims(offset, 1))
+
+    # build the scan geometry object
+    return ScanGeometry(samples, times)
+
+
+def mhs_edge_geom(scans_nb):
+    # we take only edge pixels
+    return mhs(scans_nb, edges_only=True)
+
+
+################################################################
+#
+#   HIRS/4
+#
+################################################################
+
+def hirs4(scans_nb, edges_only=False):
+    """ Describe HIRS/4 instrument geometry
+    See:
+    https://www.eumetsat.int/website/home/Satellites/CurrentSatellites/Metop/MetopDesign/HIRS/index.html
+    https://www1.ncdc.noaa.gov/pub/data/satellite/publications/podguides/N-15%20thru%20N-19/pdf/0.0%20NOAA%20KLM%20Users%20Guide.pdf (NOAA KLM Users Guide –August 2014 Revision)
+
+    Parameters:
+       scans_nb | int -  number of scan lines
+
+     Keywords:
+     * edges_only - use only edge pixels
+
+    Returns:
+       pyorbital.geoloc.ScanGeometry object
+
+    """
+
+    scan_len = 56  # 56 samples per scan
+    scan_rate = 6.4  # single scan, seconds
+    scan_angle = -49.5  # swath, degrees
+    sampling_interval = abs(scan_rate)/scan_len  # single view, seconds
+
+    if edges_only:
+        scan_points = np.array([0, scan_len - 1])
+    else:
+        scan_points = np.arange(0, scan_len)
+
+    # build the instrument (scan angles)
+    samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1)
+                         * np.deg2rad(scan_angle),
+                         np.zeros((len(scan_points),))))
+    samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+
+    # building the corresponding times array
+    offset = np.arange(scans_nb) * scan_rate
+    times = (np.tile(scan_points * sampling_interval, [np.int(scans_nb), 1])
+             + np.expand_dims(offset, 1))
+
+    # build the scan geometry object
+    return ScanGeometry(samples, times)
+
+
+def hirs4_edge_geom(scans_nb):
+    # we take only edge pixels
+    return hirs4(scans_nb, edges_only=True)

@@ -221,13 +221,13 @@ def amsua(scans_nb, edges_only=False):
     # build the instrument (scan angles)
     samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1)
                          * np.deg2rad(scan_angle),
-                         np.zeros((len(scan_points),)))).transpose()
-    samples = np.tile(samples, [scans_nb, 1])
+                         np.zeros((len(scan_points),))))
+    samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
 
     # building the corresponding times array
     offset = np.arange(scans_nb) * scan_rate
-    times = (np.tile(scan_points * sampling_interval + sync_time, [scans_nb, 1])
+    times = (np.tile(scan_points * sampling_interval + sync_time, [np.int(scans_nb), 1])
              + np.expand_dims(offset, 1))
 
     # build the scan geometry object
-    return ScanGeometry(samples, times.ravel())
+    return ScanGeometry(samples, times)

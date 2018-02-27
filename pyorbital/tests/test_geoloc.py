@@ -29,7 +29,7 @@ from datetime import datetime, timedelta
 import numpy as np
 
 from pyorbital.geoloc import ScanGeometry, geodetic_lat, qrotate, subpoint
-from pyorbital.geoloc_instrument_definitions import avhrr
+from pyorbital.geoloc_instrument_definitions import avhrr, viirs, amsua, mhs, hirs4, atms
 
 
 class TestQuaternion(unittest.TestCase):
@@ -183,6 +183,83 @@ class TestGeolocDefs(unittest.TestCase):
         avh = avhrr(1.1, np.array([0, 1023.5, 2047]), 10)
         self.assertTrue(np.allclose(np.rad2deg(avh.fovs[0]),
                                     np.array([10, 0, -10])))
+
+    def test_viirs(self):
+        """Test the definition of the viirs instrument
+        """
+        geom = viirs(1, np.array([0, 3200, 6399]))
+        expected_fovs = np.array([
+            np.tile(np.array([[ 0.98, -0.  , -0.98]]), [32,1]),
+            np.tile(np.array([[ 0.  , -0.  , 0    ]]), [32,1])], dtype=np.float)
+        self.assertTrue(np.allclose(geom.fovs,
+                                    expected_fovs, rtol=1e-2, atol=1e-2))
+
+    def test_amsua(self):
+        """Test the definition of the amsua instrument
+        """
+        geom = amsua(1)
+        expected_fovs = np.array([
+            [[ 0.84,  0.78,  0.73,  0.67,  0.61,  0.55,  0.49,  0.44,  0.38,
+               0.32,  0.26,  0.2 ,  0.15,  0.09,  0.03, -0.03, -0.09, -0.15,
+              -0.2 , -0.26, -0.32, -0.38, -0.44, -0.49, -0.55, -0.61, -0.67,
+              -0.73, -0.78, -0.84]],
+            np.zeros((1, 30))], dtype=np.float)
+        self.assertTrue(np.allclose(geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
+
+    def test_mhs(self):
+        """Test the definition of the mhs instrument
+        """
+        geom = mhs(1)
+        expected_fovs = np.array([
+            [[ 0.86,  0.84,  0.82,  0.8 ,  0.79,  0.77,  0.75,  0.73,  0.71,
+               0.69,  0.67,  0.65,  0.63,  0.61,  0.59,  0.57,  0.55,  0.53,
+               0.51,  0.49,  0.48,  0.46,  0.44,  0.42,  0.4 ,  0.38,  0.36,
+               0.34,  0.32,  0.3 ,  0.28,  0.26,  0.24,  0.22,  0.2 ,  0.18,
+               0.16,  0.15,  0.13,  0.11,  0.09,  0.07,  0.05,  0.03,  0.01,
+              -0.01, -0.03, -0.05, -0.07, -0.09, -0.11, -0.13, -0.15, -0.16,
+              -0.18, -0.2 , -0.22, -0.24, -0.26, -0.28, -0.3 , -0.32, -0.34,
+              -0.36, -0.38, -0.4 , -0.42, -0.44, -0.46, -0.48, -0.49, -0.51,
+              -0.53, -0.55, -0.57, -0.59, -0.61, -0.63, -0.65, -0.67, -0.69,
+              -0.71, -0.73, -0.75, -0.77, -0.79, -0.8 , -0.82, -0.84, -0.86]],
+            np.zeros((1, 90))], dtype=np.float)
+        self.assertTrue(np.allclose(geom.fovs,
+                                    expected_fovs, rtol=1e-2, atol=1e-2))
+
+    def test_hirs4(self):
+        """Test the definition of the hirs4 instrument
+        """
+        geom = hirs4(1)
+        expected_fovs = np.array([
+            [[ 0.86,  0.83,  0.8 ,  0.77,  0.74,  0.71,  0.68,  0.64,  0.61,
+               0.58,  0.55,  0.52,  0.49,  0.46,  0.42,  0.39,  0.36,  0.33,
+               0.3 ,  0.27,  0.24,  0.2 ,  0.17,  0.14,  0.11,  0.08,  0.05,
+               0.02, -0.02, -0.05, -0.08, -0.11, -0.14, -0.17, -0.2 , -0.24,
+              -0.27, -0.3 , -0.33, -0.36, -0.39, -0.42, -0.46, -0.49, -0.52,
+              -0.55, -0.58, -0.61, -0.64, -0.68, -0.71, -0.74, -0.77, -0.8 ,
+              -0.83, -0.86]],
+            np.zeros((1, 56))], dtype=np.float)
+        self.assertTrue(np.allclose(geom.fovs,
+                                    expected_fovs, rtol=1e-2, atol=1e-2))
+
+    def test_atms(self):
+        """Test the definition of the atms instrument
+        """
+        geom = atms(1)
+        expected_fovs = np.array([
+            [[ 0.92,  0.9 ,  0.88,  0.86,  0.84,  0.82,  0.8 ,  0.78,  0.76,
+               0.75,  0.73,  0.71,  0.69,  0.67,  0.65,  0.63,  0.61,  0.59,
+               0.57,  0.55,  0.53,  0.51,  0.49,  0.47,  0.46,  0.44,  0.42,
+               0.4 ,  0.38,  0.36,  0.34,  0.32,  0.3 ,  0.28,  0.26,  0.24,
+               0.22,  0.2 ,  0.18,  0.16,  0.15,  0.13,  0.11,  0.09,  0.07,
+               0.05,  0.03,  0.01, -0.01, -0.03, -0.05, -0.07, -0.09, -0.11,
+              -0.13, -0.15, -0.16, -0.18, -0.2 , -0.22, -0.24, -0.26, -0.28,
+              -0.3 , -0.32, -0.34, -0.36, -0.38, -0.4 , -0.42, -0.44, -0.46,
+              -0.47, -0.49, -0.51, -0.53, -0.55, -0.57, -0.59, -0.61, -0.63,
+              -0.65, -0.67, -0.69, -0.71, -0.73, -0.75, -0.76, -0.78, -0.8 ,
+              -0.82, -0.84, -0.86, -0.88, -0.9 , -0.92]],
+            np.zeros((1, 96))], dtype=np.float)
+        self.assertTrue(np.allclose(geom.fovs,
+                                    expected_fovs, rtol=1e-2, atol=1e-2))
 
 
 def suite():

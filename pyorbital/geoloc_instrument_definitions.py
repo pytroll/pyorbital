@@ -140,7 +140,8 @@ def avhrr_40_geom(scans_nb):
 ################################################################
 
 
-def viirs(scans_nb, scan_indices=slice(0, None), chn_pixels=6400, scan_lines=32):
+def viirs(scans_nb, scan_indices=slice(0, None),
+          chn_pixels=6400, scan_lines=32):
     """Describe VIIRS instrument geometry, I-band by default.
     VIIRS scans several lines simultaneously (there are 16 detectors for each
     M-band, 32 detectors for each I-band) so the scan angles (and times) are
@@ -155,11 +156,14 @@ def viirs(scans_nb, scan_indices=slice(0, None), chn_pixels=6400, scan_lines=32)
     VIIRS User's Guide from NESDIS, version 1.2 (09/10/2013).
     Ref : NOAA Technical Report NESDIS 142.
     Seems to be better (not quantified)'''
-    across_track = (scan_points / (chn_pixels / 2. - 0.5) - 1) * np.deg2rad(-56.28)
+    across_track = \
+        (scan_points / (chn_pixels / 2. - 0.5) - 1) * np.deg2rad(-56.28)
     y_max_angle = np.arctan2(11.87 / 2, 824.0)
-    along_track = -(np.arange(scan_lines) / (scan_lines / 2. -0.5) - 1) * y_max_angle
-    scan = np.dstack((np.tile(across_track,(scan_lines,1)).T,
-                      np.tile(along_track,(scan_pixels,1))))
+    along_track = \
+        -(np.arange(scan_lines) / (scan_lines / 2. - 0.5) - 1) * \
+        y_max_angle
+    scan = np.dstack((np.tile(across_track, (scan_lines, 1)).T,
+                      np.tile(along_track, (scan_pixels, 1))))
     npp = np.tile(scan, [scans_nb, 1]).T
 
     # from the timestamp in the filenames, a granule takes 1:25.400 to record
@@ -174,7 +178,8 @@ def viirs(scans_nb, scan_indices=slice(0, None), chn_pixels=6400, scan_lines=32)
     # http://www.eoportal.org/directory/pres_NPOESSNationalPolarorbitingOperationalEnvironmentalSatelliteSystem.html
 
     offset = np.arange(scans_nb) * 1.779166667
-    times = (np.tile(scan_points * 0.0002779947917, [np.int(scan_lines), np.int(scans_nb)])
+    times = (np.tile(scan_points * 0.0002779947917,
+                     [np.int(scan_lines), np.int(scans_nb)])
              + np.expand_dims(offset, 1))
 
     # build the scan geometry object
@@ -183,7 +188,7 @@ def viirs(scans_nb, scan_indices=slice(0, None), chn_pixels=6400, scan_lines=32)
 
 def viirs_edge_geom(scans_nb):
     # we take only edge pixels
-    scan_indices = [0,-1]
+    scan_indices = [0, -1]
     return viirs(scans_nb, scan_indices)
 
 
@@ -226,7 +231,8 @@ def amsua(scans_nb, edges_only=False):
 
     # building the corresponding times array
     offset = np.arange(scans_nb) * scan_rate
-    times = (np.tile(scan_points * sampling_interval + sync_time, [np.int(scans_nb), 1])
+    times = (np.tile(scan_points * sampling_interval + sync_time,
+                     [np.int(scans_nb), 1])
              + np.expand_dims(offset, 1))
 
     # build the scan geometry object
@@ -247,8 +253,9 @@ def amsua_edge_geom(scans_nb):
 def mhs(scans_nb, edges_only=False):
     """ Describe MHS instrument geometry
     See:
-    https://www.eumetsat.int/website/home/Satellites/CurrentSatellites/Metop/MetopDesign/MHS/index.html
-    https://www1.ncdc.noaa.gov/pub/data/satellite/publications/podguides/N-15%20thru%20N-19/pdf/0.0%20NOAA%20KLM%20Users%20Guide.pdf (NOAA KLM Users Guide –August 2014 Revision)
+    - https://www.eumetsat.int/website/home/Satellites/CurrentSatellites/Metop/MetopDesign/MHS/index.html
+    - https://www1.ncdc.noaa.gov/pub/data/satellite/publications/podguides/N-15%20thru%20N-19/pdf/0.0%20NOAA%20KLM%20Users%20Guide.pdf
+      (NOAA KLM Users Guide –August 2014 Revision)
 
     Parameters:
        scans_nb | int -  number of scan lines
@@ -300,8 +307,9 @@ def mhs_edge_geom(scans_nb):
 def hirs4(scans_nb, edges_only=False):
     """ Describe HIRS/4 instrument geometry
     See:
-    https://www.eumetsat.int/website/home/Satellites/CurrentSatellites/Metop/MetopDesign/HIRS/index.html
-    https://www1.ncdc.noaa.gov/pub/data/satellite/publications/podguides/N-15%20thru%20N-19/pdf/0.0%20NOAA%20KLM%20Users%20Guide.pdf (NOAA KLM Users Guide –August 2014 Revision)
+    - https://www.eumetsat.int/website/home/Satellites/CurrentSatellites/Metop/MetopDesign/HIRS/index.html
+    - https://www1.ncdc.noaa.gov/pub/data/satellite/publications/podguides/N-15%20thru%20N-19/pdf/0.0%20NOAA%20KLM%20Users%20Guide.pdf
+      (NOAA KLM Users Guide –August 2014 Revision)
 
     Parameters:
        scans_nb | int -  number of scan lines

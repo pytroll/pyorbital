@@ -342,3 +342,56 @@ def hirs4(scans_nb, edges_only=False):
 def hirs4_edge_geom(scans_nb):
     # we take only edge pixels
     return hirs4(scans_nb, edges_only=True)
+
+
+################################################################
+#
+#   ATMS
+#
+################################################################
+
+def atms(scans_nb, edges_only=False):
+    """ Describe MHS instrument geometry
+    See:
+    https://dtcenter.org/com-GSI/users/docs/presentations/2013_workshop/Garrett_GSI_2013.pdf (Assimilation of Suomi-NPP ATMS, Kevin Garrett et al., August 8, 2013)
+    https://www.star.nesdis.noaa.gov/star/documents/meetings/2016JPSSAnnual/S4/S4_13_JPSSScience2016_session4Part2_ATMS_Scan_Reversal_HYANG.pdf (Suomi NPP ATMS Scan Reversal Study, Hu (Tiger) Yang, NOAA/STAR ATMS SDR Working Group)
+
+    Parameters:
+       scans_nb | int -  number of scan lines
+
+     Keywords:
+     * edges_only - use only edge pixels
+
+    Returns:
+       pyorbital.geoloc.ScanGeometry object
+
+    """
+
+    scan_len = 96  # 96 samples per scan
+    scan_rate = 8/3.  # single scan, seconds
+    scan_angle = -52.7  # swath, degrees
+    sampling_interval = 18e-3  # single view, seconds
+
+    if edges_only:
+        scan_points = np.array([0, scan_len - 1])
+    else:
+        scan_points = np.arange(0, scan_len)
+
+    # build the instrument (scan angles)
+    samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1)
+                         * np.deg2rad(scan_angle),
+                         np.zeros((len(scan_points),))))
+    samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+
+    # building the corresponding times array
+    offset = np.arange(scans_nb) * scan_rate
+    times = (np.tile(scan_points * sampling_interval, [np.int(scans_nb), 1])
+             + np.expand_dims(offset, 1))
+
+    # build the scan geometry object
+    return ScanGeometry(samples, times)
+
+
+def atms_edge_geom(scans_nb):
+    # we take only edge pixels
+    return atms(scans_nb, edges_only=True)

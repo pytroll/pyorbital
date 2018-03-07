@@ -56,7 +56,7 @@ class Test(unittest.TestCase):
         self.assertTrue(np.abs(lon - expected_lon) < eps_deg, 'Calculation of sublon failed')
         self.assertTrue(np.abs(lat - expected_lat) < eps_deg, 'Calculation of sublat failed')
         self.assertTrue(np.abs(alt - expected_alt) < eps_deg, 'Calculation of altitude failed')
-        
+
     def test_observer_look(self):
         sat = orbital.Orbital("ISS (ZARYA)",
                               line1="1 25544U 98067A   03097.78853147  .00021906  00000-0  28403-3 0  8652",
@@ -67,7 +67,7 @@ class Test(unittest.TestCase):
         expected_el = 1.9800219611255456
         self.assertTrue(np.abs(az - expected_az) < eps_deg, 'Calculation of azimut failed')
         self.assertTrue(np.abs(el - expected_el) < eps_deg, 'Calculation of elevation failed')
-        
+
     def test_orbit_num_an(self):
         sat = orbital.Orbital("METOP-A",
                               line1="1 29499U 06044A   11254.96536486  .00000092  00000-0  62081-4 0  5221",
@@ -97,6 +97,17 @@ class Test(unittest.TestCase):
         del vel1, vel2
         self.assertTrue(pos1[2] < 0)
         self.assertTrue(pos2[2] > 0)
+
+    def test_get_next_passes_apogee(self):
+        """Regression test #22."""
+        line1 = "1 24793U 97020B   18065.48735489  .00000075  00000-0  19863-4 0  9994"
+        line2 = "2 24793  86.3994 209.3241 0002020  89.8714 270.2713 14.34246429 90794"
+
+        orb = orbital.Orbital('IRIDIUM 7 [+]', line1=line1, line2=line2)
+        d = datetime(2018, 3, 7, 3, 30, 15)
+        res = orb.get_next_passes(d, 1, 170.556, -43.368, 0.5, horizon=40)
+        self.assertTrue(abs(res[0][2] - datetime(2018, 3, 7, 3, 48, 13, 178439)) < timedelta(seconds=0.01))
+
 
 
 def suite():

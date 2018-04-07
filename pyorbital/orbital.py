@@ -104,21 +104,26 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     cos_theta = np.cos(theta)
 
     top_s = sin_lat * cos_theta * rx + \
-        sin_lat * sin_theta * ry - cos_lat * rz
+            sin_lat * sin_theta * ry - cos_lat * rz
     top_e = -sin_theta * rx + cos_theta * ry
     top_z = cos_lat * cos_theta * rx + \
-        cos_lat * sin_theta * ry + sin_lat * rz
+            cos_lat * sin_theta * ry + sin_lat * rz
 
     az_ = np.arctan(-top_e / top_s)
 
-    az_ = np.where(top_s > 0, az_ + np.pi, az_)
-    az_ = np.where(az_ < 0, az_ + 2 * np.pi, az_)
+    if hasattr(az_, 'chunks'):
+        # dask array
+        import dask.array as da
+        az_ = da.where(top_s > 0, az_ + np.pi, az_)
+        az_ = da.where(az_ < 0, az_ + 2 * np.pi, az_)
+    else:
+        az_[top_s > 0] += np.pi
+        az_[az_ < 0] += 2 * np.pi
 
     rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
     el_ = np.arcsin(top_z / rg_)
 
     return np.rad2deg(az_), np.rad2deg(el_)
-
 
 class Orbital(object):
 

@@ -2,6 +2,19 @@ Changelog
 =========
 
 
+v1.3.1 (2018-04-09)
+-------------------
+- Update changelog. [Martin Raspaud]
+- Bump version: 1.3.0 → 1.3.1. [Martin Raspaud]
+- Merge branch 'master' of github.com:pytroll/pyorbital. [Martin
+  Raspaud]
+- Merge pull request #24 from pytroll/add-stickler-config. [Martin
+  Raspaud]
+
+  Adding .stickler.yml configuration file
+- Adding .stickler.yml. [stickler-ci]
+
+
 v1.3.0 (2018-04-09)
 -------------------
 - Update changelog. [Martin Raspaud]

@@ -111,8 +111,14 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
 
     az_ = np.arctan(-top_e / top_s)
 
-    az_ = np.where(top_s > 0, az_ + np.pi, az_)
-    az_ = np.where(az_ < 0, az_ + 2 * np.pi, az_)
+    if hasattr(az_, 'chunks'):
+        # dask array
+        import dask.array as da
+        az_ = da.where(top_s > 0, az_ + np.pi, az_)
+        az_ = da.where(az_ < 0, az_ + 2 * np.pi, az_)
+    else:
+        az_[top_s > 0] += np.pi
+        az_[az_ < 0] += 2 * np.pi
 
     rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
     el_ = np.arcsin(top_z / rg_)

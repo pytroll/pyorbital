@@ -10,6 +10,13 @@ Pyorbital is a python package to compute orbital parameters for satellites from
 TLE files as well as astronomical parameters of interest for satellite remote sensing.
 Currently pyorbital only supports low earth orbit satellites.
 
+Installation
+------------
+Pyorbital comes with a file platforms.txt that maps satellite name to NORAD identifier.
+This file needs to be copied to the appropriate satpy etc directory ($PPP_CONFIG_DIR).
+It is wise to check it contains your satellites of interest. The NORAD identifier can
+be found as the first number of each line in the Two-Line Elements (eg. from celestrak).
+
 TLE files
 ---------
 Pyorbital has a module for parsing NORAD TLE-files

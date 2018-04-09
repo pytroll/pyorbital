@@ -327,21 +327,18 @@ class Orbital(object):
         """
 
         def elevation(minutes):
-            """elevation
-            """
+            """Compute the elevation."""
             return self.get_observer_look(utc_time +
                                           timedelta(
                                               minutes=np.float64(minutes)),
                                           lon, lat, alt)[1] - horizon
 
         def elevation_inv(minutes):
-            """inverse of elevation
-            """
+            """Compute the inverse of elevation."""
             return -elevation(minutes)
 
         def get_root_secant(fun, start, end, tol=0.01):
-            """Secant method
-            """
+            """Secant method."""
             x_0 = end
             x_1 = start
             fx_0 = fun(end)
@@ -356,37 +353,34 @@ class Orbital(object):
             return x_1
 
         def get_max_parab(fun, start, end, tol=0.01):
-            """Successive parabolic interpolation
-            """
-
-            a = start
-            c = end
+            """Successive parabolic interpolation."""
+            a = float(start)
+            c = float(end)
             b = (a + c) / 2.0
-            x = b
 
             f_a = fun(a)
             f_b = fun(b)
             f_c = fun(c)
 
-            while abs(c - a) > tol:
-                x = b - 0.5 * (((b - a) ** 2 * (f_b - f_c)
+            x = b
+
+            while True:
+                x = x - 0.5 * (((b - a) ** 2 * (f_b - f_c)
                                 - (b - c) ** 2 * (f_b - f_a)) /
                                ((b - a) * (f_b - f_c) - (b - c) * (f_b - f_a)))
-                f_x = fun(x)
-                if x > b:
-                    a, b, c = b, x, c
-                    f_a, f_b, f_c = f_b, f_x, f_c
-                else:
-                    a, b, c = a, x, b
-                    f_a, f_b, f_c = f_a, f_x, f_b
+                if np.isnan(x):
+                    return b
+                if abs(b - x) <= tol:
+                    return x
 
-            return x
+                a, b, c = (a + x) / 2.0, x, (x + c) / 2.0
+                f_a, f_b, f_c = fun(a), fun(b), fun(c)
 
+        # every minute
         times = utc_time + np.array([timedelta(minutes=minutes)
                                      for minutes in range(length * 60)])
         elev = self.get_observer_look(times, lon, lat, alt)[1] - horizon
         zcs = np.where(np.diff(np.sign(elev)))[0]
-
         res = []
         risetime = None
         falltime = None
@@ -402,11 +396,13 @@ class Orbital(object):
                 falltime = horizon_time
                 fallmins = horizon_mins
                 if risetime:
-                    middle = (risemins + fallmins) / 2.0
+                    int_start = max(0, int(np.floor(risemins)))
+                    int_end = min(len(elev), int(np.ceil(fallmins) + 1))
+                    middle = int_start + np.argmax(elev[int_start:int_end])
                     highest = utc_time + \
                         timedelta(minutes=get_max_parab(
                             elevation_inv,
-                            middle - 0.1, middle + 0.1,
+                            max(risemins, middle - 1), min(fallmins, middle + 1),
                             tol=tol / 60.0
                         ))
                     res += [(risetime, falltime, highest)]

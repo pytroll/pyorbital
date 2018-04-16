@@ -403,3 +403,43 @@ def atms(scans_nb, edges_only=False):
 def atms_edge_geom(scans_nb):
     # we take only edge pixels
     return atms(scans_nb, edges_only=True)
+
+################################################################
+#
+#   OLCI
+#
+################################################################
+
+def olci(scans_nb, scan_points=None):
+    """Definition of the avhrr instrument.
+
+    Source: Sentinel-3 OLCI Coverage
+    https://sentinel.esa.int/web/sentinel/user-guides/sentinel-3-olci/coverage
+    """
+
+    if scan_points is None:
+        scan_len = 4000  # samples per scan
+        scan_points = np.arange(4000)
+    else:
+        scan_len = len(scan_points)
+    scan_rate = 0.044  # single scan, seconds
+    scan_angle_west = 46.5  # swath, degrees
+    scan_angle_east = -22.1  # swath, degrees
+    sampling_interval = 18e-3  # single view, seconds
+    # build the olci instrument scan line angles
+    scanline_angles = np.linspace(np.deg2rad(scan_angle_west),
+                                  np.deg2rad(scan_angle_east), scan_len)
+    inst = np.vstack((scanline_angles, np.zeros(scan_len,)))
+
+    inst = np.tile(inst[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+
+    # building the corresponding times array
+    # times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
+    #         + np.expand_dims(offset, 1))
+
+    times = np.tile(np.zeros_like(scanline_angles), [np.int(scans_nb), 1])
+    # if apply_offset:
+    #     offset = np.arange(np.int(scans_nb)) * frequency
+    #     times += np.expand_dims(offset, 1)
+
+    return ScanGeometry(inst, times)

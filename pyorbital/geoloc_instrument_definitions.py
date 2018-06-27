@@ -454,31 +454,34 @@ def ascat(scan_nb, scan_points=None):
     """
 
     if scan_points is None:
-        scan_len = 21  # samples per scan
-        scan_points = np.arange(21)
-        scan_points_left_and_right = np.arange(42)
+        scan_len = 42  # samples per scan
+        scan_points = np.arange(42)
     else:
         scan_len = len(scan_points)
 
     scan_angle_inner = 25.0  # swath, degrees
     scan_angle_outer = 53.0  # swath, degrees
-    scan_rate = 3.74747474747 * 42. / (2 * scan_len)  # single scan, seconds
-    sampling_interval = scan_rate / float(scan_len * 2)
+    scan_rate = 3.74747474747  # single scan, seconds
+    if scan_len < 2:
+        raise ValueError("Need at least two scan points!")
+
+    sampling_interval = scan_rate / float(np.max(scan_points) + 1)
 
     # build the Metop/ascat instrument scan line angles
     scanline_angles_one = np.linspace(-np.deg2rad(scan_angle_outer),
-                                      -np.deg2rad(scan_angle_inner), scan_len)
+                                      -np.deg2rad(scan_angle_inner), 21)
     scanline_angles_two = np.linspace(np.deg2rad(scan_angle_inner),
-                                      np.deg2rad(scan_angle_outer), scan_len)
+                                      np.deg2rad(scan_angle_outer), 21)
 
-    scan_angles = np.concatenate([scanline_angles_one, scanline_angles_two])
+    scan_angles = np.concatenate([scanline_angles_one, scanline_angles_two])[scan_points]
 
-    inst = np.vstack((scan_angles, np.zeros(scan_len * 2,)))
+    inst = np.vstack((scan_angles, np.zeros(scan_len * 1,)))
     inst = np.tile(inst[:, np.newaxis, :], [1, np.int(scan_nb), 1])
 
     # building the corresponding times array
     offset = np.arange(scan_nb) * scan_rate
-    times = (np.tile(scan_points_left_and_right * sampling_interval, [np.int(scan_nb), 1])
+
+    times = (np.tile(scan_points * sampling_interval, [np.int(scan_nb), 1])
              + np.expand_dims(offset, 1))
 
     return ScanGeometry(inst, times)

@@ -459,8 +459,8 @@ def ascat(scan_nb, scan_points=None):
     else:
         scan_len = len(scan_points)
 
-    scan_angle_inner = 25.0  # swath, degrees
-    scan_angle_outer = 53.0  # swath, degrees
+    scan_angle_inner = -25.0  # swath, degrees
+    scan_angle_outer = -53.0  # swath, degrees
     scan_rate = 3.74747474747  # single scan, seconds
     if scan_len < 2:
         raise ValueError("Need at least two scan points!")

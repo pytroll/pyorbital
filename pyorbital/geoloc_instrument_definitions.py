@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013, 2014, 2015, 2017 Martin Raspaud
+# Copyright (c) 2013-2018 PyTroll Community
 
 # Author(s):
 
 #   Martin Raspaud <martin.raspaud@smhi.se>
 #   Mikhail Itkin <itkin.m@gmail.com>
+#   Adam Dybbroe <adam.dybbroe@smhi.se>
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -269,9 +270,9 @@ def mhs(scans_nb, edges_only=False):
     """
 
     scan_len = 90  # 90 samples per scan
-    scan_rate = 8/3.  # single scan, seconds
+    scan_rate = 8 / 3.  # single scan, seconds
     scan_angle = -49.444  # swath, degrees
-    sampling_interval = (8/3.-1)/90.  # single view, seconds
+    sampling_interval = (8 / 3. - 1) / 90.  # single view, seconds
 
     if edges_only:
         scan_points = np.array([0, scan_len - 1])
@@ -325,7 +326,7 @@ def hirs4(scans_nb, edges_only=False):
     scan_len = 56  # 56 samples per scan
     scan_rate = 6.4  # single scan, seconds
     scan_angle = -49.5  # swath, degrees
-    sampling_interval = abs(scan_rate)/scan_len  # single view, seconds
+    sampling_interval = abs(scan_rate) / scan_len  # single view, seconds
 
     if edges_only:
         scan_points = np.array([0, scan_len - 1])
@@ -376,7 +377,7 @@ def atms(scans_nb, edges_only=False):
     """
 
     scan_len = 96  # 96 samples per scan
-    scan_rate = 8/3.  # single scan, seconds
+    scan_rate = 8 / 3.  # single scan, seconds
     scan_angle = -52.7  # swath, degrees
     sampling_interval = 18e-3  # single view, seconds
 
@@ -410,8 +411,9 @@ def atms_edge_geom(scans_nb):
 #
 ################################################################
 
+
 def olci(scans_nb, scan_points=None):
-    """Definition of the avhrr instrument.
+    """Definition of the OLCI instrument.
 
     Source: Sentinel-3 OLCI Coverage
     https://sentinel.esa.int/web/sentinel/user-guides/sentinel-3-olci/coverage
@@ -441,5 +443,45 @@ def olci(scans_nb, scan_points=None):
     # if apply_offset:
     #     offset = np.arange(np.int(scans_nb)) * frequency
     #     times += np.expand_dims(offset, 1)
+
+    return ScanGeometry(inst, times)
+
+
+def ascat(scan_nb, scan_points=None):
+    """ASCAT make two scans one to the left and one to the right of the
+    sub-satellite track.
+
+    """
+
+    if scan_points is None:
+        scan_len = 42  # samples per scan
+        scan_points = np.arange(42)
+    else:
+        scan_len = len(scan_points)
+
+    scan_angle_inner = -25.0  # swath, degrees
+    scan_angle_outer = -53.0  # swath, degrees
+    scan_rate = 3.74747474747  # single scan, seconds
+    if scan_len < 2:
+        raise ValueError("Need at least two scan points!")
+
+    sampling_interval = scan_rate / float(np.max(scan_points) + 1)
+
+    # build the Metop/ascat instrument scan line angles
+    scanline_angles_one = np.linspace(-np.deg2rad(scan_angle_outer),
+                                      -np.deg2rad(scan_angle_inner), 21)
+    scanline_angles_two = np.linspace(np.deg2rad(scan_angle_inner),
+                                      np.deg2rad(scan_angle_outer), 21)
+
+    scan_angles = np.concatenate([scanline_angles_one, scanline_angles_two])[scan_points]
+
+    inst = np.vstack((scan_angles, np.zeros(scan_len * 1,)))
+    inst = np.tile(inst[:, np.newaxis, :], [1, np.int(scan_nb), 1])
+
+    # building the corresponding times array
+    offset = np.arange(scan_nb) * scan_rate
+
+    times = (np.tile(scan_points * sampling_interval, [np.int(scan_nb), 1])
+             + np.expand_dims(offset, 1))
 
     return ScanGeometry(inst, times)

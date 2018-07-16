@@ -257,6 +257,7 @@ class Tle(object):
             designator = "1 " + SATELLITES.get(self._platform, '')
             for url in urls:
                 fid = open_func(url)
+
                 for l_0 in fid:
                     l_0 = l_0.decode('utf-8')
                     if l_0.strip() == self._platform:
@@ -352,7 +353,11 @@ def get_norad_line(satname, satnumber):
 
     
     print("... get orbital identification line (norad) for", platform, satnum)
-    key = platform+" "+satnum
+    if satnum != "":
+        key = platform+" "+satnum
+    else:
+        key = platform
+    key = key.strip()
     sat_dic = {"COMS 1"              :"COMS 1",\
                "ELEKTRO-L 1"         :"ELEKTRO-L 1 (GOMS 2)",\
                "ELEKTRO-L 1"         :"ELEKTRO-L 2",\
@@ -382,9 +387,13 @@ def get_norad_line(satname, satnumber):
                "METEOR-M 2"          :"METEOR-M 2",\
                "METEOSAT 7"          :"METEOSAT-7",\
                "METEOSAT 8"          :"METEOSAT-8 (MSG-1)",\
+               "METEOSAT-8"          :"METEOSAT-8 (MSG-1)",\
                "METEOSAT 9"          :"METEOSAT-9 (MSG-2)",\
+               "METEOSAT-9"          :"METEOSAT-9 (MSG-2)",\
                "METEOSAT 10"         :"METEOSAT-10 (MSG-3)",\
+               "METEOSAT-10"         :"METEOSAT-10 (MSG-3)",\
                "METEOSAT 11"         :"METEOSAT-11 (MSG-4)",\
+               "METEOSAT-11"         :"METEOSAT-11 (MSG-4)",\
                "METOP A"             :"METOP-A",\
                "METOP B"             :"METOP-B",\
                "MTSAT 2"             :"MTSAT-2",\
@@ -395,7 +404,7 @@ def get_norad_line(satname, satnumber):
     if key in sat_dic:
         return sat_dic[key]
     else:
-        print ("*** Warning, unknown satellite ", key, " in get_norad_line (pyorbital/tlefile.py)")
+        print ("*** Warning, unknown satellite \'"+ key+ "\' in get_norad_line (pyorbital/tlefile.py)")
         return key
 
 def main():

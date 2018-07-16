@@ -135,13 +135,13 @@ class Orbital(object):
     it is provided.
     """
 
-    def __init__(self, satellite, tle_file=None, line1=None, line2=None):
+    def __init__(self, satellite, tle_file=None, line1=None, line2=None, allow_NEAR_NORM=False):
         satellite = satellite.upper()
         self.satellite_name = satellite
         self.tle = tlefile.read(satellite, tle_file=tle_file,
                                 line1=line1, line2=line2)
         self.orbit_elements = OrbitElements(self.tle)
-        self._sgdp4 = _SGDP4(self.orbit_elements)
+        self._sgdp4 = _SGDP4(self.orbit_elements, allow_NEAR_NORM=allow_NEAR_NORM)
 
     def __str__(self):
         return self.satellite_name + " " + str(self.tle)
@@ -521,9 +521,12 @@ class OrbitElements(object):
 class _SGDP4(object):
 
     """Class for the SGDP4 computations.
+    allow_NEAR_NORM: dirty fix for using the near space norm solution instead of the deep space solution 
+                     as deep space is not implemented yet. default is False
+                     dirty fix is used for parallax correction of SEVIRI data
     """
 
-    def __init__(self, orbit_elements):
+    def __init__(self, orbit_elements, allow_NEAR_NORM=False):
         self.mode = None
 
         perigee = orbit_elements.perigee
@@ -575,10 +578,12 @@ class _SGDP4(object):
         self.period = (2 * np.pi * 1440.0 / XMNPDA) / self.xnodp
 
         if self.period >= 225:
-            ## Deep-Space model
-            self.mode = SGDP4_DEEP_NORM  # SGDP4_DEEP_NORM not yet implemented, geo sats will be ignored by unit tests
-            # for a dirty quick fix, comment out line before and uncomment the near space solution in the following line
-            # self.mode = SGDP4_NEAR_NORM
+            if not allow_NEAR_NORM:
+                ## Deep-Space model
+                self.mode = SGDP4_DEEP_NORM  # SGDP4_DEEP_NORM not yet implemented, geo sats will be ignored by unit tests
+            else:
+                # for a dirty quick fix, comment out line before and uncomment the near space solution in the following line
+                self.mode = SGDP4_NEAR_NORM
         elif self.perigee < 220:
             # Near-space, simplified equations
             self.mode = SGDP4_NEAR_SIMP

@@ -341,10 +341,16 @@ class Tle(object):
 def get_norad_line(satname, satnumber):
 
     #print "... start get_norad_line"
-
     platform = satname.strip().upper() # only upper case
-    satnum = str(int(satnumber))   # get rid of leading zeros
+    
+    if satnumber!="":
+        satnum = str(int(satnumber))   # get rid of leading zeros
+    else:
+        satnum=""
+    #import re
+    #satnum=int(re.findall('\\b\\d+\\b', satname)[0])
 
+    
     print("... get orbital identification line (norad) for", platform, satnum)
     key = platform+" "+satnum
     sat_dic = {"COMS 1"              :"COMS 1",\

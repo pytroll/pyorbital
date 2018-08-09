@@ -111,11 +111,15 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
 
     az_ = np.arctan(-top_e / top_s)
 
-    if hasattr(az_, 'chunks'):
-        # dask array
+    if hasattr(az_, 'chunks') and not hasattr(az_, 'loc'):
+        # dask array, but not xarray
         import dask.array as da
         az_ = da.where(top_s > 0, az_ + np.pi, az_)
         az_ = da.where(az_ < 0, az_ + 2 * np.pi, az_)
+    elif hasattr(az_, 'loc'):
+        # xarray
+        az_.data[top_s > 0] += np.pi
+        az_.data[az_.data < 0] += 2 * np.pi
     else:
         az_[top_s > 0] += np.pi
         az_[az_ < 0] += 2 * np.pi

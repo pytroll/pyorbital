@@ -109,6 +109,86 @@ class Test(unittest.TestCase):
         self.assertTrue(abs(res[0][2] - datetime(2018, 3, 7, 3, 48, 13, 178439)) < timedelta(seconds=0.01))
 
 
+class TestGetObserverLook(unittest.TestCase):
+    """Test the get_observer_look function"""
+
+    def setUp(self):
+        self.t = datetime(2018, 1, 1, 0, 0, 0)
+        self.sat_lon = np.array([[-89.5, -89.4], [-89.3, -89.2]])
+        self.sat_lat = np.array([[45.5, 45.4], [45.3, 45.2]])
+        self.sat_alt = np.array([[35786, 35786], [35786, 35786]])
+        self.lon = np.array([[-85.5, -85.4], [-85.3, -85.2]])
+        self.lat = np.array([[40.5, 40.4], [40.3, 40.2]])
+        self.alt = np.zeros((2, 2))
+        self.exp_azi = np.array([[331.00275902, 330.95954165],
+                                 [330.91642994, 330.87342384]])
+        self.exp_elev = np.array([[83.18070976, 83.17788976],
+                                  [83.17507167, 83.1722555]])
+
+    def test_basic_numpy(self):
+        """Test with numpy array inputs"""
+        from pyorbital import orbital
+        azi, elev = orbital.get_observer_look(self.sat_lon, self.sat_lat,
+                                              self.sat_alt, self.t,
+                                              self.lon, self.lat, self.alt)
+        np.testing.assert_allclose(azi, self.exp_azi)
+        np.testing.assert_allclose(elev, self.exp_elev)
+
+    def test_basic_dask(self):
+        """Test with dask array inputs"""
+        from pyorbital import orbital
+        import dask.array as da
+        sat_lon = da.from_array(self.sat_lon, chunks=2)
+        sat_lat = da.from_array(self.sat_lat, chunks=2)
+        sat_alt = da.from_array(self.sat_alt, chunks=2)
+        lon = da.from_array(self.lon, chunks=2)
+        lat = da.from_array(self.lat, chunks=2)
+        alt = da.from_array(self.alt, chunks=2)
+        azi, elev = orbital.get_observer_look(sat_lon, sat_lat,
+                                              sat_alt, self.t,
+                                              lon, lat, alt)
+        np.testing.assert_allclose(azi.compute(), self.exp_azi)
+        np.testing.assert_allclose(elev.compute(), self.exp_elev)
+
+    def test_xarray_with_numpy(self):
+        """Test with xarray DataArray with numpy array as inputs"""
+        from pyorbital import orbital
+        import dask.array as da
+        import xarray as xr
+
+        def _xarr_conv(input):
+            return xr.DataArray(input)
+        sat_lon = _xarr_conv(self.sat_lon)
+        sat_lat = _xarr_conv(self.sat_lat)
+        sat_alt = _xarr_conv(self.sat_alt)
+        lon = _xarr_conv(self.lon)
+        lat = _xarr_conv(self.lat)
+        alt = _xarr_conv(self.alt)
+        azi, elev = orbital.get_observer_look(sat_lon, sat_lat,
+                                              sat_alt, self.t,
+                                              lon, lat, alt)
+        np.testing.assert_allclose(azi.data, self.exp_azi)
+        np.testing.assert_allclose(elev.data, self.exp_elev)
+
+    def test_xarray_with_dask(self):
+        """Test with xarray DataArray with dask array as inputs"""
+        from pyorbital import orbital
+        import dask.array as da
+        import xarray as xr
+
+        def _xarr_conv(input):
+            return xr.DataArray(da.from_array(input, chunks=2))
+        sat_lon = _xarr_conv(self.sat_lon)
+        sat_lat = _xarr_conv(self.sat_lat)
+        sat_alt = _xarr_conv(self.sat_alt)
+        lon = _xarr_conv(self.lon)
+        lat = _xarr_conv(self.lat)
+        alt = _xarr_conv(self.alt)
+        azi, elev = orbital.get_observer_look(sat_lon, sat_lat,
+                                              sat_alt, self.t,
+                                              lon, lat, alt)
+        np.testing.assert_allclose(azi.data.compute(), self.exp_azi)
+        np.testing.assert_allclose(elev.data.compute(), self.exp_elev)
 
 def suite():
     """The suite for test_orbital
@@ -116,5 +196,6 @@ def suite():
     loader = unittest.TestLoader()
     mysuite = unittest.TestSuite()
     mysuite.addTest(loader.loadTestsFromTestCase(Test))
+    mysuite.addTest(loader.loadTestsFromTestCase(TestGetObserverLook))
 
     return mysuite

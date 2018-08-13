@@ -29,8 +29,21 @@ import warnings
 from datetime import datetime, timedelta
 
 import numpy as np
-
 from pyorbital import astronomy, dt2np, tlefile
+
+try:
+    import dask.array as da
+    has_dask = True
+except ImportError:
+    da = None
+    has_dask = False
+
+try:
+    import xarray as xr
+    has_xarray = True
+except ImportError:
+    xr = None
+    has_xarray = False
 
 ECC_EPS = 1.0e-6  # Too low for computing further drops.
 ECC_LIMIT_LOW = -1.0e-3
@@ -111,18 +124,22 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
 
     az_ = np.arctan(-top_e / top_s)
 
-    if hasattr(az_, 'chunks') and not hasattr(az_, 'loc'):
-        # dask array, but not xarray
-        import dask.array as da
-        az_ = da.where(top_s > 0, az_ + np.pi, az_)
-        az_ = da.where(az_ < 0, az_ + 2 * np.pi, az_)
-    elif hasattr(az_, 'loc'):
-        # xarray
-        az_.data[top_s > 0] += np.pi
-        az_.data[az_.data < 0] += 2 * np.pi
+    if has_xarray and isinstance(az_, xr.DataArray):
+        az_data = az_.data
     else:
-        az_[top_s > 0] += np.pi
-        az_[az_ < 0] += 2 * np.pi
+        az_data = az_
+
+    if has_dask and isinstance(az_data, da.Array):
+        az_data = da.where(top_s > 0, az_data + np.pi, az_data)
+        az_data = da.where(az_data < 0, az_data + 2 * np.pi, az_data)
+    else:
+        az_data[top_s > 0] += np.pi
+        az_data[az_data < 0] += 2 * np.pi
+
+    if has_xarray and isinstance(az_, xr.DataArray):
+        az_.data = az_data
+    else:
+        az_ = az_data
 
     rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
     el_ = np.arcsin(top_z / rg_)

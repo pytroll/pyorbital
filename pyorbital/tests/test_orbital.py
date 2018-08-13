@@ -106,7 +106,8 @@ class Test(unittest.TestCase):
         orb = orbital.Orbital('IRIDIUM 7 [+]', line1=line1, line2=line2)
         d = datetime(2018, 3, 7, 3, 30, 15)
         res = orb.get_next_passes(d, 1, 170.556, -43.368, 0.5, horizon=40)
-        self.assertTrue(abs(res[0][2] - datetime(2018, 3, 7, 3, 48, 13, 178439)) < timedelta(seconds=0.01))
+        self.assertTrue(abs(
+            res[0][2] - datetime(2018, 3, 7, 3, 48, 13, 178439)) < timedelta(seconds=0.01))
 
 
 class TestGetObserverLook(unittest.TestCase):
@@ -189,6 +190,7 @@ class TestGetObserverLook(unittest.TestCase):
                                               lon, lat, alt)
         np.testing.assert_allclose(azi.data.compute(), self.exp_azi)
         np.testing.assert_allclose(elev.data.compute(), self.exp_elev)
+
 
 def suite():
     """The suite for test_orbital

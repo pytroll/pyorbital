@@ -284,14 +284,17 @@ class TestGeolocDefs(unittest.TestCase):
               -0.80285146, -0.82728607, -0.85172067, -0.87615528,
               -0.90058989, -0.9250245]], np.zeros((1, 42))], dtype=np.float)
 
-        self.assertTrue(np.allclose(geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
+        self.assertTrue(np.allclose(
+            geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
         geom = ascat(1, np.array([0, 41]))
         expected_fovs = np.array([[[0.9250245,  -0.9250245]],
                                   [[0.,  0.]]], dtype=np.float)
-        self.assertTrue(np.allclose(geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
+        self.assertTrue(np.allclose(
+            geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
 
         geom = ascat(1, np.array([0, -1]))
-        self.assertTrue(np.allclose(geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
+        self.assertTrue(np.allclose(
+            geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
 
 
 def suite():

@@ -473,7 +473,8 @@ def ascat(scan_nb, scan_points=None):
     scanline_angles_two = np.linspace(np.deg2rad(scan_angle_inner),
                                       np.deg2rad(scan_angle_outer), 21)
 
-    scan_angles = np.concatenate([scanline_angles_one, scanline_angles_two])[scan_points]
+    scan_angles = np.concatenate(
+        [scanline_angles_one, scanline_angles_two])[scan_points]
 
     inst = np.vstack((scan_angles, np.zeros(scan_len * 1,)))
     inst = np.tile(inst[:, np.newaxis, :], [1, np.int(scan_nb), 1])

@@ -424,10 +424,10 @@ def olci(scans_nb, scan_points=None):
         scan_points = np.arange(4000)
     else:
         scan_len = len(scan_points)
-    scan_rate = 0.044  # single scan, seconds
+    # scan_rate = 0.044  # single scan, seconds
     scan_angle_west = 46.5  # swath, degrees
     scan_angle_east = -22.1  # swath, degrees
-    sampling_interval = 18e-3  # single view, seconds
+    # sampling_interval = 18e-3  # single view, seconds
     # build the olci instrument scan line angles
     scanline_angles = np.linspace(np.deg2rad(scan_angle_west),
                                   np.deg2rad(scan_angle_east), scan_len)
@@ -481,7 +481,7 @@ def ascat(scan_nb, scan_points=None):
     # building the corresponding times array
     offset = np.arange(scan_nb) * scan_rate
 
-    times = (np.tile(scan_points * sampling_interval, [np.int(scan_nb), 1])
-             + np.expand_dims(offset, 1))
+    times = (np.tile(scan_points * sampling_interval,
+                     [np.int(scan_nb), 1]) + np.expand_dims(offset, 1))
 
     return ScanGeometry(inst, times)

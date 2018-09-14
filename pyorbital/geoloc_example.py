@@ -59,7 +59,7 @@ s_times = sgeom.times(t)
 pixels_pos = compute_pixels((tle1, tle2), sgeom, s_times, rpy)
 pos_time = get_lonlatalt(pixels_pos, s_times)
 
-print pos_time
+print(pos_time)
 
 
 # Plot the result

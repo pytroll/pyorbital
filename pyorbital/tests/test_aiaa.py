@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012, 2014, 2016 SMHI
+# Copyright (c) 2011, 2012, 2014, 2016, 2018 SMHI
 # Author(s):
 
 #   Martin Raspaud <martin.raspaud@smhi.se>
@@ -24,16 +24,17 @@
 """
 
 # TODO: right formal unit tests.
-from __future__ import with_statement
+from __future__ import print_function, with_statement
 
 import os
-
-from pyorbital.orbital import Orbital, OrbitElements, _SGDP4
-from pyorbital.tlefile import ChecksumError
-from pyorbital import tlefile, astronomy
-import numpy as np
-from datetime import timedelta, datetime
 import unittest
+from datetime import datetime, timedelta
+
+import numpy as np
+
+from pyorbital import astronomy, tlefile
+from pyorbital.orbital import _SGDP4, Orbital, OrbitElements
+from pyorbital.tlefile import ChecksumError
 
 
 class LineOrbital(Orbital):
@@ -68,6 +69,7 @@ def get_results(satnumber, delay):
                     utc_time = utc_time.replace(year=int(sline[-4]),
                                                 month=int(sline[-3]),
                                                 day=int(sline[-2]))
+                    utc_time = np.datetime64(utc_time)
                 return (float(sline[1]),
                         float(sline[2]),
                         float(sline[3]),
@@ -107,15 +109,16 @@ class AIAAIntegrationTest(unittest.TestCase):
 
                     try:
                         o = LineOrbital("unknown", line1, line2)
-                    except NotImplementedError, e:
+                    except NotImplementedError as e:
                         test_line = f__.readline()
                         continue
-                    except ChecksumError, e:
-                        self.assertTrue(
-                            test_line.split()[1] in ["33333", "33334", "33335"])
+                    except ChecksumError as e:
+                        self.assertTrue(test_line.split()[1] in [
+                                        "33333", "33334", "33335"])
                     for delay in times:
                         try:
-                            test_time = timedelta(minutes=delay) + o.tle.epoch
+                            test_time = delay.astype(
+                                'timedelta64[m]') + o.tle.epoch
                             pos, vel = o.get_position(test_time, False)
                             res = get_results(
                                 int(o.tle.satnumber), float(delay))

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2012-2014, 2016 Martin Raspaud
+# Copyright (c) 2012-2014, 2016, 2018 Martin Raspaud
 
 # Author(s):
 
@@ -35,7 +35,7 @@ from pyorbital import orbital
 eps_deg = 10e-3
 
 
-class TestOrbital(unittest.TestCase):
+class Test(unittest.TestCase):
 
     def test_get_orbit_number(self):
         """Testing getting the orbitnumber from the tle"""
@@ -55,12 +55,9 @@ class TestOrbital(unittest.TestCase):
         expected_lon = -68.199894472013213
         expected_lat = 23.159747677881075
         expected_alt = 392.01953430856935
-        self.failUnless(
-            np.abs(lon - expected_lon) < eps_deg, 'Calculation of sublon failed')
-        self.failUnless(
-            np.abs(lat - expected_lat) < eps_deg, 'Calculation of sublat failed')
-        self.failUnless(
-            np.abs(alt - expected_alt) < eps_deg, 'Calculation of altitude failed')
+        self.assertTrue(np.abs(lon - expected_lon) < eps_deg, 'Calculation of sublon failed')
+        self.assertTrue(np.abs(lat - expected_lat) < eps_deg, 'Calculation of sublat failed')
+        self.assertTrue(np.abs(alt - expected_alt) < eps_deg, 'Calculation of altitude failed')
 
     def test_observer_look(self):
         sat = orbital.Orbital("ISS (ZARYA)",
@@ -70,10 +67,8 @@ class TestOrbital(unittest.TestCase):
         az, el = sat.get_observer_look(d, -84.39733, 33.775867, 0)
         expected_az = 122.45169655331965
         expected_el = 1.9800219611255456
-        self.failUnless(
-            np.abs(az - expected_az) < eps_deg, 'Calculation of azimut failed')
-        self.failUnless(
-            np.abs(el - expected_el) < eps_deg, 'Calculation of elevation failed')
+        self.assertTrue(np.abs(az - expected_az) < eps_deg, 'Calculation of azimut failed')
+        self.assertTrue(np.abs(el - expected_el) < eps_deg, 'Calculation of elevation failed')
 
     def test_orbit_num_an(self):
         sat = orbital.Orbital("METOP-A",
@@ -86,7 +81,7 @@ class TestOrbital(unittest.TestCase):
         sat = orbital.Orbital("METOP-A",
                               line1="1 29499U 06044A   13060.48822809  .00000017  00000-0  27793-4 0  9819",
                               line2="2 29499  98.6639 121.6164 0001449  71.9056  43.3132 14.21510544330271")
-        dt = timedelta(minutes=98)
+        dt = np.timedelta64(98, 'm')
         self.assertEqual(sat.get_orbit_number(sat.tle.epoch + dt), 33028)
 
     def test_orbit_num_equator(self):
@@ -105,12 +100,22 @@ class TestOrbital(unittest.TestCase):
         self.assertTrue(pos1[2] < 0)
         self.assertTrue(pos2[2] > 0)
 
+    def test_get_next_passes_apogee(self):
+        """Regression test #22."""
+        line1 = "1 24793U 97020B   18065.48735489  .00000075  00000-0  19863-4 0  9994"
+        line2 = "2 24793  86.3994 209.3241 0002020  89.8714 270.2713 14.34246429 90794"
+
+        orb = orbital.Orbital('IRIDIUM 7 [+]', line1=line1, line2=line2)
+        d = datetime(2018, 3, 7, 3, 30, 15)
+        res = orb.get_next_passes(d, 1, 170.556, -43.368, 0.5, horizon=40)
+        self.assertTrue(abs(res[0][2] - datetime(2018, 3, 7, 3, 48, 13, 178439)) < timedelta(seconds=0.01))
+
 
 def suite():
     """The suite for test_orbital
     """
     loader = unittest.TestLoader()
     mysuite = unittest.TestSuite()
-    mysuite.addTest(loader.loadTestsFromTestCase(TestOrbital))
+    mysuite.addTest(loader.loadTestsFromTestCase(Test))
 
     return mysuite

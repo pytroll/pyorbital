@@ -23,14 +23,23 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
+import io
 import logging
 import datetime
-import urllib2
+try:
+    from urllib2 import urlopen
+except ImportError:
+    from urllib.request import urlopen
 import os
 import glob
+import numpy as np
 
 TLE_URLS = ('http://celestrak.com/NORAD/elements/weather.txt',
-            'http://celestrak.com/NORAD/elements/resource.txt')
+            'http://celestrak.com/NORAD/elements/resource.txt',
+            'https://www.celestrak.com/NORAD/elements/cubesat.txt',
+            'http://celestrak.com/NORAD/elements/stations.txt',
+            'https://www.celestrak.com/NORAD/elements/sarsat.txt',
+            'https://www.celestrak.com/NORAD/elements/noaa.txt')
 
 LOGGER = logging.getLogger(__name__)
 
@@ -52,6 +61,8 @@ def read_platform_numbers(in_upper=False, num_as_int=False):
             # skip comment lines
             if not row.startswith('#'):
                 parts = row.split()
+                if len(parts) < 2:
+                    continue
                 if in_upper:
                     parts[0] = parts[0].upper()
                 if num_as_int:
@@ -138,19 +149,21 @@ def read(platform, tle_file=None, line1=None, line2=None):
 def fetch(destination):
     """fetch TLE from internet and save it to *destination*.
    """
-    with open(destination, "w") as dest:
+    with io.open(destination, mode="w", encoding="utf-8") as dest:
         for url in TLE_URLS:
-            response = urllib2.urlopen(url)
-            dest.write(response.read())
+            response = urlopen(url)
+            dest.write(response.read().decode("utf-8"))
 
 
 class ChecksumError(Exception):
+
     '''ChecksumError.
     '''
     pass
 
 
 class Tle(object):
+
     """Class holding TLE objects.
    """
 
@@ -221,34 +234,39 @@ class Tle(object):
         if self._line1 is not None and self._line2 is not None:
             tle = self._line1.strip() + "\n" + self._line2.strip()
         else:
+            def _open(filename):
+                return io.open(filename, 'rb')
+
             if self._tle_file:
                 urls = (self._tle_file,)
-                open_func = open
+                open_func = _open
             elif "TLES" in os.environ:
                 # TODO: get the TLE file closest in time to the actual satellite
                 # overpass, NOT the latest!
                 urls = (max(glob.glob(os.environ["TLES"]),
                             key=os.path.getctime), )
                 LOGGER.debug("Reading TLE from %s", urls[0])
-                open_func = open
+                open_func = _open
             else:
                 LOGGER.debug("Fetch TLE from the internet.")
                 urls = TLE_URLS
-                open_func = urllib2.urlopen
+                open_func = urlopen
 
             tle = ""
             designator = "1 " + SATELLITES.get(self._platform, '')
             for url in urls:
                 fid = open_func(url)
                 for l_0 in fid:
+                    l_0 = l_0.decode('utf-8')
                     if l_0.strip() == self._platform:
-                        l_1, l_2 = fid.next(), fid.next()
+                        l_1 = next(fid).decode('utf-8')
+                        l_2 = next(fid).decode('utf-8')
                         tle = l_1.strip() + "\n" + l_2.strip()
                         break
                     if(self._platform in SATELLITES and
                        l_0.strip().startswith(designator)):
                         l_1 = l_0
-                        l_2 = fid.next()
+                        l_2 = next(fid).decode('utf-8')
                         tle = l_1.strip() + "\n" + l_2.strip()
                         LOGGER.debug("Found platform %s, ID: %s",
                                      self._platform,
@@ -285,8 +303,9 @@ class Tle(object):
         self.id_launch_piece = self._line1[14:17]
         self.epoch_year = self._line1[18:20]
         self.epoch_day = float(self._line1[20:32])
-        self.epoch = (datetime.datetime.strptime(self.epoch_year, "%y") +
-                      datetime.timedelta(days=self.epoch_day - 1))
+        self.epoch = \
+            np.datetime64(datetime.datetime.strptime(self.epoch_year, "%y") +
+                          datetime.timedelta(days=self.epoch_day - 1), 'us')
         self.mean_motion_derivative = float(self._line1[33:43])
         self.mean_motion_sec_derivative = _read_tle_decimal(self._line1[44:52])
         self.bstar = _read_tle_decimal(self._line1[53:61])
@@ -306,18 +325,23 @@ class Tle(object):
 
     def __str__(self):
         import pprint
-        import StringIO
-        s_var = StringIO.StringIO()
+        import sys
+        if sys.version_info < (3, 0):
+            from StringIO import StringIO
+        else:
+            from io import StringIO
+        s_var = StringIO()
         d_var = dict(([(k, v) for k, v in
-                       self.__dict__.items() if k[0] != '_']))
+                       list(self.__dict__.items()) if k[0] != '_']))
         pprint.pprint(d_var, s_var)
         return s_var.getvalue()[:-1]
+
 
 def main():
     '''Main for testing TLE reading.
     '''
     tle_data = read('Noaa-19')
-    print tle_data
+    print(tle_data)
 
 if __name__ == '__main__':
     main()

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-# Copyright (c) 2011-2016 SMHI
+# Copyright (c) 2011-2016, 2018 SMHI
 
 # Author(s):
 
@@ -31,7 +31,7 @@ setup(name='pyorbital',
       version=version.__version__,
       description='Orbital parameters and astronomical computations in Python',
       author='Martin Raspaud, Esben S. Nielsen',
-      author_email='martin.raspaud@smhi.se, esn@dmi.dk',
+      author_email='martin.raspaud@smhi.se',
       classifiers=["Development Status :: 5 - Production/Stable",
                    "Intended Audience :: Science/Research",
                    "License :: OSI Approved :: GNU General Public License v3 " +
@@ -42,11 +42,8 @@ setup(name='pyorbital',
                    "Topic :: Scientific/Engineering :: Astronomy"],
       url="https://github.com/pytroll/pyorbital",
       test_suite='pyorbital.tests.suite',
-      #tests_require=['mock', ],
-      # test_suite="nose.collector",
-      # tests_require="nose",
       package_dir={'pyorbital': 'pyorbital'},
       packages=['pyorbital'],
-      install_requires=['numpy>=1.6.0'],
+      install_requires=['numpy>=1.6.0,!=1.14.0'],
       zip_safe=False,
       )

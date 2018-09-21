@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013-2018 PyTroll Community
+# Copyright (c) 2013 - 2018 PyTroll Community
 
 # Author(s):
 
@@ -142,11 +142,17 @@ def avhrr_40_geom(scans_nb):
 
 
 def viirs(scans_nb, scan_indices=slice(0, None),
-          chn_pixels=6400, scan_lines=32):
+          chn_pixels=6400, scan_lines=32, scan_step=1):
     """Describe VIIRS instrument geometry, I-band by default.
     VIIRS scans several lines simultaneously (there are 16 detectors for each
     M-band, 32 detectors for each I-band) so the scan angles (and times) are
     two-dimensional arrays, contrary to AVHRR for example.
+
+    scan_step: The increment in number of scans. E.g. if scan_step is 100 and
+               the number of scans (scans_nb) is 10 then these 10 scans are
+               distributed over the swath so that between each scan there are
+               99 emtpy (excluded) scans
+
     """
 
     entire_width = np.arange(chn_pixels)
@@ -168,9 +174,10 @@ def viirs(scans_nb, scan_indices=slice(0, None),
     npp = np.tile(scan, [scans_nb, 1]).T
 
     # from the timestamp in the filenames, a granule takes 1:25.400 to record
-    # (85.4 seconds) so 1.779166667 would be the duration of 1 scanline
-    # dividing the duration of a single scan by a width of 6400 pixels results
-    # in 0.0002779947917 seconds for each column of 32 pixels in the scanline
+    # (85.4 seconds) so 1.779166667 would be the duration of 1 scanline (48
+    # scans per granule) dividing the duration of a single scan by a width of
+    # 6400 pixels results in 0.0002779947917 seconds for each column of 32
+    # pixels in the scanline
 
     # the individual times per pixel are probably wrong, unless the scanning
     # behaves the same as for AVHRR, The VIIRS sensor rotates to allow internal
@@ -178,10 +185,11 @@ def viirs(scans_nb, scan_indices=slice(0, None),
     # always moves in the same direction.  more info @
     # http://www.eoportal.org/directory/pres_NPOESSNationalPolarorbitingOperationalEnvironmentalSatelliteSystem.html
 
-    offset = np.arange(scans_nb) * 1.779166667
-    times = (np.tile(scan_points * 0.0002779947917,
-                     [np.int(scan_lines), np.int(scans_nb)])
-             + np.expand_dims(offset, 1))
+    SEC_EACH_SCANCOLUMN = 0.0002779947917
+    sec_scan_duration = 1.779166667
+    times = np.tile(scan_points * SEC_EACH_SCANCOLUMN, [np.int(scans_nb*scan_lines), 1])
+    offset = np.repeat(np.arange(scans_nb) * sec_scan_duration*scan_step, scan_lines)
+    times += np.expand_dims(offset, 1)
 
     # build the scan geometry object
     return ScanGeometry(npp, times)

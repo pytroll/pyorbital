@@ -197,6 +197,15 @@ class TestGeolocDefs(unittest.TestCase):
         expected_fovs = np.array([
             np.tile(np.array([[0.98, -0., -0.98]]), [32, 1]),
             np.tile(np.array([[0., -0., 0]]), [32, 1])], dtype=np.float)
+
+        self.assertTrue(np.allclose(geom.fovs,
+                                    expected_fovs, rtol=1e-2, atol=1e-2))
+
+        geom = viirs(2, np.array([0, 3200, 6399]))
+        expected_fovs = np.array([
+            np.tile(np.array([[0.98, -0., -0.98]]), [32*2, 1]),
+            np.tile(np.array([[0., -0., 0]]), [32*2, 1])], dtype=np.float)
+
         self.assertTrue(np.allclose(geom.fovs,
                                     expected_fovs, rtol=1e-2, atol=1e-2))
 

@@ -187,8 +187,10 @@ def viirs(scans_nb, scan_indices=slice(0, None),
 
     SEC_EACH_SCANCOLUMN = 0.0002779947917
     sec_scan_duration = 1.779166667
-    times = np.tile(scan_points * SEC_EACH_SCANCOLUMN, [np.int(scans_nb*scan_lines), 1])
-    offset = np.repeat(np.arange(scans_nb) * sec_scan_duration*scan_step, scan_lines)
+    times = np.tile(scan_points * SEC_EACH_SCANCOLUMN,
+                    [np.int(scans_nb*scan_lines), 1])
+    offset = np.repeat(np.arange(scans_nb) *
+                       sec_scan_duration*scan_step, scan_lines)
     times += np.expand_dims(offset, 1)
 
     # build the scan geometry object

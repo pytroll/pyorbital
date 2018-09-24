@@ -38,54 +38,71 @@ class Test(unittest.TestCase):
     def test_get_orbit_number(self):
         """Testing getting the orbitnumber from the tle"""
         sat = orbital.Orbital("NPP",
-                              line1="1 37849U 11061A   12017.90990040 -.00000112  00000-0 -32693-4 0   772",
-                              line2="2 37849  98.7026 317.8811 0001845  92.4533 267.6830 14.19582686 11574")
+                              line1="1 37849U 11061A   12017.90990040 "
+                                    "-.00000112  00000-0 -32693-4 0   772",
+                              line2="2 37849  98.7026 317.8811 0001845  "
+                                    "92.4533 267.6830 14.19582686 11574")
         dobj = datetime(2012, 1, 18, 8, 4, 19)
         orbnum = sat.get_orbit_number(dobj)
         self.assertEqual(orbnum, 1163)
 
     def test_sublonlat(self):
         sat = orbital.Orbital("ISS (ZARYA)",
-                              line1="1 25544U 98067A   03097.78853147  .00021906  00000-0  28403-3 0  8652",
-                              line2="2 25544  51.6361  13.7980 0004256  35.6671  59.2566 15.58778559250029")
+                              line1="1 25544U 98067A   03097.78853147  "
+                                    ".00021906  00000-0  28403-3 0  8652",
+                              line2="2 25544  51.6361  13.7980 0004256  "
+                                    "35.6671  59.2566 15.58778559250029")
         d = datetime(2003, 3, 23, 0, 3, 22)
         lon, lat, alt = sat.get_lonlatalt(d)
         expected_lon = -68.199894472013213
         expected_lat = 23.159747677881075
         expected_alt = 392.01953430856935
-        self.assertTrue(np.abs(lon - expected_lon) < eps_deg, 'Calculation of sublon failed')
-        self.assertTrue(np.abs(lat - expected_lat) < eps_deg, 'Calculation of sublat failed')
-        self.assertTrue(np.abs(alt - expected_alt) < eps_deg, 'Calculation of altitude failed')
+        self.assertTrue(np.abs(lon - expected_lon) < eps_deg,
+                        'Calculation of sublon failed')
+        self.assertTrue(np.abs(lat - expected_lat) < eps_deg,
+                        'Calculation of sublat failed')
+        self.assertTrue(np.abs(alt - expected_alt) < eps_deg,
+                        'Calculation of altitude failed')
 
     def test_observer_look(self):
         sat = orbital.Orbital("ISS (ZARYA)",
-                              line1="1 25544U 98067A   03097.78853147  .00021906  00000-0  28403-3 0  8652",
-                              line2="2 25544  51.6361  13.7980 0004256  35.6671  59.2566 15.58778559250029")
+                              line1="1 25544U 98067A   03097.78853147  "
+                                    ".00021906  00000-0  28403-3 0  8652",
+                              line2="2 25544  51.6361  13.7980 0004256  "
+                                    "35.6671  59.2566 15.58778559250029")
         d = datetime(2003, 3, 23, 0, 3, 22)
         az, el = sat.get_observer_look(d, -84.39733, 33.775867, 0)
         expected_az = 122.45169655331965
         expected_el = 1.9800219611255456
-        self.assertTrue(np.abs(az - expected_az) < eps_deg, 'Calculation of azimut failed')
-        self.assertTrue(np.abs(el - expected_el) < eps_deg, 'Calculation of elevation failed')
+        self.assertTrue(np.abs(az - expected_az) < eps_deg,
+                        'Calculation of azimut failed')
+        self.assertTrue(np.abs(el - expected_el) < eps_deg,
+                        'Calculation of elevation failed')
 
     def test_orbit_num_an(self):
         sat = orbital.Orbital("METOP-A",
-                              line1="1 29499U 06044A   11254.96536486  .00000092  00000-0  62081-4 0  5221",
-                              line2="2 29499  98.6804 312.6735 0001758 111.9178 248.2152 14.21501774254058")
+                              line1="1 29499U 06044A   11254.96536486  "
+                                    ".00000092  00000-0  62081-4 0  5221",
+                              line2="2 29499  98.6804 312.6735 0001758 "
+                                    "111.9178 248.2152 14.21501774254058")
         d = datetime(2011, 9, 14, 5, 30)
         self.assertEqual(sat.get_orbit_number(d), 25437)
 
     def test_orbit_num_non_an(self):
         sat = orbital.Orbital("METOP-A",
-                              line1="1 29499U 06044A   13060.48822809  .00000017  00000-0  27793-4 0  9819",
-                              line2="2 29499  98.6639 121.6164 0001449  71.9056  43.3132 14.21510544330271")
+                              line1="1 29499U 06044A   13060.48822809  "
+                                    ".00000017  00000-0  27793-4 0  9819",
+                              line2="2 29499  98.6639 121.6164 0001449  "
+                                    "71.9056  43.3132 14.21510544330271")
         dt = np.timedelta64(98, 'm')
         self.assertEqual(sat.get_orbit_number(sat.tle.epoch + dt), 33028)
 
     def test_orbit_num_equator(self):
         sat = orbital.Orbital("SUOMI NPP",
-                              line1="1 37849U 11061A   13061.24611272  .00000048  00000-0  43679-4 0  4334",
-                              line2="2 37849  98.7444   1.0588 0001264  63.8791 102.8546 14.19528338 69643")
+                              line1="1 37849U 11061A   13061.24611272  "
+                                    ".00000048  00000-0  43679-4 0  4334",
+                              line2="2 37849  98.7444   1.0588 0001264  "
+                                    "63.8791 102.8546 14.19528338 69643")
         t1 = datetime(2013, 3, 2, 22, 2, 25)
         t2 = datetime(2013, 3, 2, 22, 2, 26)
         on1 = sat.get_orbit_number(t1)
@@ -100,14 +117,98 @@ class Test(unittest.TestCase):
 
     def test_get_next_passes_apogee(self):
         """Regression test #22."""
-        line1 = "1 24793U 97020B   18065.48735489  .00000075  00000-0  19863-4 0  9994"
-        line2 = "2 24793  86.3994 209.3241 0002020  89.8714 270.2713 14.34246429 90794"
+        line1 = "1 24793U 97020B   18065.48735489  " \
+                ".00000075  00000-0  19863-4 0  9994"
+        line2 = "2 24793  86.3994 209.3241 0002020  " \
+                "89.8714 270.2713 14.34246429 90794"
 
         orb = orbital.Orbital('IRIDIUM 7 [+]', line1=line1, line2=line2)
         d = datetime(2018, 3, 7, 3, 30, 15)
         res = orb.get_next_passes(d, 1, 170.556, -43.368, 0.5, horizon=40)
-        self.assertTrue(abs(res[0][2] - datetime(2018, 3, 7, 3, 48, 13, 178439)) < timedelta(seconds=0.01))
+        self.assertTrue(abs(
+            res[0][2] - datetime(2018, 3, 7, 3, 48, 13, 178439)) <
+            timedelta(seconds=0.01))
 
+
+class TestGetObserverLook(unittest.TestCase):
+    """Test the get_observer_look function"""
+
+    def setUp(self):
+        self.t = datetime(2018, 1, 1, 0, 0, 0)
+        self.sat_lon = np.array([[-89.5, -89.4], [-89.3, -89.2]])
+        self.sat_lat = np.array([[45.5, 45.4], [45.3, 45.2]])
+        self.sat_alt = np.array([[35786, 35786], [35786, 35786]])
+        self.lon = np.array([[-85.5, -85.4], [-85.3, -85.2]])
+        self.lat = np.array([[40.5, 40.4], [40.3, 40.2]])
+        self.alt = np.zeros((2, 2))
+        self.exp_azi = np.array([[331.00275902, 330.95954165],
+                                 [330.91642994, 330.87342384]])
+        self.exp_elev = np.array([[83.18070976, 83.17788976],
+                                  [83.17507167, 83.1722555]])
+
+    def test_basic_numpy(self):
+        """Test with numpy array inputs"""
+        from pyorbital import orbital
+        azi, elev = orbital.get_observer_look(self.sat_lon, self.sat_lat,
+                                              self.sat_alt, self.t,
+                                              self.lon, self.lat, self.alt)
+        np.testing.assert_allclose(azi, self.exp_azi)
+        np.testing.assert_allclose(elev, self.exp_elev)
+
+    def test_basic_dask(self):
+        """Test with dask array inputs"""
+        from pyorbital import orbital
+        import dask.array as da
+        sat_lon = da.from_array(self.sat_lon, chunks=2)
+        sat_lat = da.from_array(self.sat_lat, chunks=2)
+        sat_alt = da.from_array(self.sat_alt, chunks=2)
+        lon = da.from_array(self.lon, chunks=2)
+        lat = da.from_array(self.lat, chunks=2)
+        alt = da.from_array(self.alt, chunks=2)
+        azi, elev = orbital.get_observer_look(sat_lon, sat_lat,
+                                              sat_alt, self.t,
+                                              lon, lat, alt)
+        np.testing.assert_allclose(azi.compute(), self.exp_azi)
+        np.testing.assert_allclose(elev.compute(), self.exp_elev)
+
+    def test_xarray_with_numpy(self):
+        """Test with xarray DataArray with numpy array as inputs"""
+        from pyorbital import orbital
+        import xarray as xr
+
+        def _xarr_conv(input):
+            return xr.DataArray(input)
+        sat_lon = _xarr_conv(self.sat_lon)
+        sat_lat = _xarr_conv(self.sat_lat)
+        sat_alt = _xarr_conv(self.sat_alt)
+        lon = _xarr_conv(self.lon)
+        lat = _xarr_conv(self.lat)
+        alt = _xarr_conv(self.alt)
+        azi, elev = orbital.get_observer_look(sat_lon, sat_lat,
+                                              sat_alt, self.t,
+                                              lon, lat, alt)
+        np.testing.assert_allclose(azi.data, self.exp_azi)
+        np.testing.assert_allclose(elev.data, self.exp_elev)
+
+    def test_xarray_with_dask(self):
+        """Test with xarray DataArray with dask array as inputs"""
+        from pyorbital import orbital
+        import dask.array as da
+        import xarray as xr
+
+        def _xarr_conv(input):
+            return xr.DataArray(da.from_array(input, chunks=2))
+        sat_lon = _xarr_conv(self.sat_lon)
+        sat_lat = _xarr_conv(self.sat_lat)
+        sat_alt = _xarr_conv(self.sat_alt)
+        lon = _xarr_conv(self.lon)
+        lat = _xarr_conv(self.lat)
+        alt = _xarr_conv(self.alt)
+        azi, elev = orbital.get_observer_look(sat_lon, sat_lat,
+                                              sat_alt, self.t,
+                                              lon, lat, alt)
+        np.testing.assert_allclose(azi.data.compute(), self.exp_azi)
+        np.testing.assert_allclose(elev.data.compute(), self.exp_elev)
 
 
 def suite():
@@ -116,5 +217,6 @@ def suite():
     loader = unittest.TestLoader()
     mysuite = unittest.TestSuite()
     mysuite.addTest(loader.loadTestsFromTestCase(Test))
+    mysuite.addTest(loader.loadTestsFromTestCase(TestGetObserverLook))
 
     return mysuite

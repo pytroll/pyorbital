@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011-2014
+# Copyright (c) 2011-2014, 2018
 
 # Author(s):
 
@@ -40,8 +40,8 @@ setup(name='pyorbital',
                    "Topic :: Scientific/Engineering :: Astronomy"],
       url="https://github.com/mraspaud/pyorbital",
       test_suite='pyorbital.tests.suite',
-      package_dir = {'pyorbital': 'pyorbital'},
-      packages = ['pyorbital'],
-      install_requires=['numpy>=1.6.0,!=1.14.0'],
+      package_dir={'pyorbital': 'pyorbital'},
+      packages=['pyorbital'],
+      install_requires=['numpy>=1.11.0,!=1.14.0'],
       zip_safe=False,
       )

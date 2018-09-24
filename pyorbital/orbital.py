@@ -152,7 +152,7 @@ class Orbital(object):
     """Class for orbital computations.
 
     The *satellite* parameter is the name of the satellite to work on and is
-    used to retreive the right TLE data for internet or from *tle_file* in case
+    used to retrieve the right TLE data for internet or from *tle_file* in case
     it is provided.
     """
 

@@ -28,8 +28,8 @@ Pyorbital has a module for parsing NORAD TLE-files
 
 If no path is given pyorbital tries to read the earth observation TLE-files from celestrak.com
     
-Computing satellite postion
----------------------------
+Computing satellite position
+----------------------------
 The orbital module enables computation of satellite position and velocity at a specific time:
 
     >>> from pyorbital.orbital import Orbital
@@ -56,7 +56,7 @@ Use actual TLEs to increase accuracy
     >>> orb.get_lonlatalt(dtobj)
     (152.11564698762811, 20.475251739329622, 829.37355785502211)
 
-But since we are interesting knowing the position of the Suomi-NPP more than
+But since we are interested in knowing the position of the Suomi-NPP more than
 two and half years from now (September 26, 2017) we can not rely on the current
 TLEs, but rather need a TLE closer to the time of interest:
 

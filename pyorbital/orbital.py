@@ -135,8 +135,8 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
         az_data = da.where(top_s > 0, az_data + np.pi, az_data)
         az_data = da.where(az_data < 0, az_data + 2 * np.pi, az_data)
     else:
-        az_data[top_s > 0] += np.pi
-        az_data[az_data < 0] += 2 * np.pi
+        az_data[np.where(top_s > 0)] += np.pi
+        az_data[np.where(az_data < 0)] += 2 * np.pi
 
     if has_xarray and isinstance(az_, xr.DataArray):
         az_.data = az_data

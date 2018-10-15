@@ -129,6 +129,28 @@ class Test(unittest.TestCase):
             res[0][2] - datetime(2018, 3, 7, 3, 48, 13, 178439)) <
             timedelta(seconds=0.01))
 
+    def test_get_next_passes_tricky(self):
+        """ Check issue #34 for reference """
+        line1 = "1 43125U 18004Q   18251.42128650 " \
+            "+.00001666 +00000-0 +73564-4 0  9991"
+
+        line2 = "2 43125 097.5269 314.3317 0010735 "\
+            "157.6344 202.5362 15.23132245036381"
+
+        orb = orbital.Orbital('LEMUR-2-BROWNCOW', line1=line1, line2=line2)
+        d = datetime(2018, 9, 8)
+
+        res = orb.get_next_passes(d, 72, -8.174163, 51.953319, 0.05, horizon=5)
+
+        self.assertTrue(abs(
+            res[0][2] - datetime(2018, 9, 8, 9, 5, 46, 375248)) <
+            timedelta(seconds=0.01))
+        self.assertTrue(abs(
+            res[-1][2] - datetime(2018, 9, 10, 22, 15, 3, 143469)) <
+            timedelta(seconds=0.01))
+
+        self.assertTrue(len(res) == 15)
+
 
 class TestGetObserverLook(unittest.TestCase):
     """Test the get_observer_look function"""

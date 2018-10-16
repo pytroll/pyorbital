@@ -3,3 +3,5 @@ recursive-include doc/source *
 include LICENSE.txt
 include MANIFEST.in
 include README
+include versioneer.py
+include pyorbital/version.py

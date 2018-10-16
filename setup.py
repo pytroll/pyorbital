@@ -22,11 +22,11 @@
 
 from setuptools import setup
 import imp
-
-version = imp.load_source('pyorbital.version', 'pyorbital/version.py')
+import versioneer
 
 setup(name='pyorbital',
-      version=version.__version__,
+      version=versioneer.get_version(),
+      cmdclass=versioneer.get_cmdclass(),
       description='Orbital parameters and astronomical computations in Python',
       author='Martin Raspaud, Esben S. Nielsen',
       author_email='martin.raspaud@smhi.se',
@@ -38,7 +38,7 @@ setup(name='pyorbital',
                    "Programming Language :: Python",
                    "Topic :: Scientific/Engineering",
                    "Topic :: Scientific/Engineering :: Astronomy"],
-      url="https://github.com/mraspaud/pyorbital",
+      url="https://github.com/pytroll/pyorbital",
       test_suite='pyorbital.tests.suite',
       package_dir={'pyorbital': 'pyorbital'},
       packages=['pyorbital'],

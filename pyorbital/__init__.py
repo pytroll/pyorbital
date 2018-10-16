@@ -27,3 +27,7 @@ def dt2np(utc_time):
         return np.datetime64(utc_time)
     except ValueError:
         return utc_time.astype('datetime64[ns]')
+
+from .version import get_versions
+__version__ = get_versions()['version']
+del get_versions

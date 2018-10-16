@@ -20,6 +20,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import numpy as np
+from .version import get_versions
+__version__ = get_versions()['version']
+del get_versions
 
 
 def dt2np(utc_time):

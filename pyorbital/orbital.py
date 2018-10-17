@@ -28,6 +28,8 @@
 import warnings
 from datetime import datetime, timedelta
 
+from scipy import optimize
+
 import numpy as np
 from pyorbital import astronomy, dt2np, tlefile
 
@@ -133,8 +135,8 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
         az_data = da.where(top_s > 0, az_data + np.pi, az_data)
         az_data = da.where(az_data < 0, az_data + 2 * np.pi, az_data)
     else:
-        az_data[top_s > 0] += np.pi
-        az_data[az_data < 0] += 2 * np.pi
+        az_data[np.where(top_s > 0)] += np.pi
+        az_data[np.where(az_data < 0)] += 2 * np.pi
 
     if has_xarray and isinstance(az_, xr.DataArray):
         az_.data = az_data
@@ -358,8 +360,8 @@ class Orbital(object):
             """Compute the inverse of elevation."""
             return -elevation(minutes)
 
-        def get_root_secant(fun, start, end, tol=0.01):
-            """Secant method."""
+        def get_root(fun, start, end, tol=0.01):
+            """Root finding scheme"""
             x_0 = end
             x_1 = start
             fx_0 = fun(end)
@@ -367,11 +369,9 @@ class Orbital(object):
             if abs(fx_0) < abs(fx_1):
                 fx_0, fx_1 = fx_1, fx_0
                 x_0, x_1 = x_1, x_0
-            while abs(x_0 - x_1) > tol:
-                x_n = x_1 - fx_1 * ((x_1 - x_0) / (fx_1 - fx_0))
-                x_0, x_1 = x_1, x_n
-                fx_0, fx_1 = fx_1, fun(x_n)
-            return x_1
+
+            x_n = optimize.brentq(fun, x_0, x_1)
+            return x_n
 
         def get_max_parab(fun, start, end, tol=0.01):
             """Successive parabolic interpolation."""
@@ -406,7 +406,7 @@ class Orbital(object):
         risetime = None
         falltime = None
         for guess in zcs:
-            horizon_mins = get_root_secant(
+            horizon_mins = get_root(
                 elevation, guess, guess + 1.0, tol=tol / 60.0)
             horizon_time = utc_time + timedelta(minutes=horizon_mins)
             if elev[guess] < 0:

@@ -42,6 +42,6 @@ setup(name='pyorbital',
       test_suite='pyorbital.tests.suite',
       package_dir={'pyorbital': 'pyorbital'},
       packages=['pyorbital'],
-      install_requires=['numpy>=1.11.0,!=1.14.0'],
+      install_requires=['numpy>=1.11.0,!=1.14.0', 'scipy'],
       zip_safe=False,
       )

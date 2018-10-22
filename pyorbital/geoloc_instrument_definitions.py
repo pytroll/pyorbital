@@ -156,8 +156,7 @@ def viirs(scans_nb, scan_indices=slice(0, None),
     """
 
     entire_width = np.arange(chn_pixels)
-    scan_points = entire_width[scan_indices.astype('int64')]
-    #scan_points = entire_width[scan_indices]
+    scan_points = entire_width[scan_indices.astype('int')]
     scan_pixels = len(scan_points)
 
     ''' initial angle 55.84 deg replaced with 56.28 deg found in

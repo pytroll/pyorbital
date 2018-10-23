@@ -1,4 +1,4 @@
-<!-- Please make the PR against the `develop` branch. -->
+<!-- Please make the PR against the `master` branch. -->
 
 <!-- Describe what your PR does, and why -->
 

@@ -48,7 +48,8 @@ def read_platform_numbers(in_upper=False, num_as_int=False):
     """Read platform numbers from $PPP_CONFIG_DIR/platforms.txt if available."""
     out_dict = {}
     if "PPP_CONFIG_DIR" in os.environ:
-        platform_file = os.path.join(os.environ["PPP_CONFIG_DIR"], "platforms.txt")
+        platform_file = os.path.join(
+            os.environ["PPP_CONFIG_DIR"], "platforms.txt")
         try:
             fid = open(platform_file, 'r')
         except IOError:

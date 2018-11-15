@@ -633,10 +633,10 @@ class _SGDP4(object):
         self.c1 = self.bstar * self.c2
 
         self.c4 = (2.0 * self.xnodp * coef_1 * self.aodp * betao2 * (
-                self.eta * (2.0 + 0.5 * etasq) + self.eo * (0.5 + 2.0 * etasq) - (2.0 * CK2) * tsi /
-                (self.aodp * psisq) * (-3.0 * self.x3thm1 * (1.0 - 2.0 * eeta + etasq * (1.5 - 0.5 * eeta)) +
-                                       0.75 * self.x1mth2 * (2.0 * etasq - eeta * (1.0 + etasq)) *
-                                       np.cos(2.0 * self.omegao))))
+            self.eta * (2.0 + 0.5 * etasq) + self.eo * (0.5 + 2.0 * etasq) - (2.0 * CK2) * tsi /
+            (self.aodp * psisq) * (-3.0 * self.x3thm1 * (1.0 - 2.0 * eeta + etasq * (1.5 - 0.5 * eeta)) +
+                                   0.75 * self.x1mth2 * (2.0 * etasq - eeta * (1.0 + etasq)) *
+                                   np.cos(2.0 * self.omegao))))
 
         self.c5, self.c3, self.omgcof = 0.0, 0.0, 0.0
 

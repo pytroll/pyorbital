@@ -45,17 +45,14 @@ LOGGER = logging.getLogger(__name__)
 
 
 def read_platform_numbers(in_upper=False, num_as_int=False):
-    '''Read platform numbers from $PPP_CONFIG_DIR/platforms.txt if available.
-    '''
-
+    """Read platform numbers from $PPP_CONFIG_DIR/platforms.txt if available."""
     out_dict = {}
     if "PPP_CONFIG_DIR" in os.environ:
-        platform_file = os.path.join(os.environ["PPP_CONFIG_DIR"],
-                                     "platforms.txt")
+        platform_file = os.path.join(os.environ["PPP_CONFIG_DIR"], "platforms.txt")
         try:
             fid = open(platform_file, 'r')
         except IOError:
-            LOGGER.error("Platform file %s not found.", platform_file)
+            LOGGER.debug("Platform file %s not found.", platform_file)
             return out_dict
         for row in fid:
             # skip comment lines

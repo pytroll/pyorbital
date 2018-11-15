@@ -26,6 +26,8 @@
 import numpy as np
 from datetime import datetime
 from pyorbital.geoloc import ScanGeometry, compute_pixels, get_lonlatalt
+from mpl_toolkits.basemap import Basemap
+import matplotlib.pyplot as plt
 
 tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
 tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
@@ -61,19 +63,18 @@ pos_time = get_lonlatalt(pixels_pos, s_times)
 
 print(pos_time)
 
-
 # Plot the result
-from mpl_toolkits.basemap import Basemap
-import matplotlib.pyplot as plt
-
-m = Basemap(projection='stere', llcrnrlat=24, urcrnrlat=70, llcrnrlon=-25, urcrnrlon=120, lat_ts=58, lat_0=58, lon_0=14, resolution='l')
-
+m = Basemap(projection='stere', llcrnrlat=24, urcrnrlat=70, llcrnrlon=-25, urcrnrlon=120,
+            lat_ts=58, lat_0=58, lon_0=14, resolution='l')
 
 # convert and plot the predicted pixels in red
 x, y = m(pos_time[0], pos_time[1])
-p1 = m.plot(x,y, marker='+', color='red', markerfacecolor='red', markeredgecolor='red', markersize=1, markevery=1, zorder=4, linewidth=0.0)
+p1 = m.plot(x, y, marker='+', color='red', markerfacecolor='red', markeredgecolor='red', markersize=1, markevery=1,
+            zorder=4, linewidth=0.0)
 m.fillcontinents(color='0.85', lake_color=None, zorder=3)
-m.drawparallels(np.arange(-90.,90.,5.), labels=[1,0,1,0],fontsize=10, dashes=[1, 0], color=[0.8,0.8,0.8], zorder=1)
-m.drawmeridians(np.arange(-180.,180.,5.), labels=[0,1,0,1],fontsize=10, dashes=[1, 0], color=[0.8,0.8,0.8], zorder=2)
+m.drawparallels(np.arange(-90., 90., 5.), labels=[1, 0, 1, 0], fontsize=10, dashes=[1, 0],
+                color=[0.8, 0.8, 0.8], zorder=1)
+m.drawmeridians(np.arange(-180., 180., 5.), labels=[0, 1, 0, 1], fontsize=10, dashes=[1, 0],
+                color=[0.8, 0.8, 0.8], zorder=2)
 
 plt.show()

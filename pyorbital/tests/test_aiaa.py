@@ -28,7 +28,7 @@ from __future__ import print_function, with_statement
 
 import os
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 
@@ -107,10 +107,10 @@ class AIAAIntegrationTest(unittest.TestCase):
 
                     try:
                         o = LineOrbital("unknown", line1, line2)
-                    except NotImplementedError as e:
+                    except NotImplementedError:
                         test_line = f__.readline()
                         continue
-                    except ChecksumError as e:
+                    except ChecksumError:
                         self.assertTrue(test_line.split()[1] in [
                                         "33333", "33334", "33335"])
                     for delay in times:

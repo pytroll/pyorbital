@@ -19,33 +19,23 @@
 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 """Test the geoloc module.
 """
 
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 
 from pyorbital.geoloc import ScanGeometry, geodetic_lat, qrotate, subpoint
-from pyorbital.geoloc_instrument_definitions import (avhrr,
-                                                     viirs,
-                                                     amsua,
-                                                     mhs,
-                                                     hirs4,
-                                                     atms,
-                                                     ascat)
+from pyorbital.geoloc_instrument_definitions import avhrr, viirs, amsua, mhs, hirs4, atms, ascat
 
 
 class TestQuaternion(unittest.TestCase):
-
-    """Test the quaternion rotation.
-    """
+    """Test the quaternion rotation."""
 
     def test_qrotate(self):
-        """Test quaternion rotation
-        """
+        """Test quaternion rotation."""
         vector = np.array([[1, 0, 0]]).T
         axis = np.array([[0, 1, 0]]).T
         angle = np.deg2rad(90)
@@ -126,23 +116,15 @@ class TestGeoloc(unittest.TestCase):
                           np.timedelta64(100, 'ms'))
 
     def test_geodetic_lat(self):
-        """Test the determination of the geodetic latitude.
-        """
-
-        a = 6378.137  # km
-        b = 6356.75231414  # km, GRS80
-
+        """Test the determination of the geodetic latitude."""
         point = np.array([7000, 0, 7000])
         self.assertEqual(geodetic_lat(point), 0.78755832699854733)
         points = np.array([[7000, 0, 7000],
                            [7000, 0, 7000]]).T
-        self.assertTrue(np.allclose(geodetic_lat(points),
-                                    np.array([0.78755832699854733,
-                                              0.78755832699854733])))
+        self.assertTrue(np.allclose(geodetic_lat(points), np.array([0.78755832699854733, 0.78755832699854733])))
 
     def test_subpoint(self):
-        """Test nadir determination.
-        """
+        """Test nadir determination."""
         a = 6378.137  # km
         b = 6356.75231414  # km, GRS80
         point = np.array([0, 0, 7000])

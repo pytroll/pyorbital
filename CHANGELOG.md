@@ -1,3 +1,13 @@
+## Version 1.5.0 (2018/11/16)
+
+### Pull Requests Merged
+
+#### Features added
+
+* [PR 40](https://github.com/pytroll/pyorbital/pull/40) - Add platforms.txt to package data
+
+In this release 1 pull request was closed.
+
 ## Version 1.4.0 (2018/10/23)
 
 ### Issues Closed

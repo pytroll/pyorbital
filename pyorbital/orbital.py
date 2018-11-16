@@ -181,7 +181,7 @@ class Orbital(object):
         pos0, vel0 = self.get_position(t_old, normalize=False)
         pos1, vel1 = self.get_position(t_new, normalize=False)
         while not (pos0[2] > 0 and pos1[2] < 0):
-            # pos0, vel0 = pos1, vel1
+            pos0, vel0 = pos1, vel1
             t_old = t_new
             t_new = t_old - dt
             pos1, vel1 = self.get_position(t_new, normalize=False)

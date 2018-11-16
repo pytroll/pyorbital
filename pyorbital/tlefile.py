@@ -42,30 +42,36 @@ TLE_URLS = ('http://celestrak.com/NORAD/elements/weather.txt',
             'https://www.celestrak.com/NORAD/elements/noaa.txt')
 
 LOGGER = logging.getLogger(__name__)
+PKG_CONFIG_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'etc')
 
 
 def read_platform_numbers(in_upper=False, num_as_int=False):
     """Read platform numbers from $PPP_CONFIG_DIR/platforms.txt if available."""
     out_dict = {}
-    if "PPP_CONFIG_DIR" in os.environ:
-        platform_file = os.path.join(os.environ["PPP_CONFIG_DIR"], "platforms.txt")
-        try:
-            fid = open(platform_file, 'r')
-        except IOError:
-            LOGGER.debug("Platform file %s not found.", platform_file)
-            return out_dict
-        for row in fid:
-            # skip comment lines
-            if not row.startswith('#'):
-                parts = row.split()
-                if len(parts) < 2:
-                    continue
-                if in_upper:
-                    parts[0] = parts[0].upper()
-                if num_as_int:
-                    parts[1] = int(parts[1])
-                out_dict[parts[0]] = parts[1]
-        fid.close()
+    os.getenv('PPP_CONFIG_DIR', PKG_CONFIG_DIR)
+    platform_file = None
+    if 'PPP_CONFIG_DIR' in os.environ:
+        platform_file = os.path.join(os.environ['PPP_CONFIG_DIR'], 'platforms.txt')
+    if not platform_file or not os.path.isfile(platform_file):
+        platform_file = os.path.join(PKG_CONFIG_DIR, 'platforms.txt')
+
+    try:
+        fid = open(platform_file, 'r')
+    except IOError:
+        LOGGER.error("Platform file %s not found.", platform_file)
+        return out_dict
+    for row in fid:
+        # skip comment lines
+        if not row.startswith('#'):
+            parts = row.split()
+            if len(parts) < 2:
+                continue
+            if in_upper:
+                parts[0] = parts[0].upper()
+            if num_as_int:
+                parts[1] = int(parts[1])
+            out_dict[parts[0]] = parts[1]
+    fid.close()
 
     return out_dict
 

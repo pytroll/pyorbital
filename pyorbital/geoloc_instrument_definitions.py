@@ -263,9 +263,12 @@ def amsua_edge_geom(scans_nb):
 
 def mhs(scans_nb, edges_only=False):
     """ Describe MHS instrument geometry
+
     See:
+
     - https://www.eumetsat.int/website/home/Satellites/CurrentSatellites/Metop/MetopDesign/MHS/index.html
-    - https://www1.ncdc.noaa.gov/pub/data/satellite/publications/podguides/N-15%20thru%20N-19/pdf/0.0%20NOAA%20KLM%20Users%20Guide.pdf
+    - https://www1.ncdc.noaa.gov/pub/data/satellite/publications/podguides/
+          N-15%20thru%20N-19/pdf/0.0%20NOAA%20KLM%20Users%20Guide.pdf
       (NOAA KLM Users Guide –August 2014 Revision)
 
     Parameters:
@@ -316,10 +319,12 @@ def mhs_edge_geom(scans_nb):
 ################################################################
 
 def hirs4(scans_nb, edges_only=False):
-    """ Describe HIRS/4 instrument geometry
+    """Describe HIRS/4 instrument geometry.
+
     See:
     - https://www.eumetsat.int/website/home/Satellites/CurrentSatellites/Metop/MetopDesign/HIRS/index.html
-    - https://www1.ncdc.noaa.gov/pub/data/satellite/publications/podguides/N-15%20thru%20N-19/pdf/0.0%20NOAA%20KLM%20Users%20Guide.pdf
+    - https://www1.ncdc.noaa.gov/pub/data/satellite/publications/podguides/
+          N-15%20thru%20N-19/pdf/0.0%20NOAA%20KLM%20Users%20Guide.pdf
       (NOAA KLM Users Guide –August 2014 Revision)
 
     Parameters:
@@ -372,8 +377,12 @@ def hirs4_edge_geom(scans_nb):
 def atms(scans_nb, edges_only=False):
     """ Describe MHS instrument geometry
     See:
-    https://dtcenter.org/com-GSI/users/docs/presentations/2013_workshop/Garrett_GSI_2013.pdf (Assimilation of Suomi-NPP ATMS, Kevin Garrett et al., August 8, 2013)
-    https://www.star.nesdis.noaa.gov/star/documents/meetings/2016JPSSAnnual/S4/S4_13_JPSSScience2016_session4Part2_ATMS_Scan_Reversal_HYANG.pdf (Suomi NPP ATMS Scan Reversal Study, Hu (Tiger) Yang, NOAA/STAR ATMS SDR Working Group)
+
+    - https://dtcenter.org/com-GSI/users/docs/presentations/2013_workshop/
+          Garrett_GSI_2013.pdf (Assimilation of Suomi-NPP ATMS, Kevin Garrett et al., August 8, 2013)
+    - https://www.star.nesdis.noaa.gov/star/documents/meetings/2016JPSSAnnual/
+          S4/S4_13_JPSSScience2016_session4Part2_ATMS_Scan_Reversal_HYANG.pdf
+          (Suomi NPP ATMS Scan Reversal Study, Hu (Tiger) Yang, NOAA/STAR ATMS SDR Working Group)
 
     Parameters:
        scans_nb | int -  number of scan lines

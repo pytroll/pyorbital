@@ -44,7 +44,6 @@ B = 6356.75231414  # km, GRS80
 
 
 def geodetic_lat(point, a=A, b=B):
-
     x, y, z = point
     r = np.sqrt(x * x + y * y)
     geoc_lat = np.arctan2(z, r)
@@ -75,7 +74,6 @@ def subpoint(query_point, a=A, b=B):
 
 
 class ScanGeometry(object):
-
     """Description of the geometry of an instrument.
 
     *fovs* is the x and y viewing angles of the instrument. y is zero if the we
@@ -84,10 +82,7 @@ class ScanGeometry(object):
     size as the *fovs*. *attitude* is the attitude correction to apply.
     """
 
-    def __init__(self,
-                 fovs,
-                 times,
-                 attitude=(0, 0, 0)):
+    def __init__(self, fovs, times, attitude=(0, 0, 0)):
         self.fovs = np.array(fovs)
         self._times = np.array(times) * np.timedelta64(1000000000, 'ns')
         self.attitude = attitude
@@ -207,8 +202,7 @@ def get_lonlatalt(pos, utc_time):
 
 
 def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0)):
-    """Compute cartesian coordinates of the pixels in instrument scan.
-    """
+    """Compute cartesian coordinates of the pixels in instrument scan."""
     if isinstance(orb, (list, tuple)):
         tle1, tle2 = orb
         orb = Orbital("mysatellite", line1=tle1, line2=tle2)
@@ -249,22 +243,19 @@ def norm(v):
 
 
 def mnorm(m, axis=None):
-    """norm of a matrix of vectors stacked along the *axis* dimension.
-    """
+    """norm of a matrix of vectors stacked along the *axis* dimension."""
     if axis is None:
         axis = np.ndim(m) - 1
     return np.sqrt((m**2).sum(axis))
 
 
 def vnorm(m):
-    """norms of a matrix of column vectors.
-    """
+    """norms of a matrix of column vectors."""
     return np.sqrt((m**2).sum(0))
 
 
 def hnorm(m):
-    """norms of a matrix of row vectors.
-    """
+    """norms of a matrix of row vectors."""
     return np.sqrt((m**2).sum(1))
 
 

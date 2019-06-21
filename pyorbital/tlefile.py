@@ -40,7 +40,9 @@ TLE_URLS = ('http://celestrak.com/NORAD/elements/weather.txt',
             'http://celestrak.com/NORAD/elements/stations.txt',
             'https://www.celestrak.com/NORAD/elements/sarsat.txt',
             'https://www.celestrak.com/NORAD/elements/noaa.txt',
-            'https://www.celestrak.com/NORAD/elements/amateur.txt')
+            'https://www.celestrak.com/NORAD/elements/amateur.txt',
+            'https://www.celestrak.com/NORAD/elements/engineering.txt')
+
 
 LOGGER = logging.getLogger(__name__)
 PKG_CONFIG_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'etc')

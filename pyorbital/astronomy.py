@@ -118,7 +118,7 @@ def _local_hour_angle(utc_time, longitude, right_ascension):
 def get_alt_az(utc_time, lon, lat):
     """Return sun altitude and azimuth from *utc_time*, *lon*, and *lat*.
     lon,lat in degrees
-    What is the unit of the returned angles and heights!? FIXME!
+    The returned angles are given in radians.
     """
     lon = np.deg2rad(lon)
     lat = np.deg2rad(lat)

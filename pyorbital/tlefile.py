@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011 - 2018
+# Copyright (c) 2011 - 2019
 
 # Author(s):
 

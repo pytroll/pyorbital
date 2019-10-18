@@ -321,8 +321,8 @@ class Orbital(object):
                 self.orbit_elements.an_time = self.tle.epoch
 
             self.orbit_elements.an_period = self.orbit_elements.an_time - \
-                                            self.get_last_an_time(self.orbit_elements.an_time
-                                                                  - np.timedelta64(10, 'm'))
+                self.get_last_an_time(self.orbit_elements.an_time
+                                      - np.timedelta64(10, 'm'))
 
             dt = astronomy._days(utc_time - self.orbit_elements.an_time)
             orbit_period = astronomy._days(self.orbit_elements.an_period)

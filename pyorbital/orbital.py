@@ -298,9 +298,12 @@ class Orbital(object):
 
         return np.rad2deg(az_), np.rad2deg(el_)
 
-    def get_orbit_number(self, utc_time, tbus_style=False):
+    def get_orbit_number(self, utc_time, tbus_style=False, as_float=False):
         """Calculate orbit number at specified time.
-        Optionally use TBUS-style orbit numbering (TLE orbit number + 1)
+
+        Args:
+            tbus_style: If True, use TBUS-style orbit numbering (TLE orbit number + 1)
+            as_float: Return a continuous orbit number as float.
         """
         utc_time = np.datetime64(utc_time)
         try:
@@ -318,18 +321,21 @@ class Orbital(object):
                 self.orbit_elements.an_time = self.tle.epoch
 
             self.orbit_elements.an_period = self.orbit_elements.an_time - \
-                self.get_last_an_time(self.orbit_elements.an_time
-                                      - np.timedelta64(10, 'm'))
+                                            self.get_last_an_time(self.orbit_elements.an_time
+                                                                  - np.timedelta64(10, 'm'))
 
             dt = astronomy._days(utc_time - self.orbit_elements.an_time)
             orbit_period = astronomy._days(self.orbit_elements.an_period)
 
-        orbit = int(self.tle.orbit + dt / orbit_period +
-                    self.tle.mean_motion_derivative * dt**2 +
-                    self.tle.mean_motion_sec_derivative * dt**3)
+        orbit = self.tle.orbit + dt / orbit_period + \
+            self.tle.mean_motion_derivative * dt ** 2 + \
+            self.tle.mean_motion_sec_derivative * dt ** 3
+        if not as_float:
+            orbit = int(orbit)
 
         if tbus_style:
             orbit += 1
+
         return orbit
 
     def get_next_passes(self, utc_time, length, lon, lat, alt, tol=0.001, horizon=0):
@@ -483,6 +489,69 @@ class Orbital(object):
             return tx1
         else:
             return None
+
+    def utc2local(self, utc_time):
+        """Convert UTC to local time."""
+        lon, _, _ = self.get_lonlatalt(utc_time)
+        return utc_time + timedelta(hours=lon * 24 / 360.0)
+
+    def get_equatorial_crossing_time(self, tstart, tend, local_time=False, rtol=1E-9):
+        """Estimate the equatorial crossing time (ascending node) of an orbit.
+
+        The crossing time is determined via the orbit number, which increases by one if the
+        spacecraft passes the ascending node at the equator. A bisection algorithm is used to find
+        the time of that passage.
+
+        Args:
+            tstart: Start time of the orbit
+            tend: End time of the orbit. Orbit number at the end must be at least one greater than
+                at the start. If there are multiple revolutions in the given time interval, the
+                crossing time of the last revolution in that interval will be computed.
+            local_time: By default the UTC crossing time is returned. Use this flag to convert UTC
+                to local time.
+            rtol: Tolerance of the bisection algorithm. The smaller the tolerance, the more accurate
+                the result.
+        """
+        # Determine orbit number at the start and end of the orbit.
+        n_start = self.get_orbit_number(tstart, as_float=True)
+        n_end = self.get_orbit_number(tend, as_float=True)
+        if int(n_end) - int(n_start) == 0:
+            # Orbit doesn't cross the equator in the given time interval
+            return None
+        elif n_end - n_start > 1:
+            warnings.warn('Multiple revolutions between start and end time. Computing crossing '
+                          'time for the last revolution in that interval.')
+
+        # Let n'(t) = n(t) - offset. Determine offset so that n'(tstart) < 0 and n'(tend) > 0 and
+        # n'(tcross) = 0.
+        offset = int(n_end)
+
+        # Use bisection algorithm to find the root of n'(t), which is the crossing time. The
+        # algorithm requires continuous time coordinates, so convert timestamps to microseconds
+        # since 1970.
+        time_unit = 'us'  # same precision as datetime
+
+        def _nprime(time_f):
+            """Continuous orbit number as a function of time."""
+            time64 = np.datetime64(int(time_f), time_unit)
+            n = self.get_orbit_number(time64, as_float=True)
+            return n - offset
+
+        try:
+            tcross = optimize.bisect(_nprime,
+                                     a=np.datetime64(tstart, time_unit).astype(int),
+                                     b=np.datetime64(tend, time_unit).astype(int),
+                                     rtol=rtol)
+        except ValueError:
+            # Bisection did not converge
+            return None
+        tcross = np.datetime64(int(tcross), time_unit).astype(datetime)
+
+        # Convert UTC to local time
+        if local_time:
+            tcross = self.utc2local(tcross)
+
+        return tcross
 
 
 class OrbitElements(object):

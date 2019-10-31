@@ -338,15 +338,15 @@ class Orbital(object):
 
         Original by Martin.
 
-        utc_time: Observation time (datetime object)
-        length: Number of hours to find passes (int)
-        lon: Longitude of observer position on ground (float)
-        lat: Latitude of observer position on ground (float)
-        alt: Altitude above sea-level (geoid) of observer position on ground (float)
-        tol: precision of the result in seconds
-        horizon: the elevation of horizon to compute risetime and falltime.
+        :utc_time: Observation time (datetime object)
+        :length: Number of hours to find passes (int)
+        :lon: Longitude of observer position on ground (float)
+        :lat: Latitude of observer position on ground (float)
+        :alt: Altitude above sea-level (geoid) of observer position on ground (float)
+        :tol: precision of the result in seconds
+        :horizon: the elevation of horizon to compute risetime and falltime.
 
-        Return: [(rise-time, fall-time, max-elevation-time), ...]
+        :return: [(rise-time, fall-time, max-elevation-time), ...]
         """
 
         def elevation(minutes):

@@ -91,12 +91,12 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     """Calculate observers look angle to a satellite.
     http://celestrak.com/columns/v02n02/
 
-    utc_time: Observation time (datetime object)
-    lon: Longitude of observer position on ground in degrees east
-    lat: Latitude of observer position on ground in degrees north
-    alt: Altitude above sea-level (geoid) of observer position on ground in km
+    :utc_time: Observation time (datetime object)
+    :lon: Longitude of observer position on ground in degrees east
+    :lat: Latitude of observer position on ground in degrees north
+    :alt: Altitude above sea-level (geoid) of observer position on ground in km
 
-    Return: (Azimuth, Elevation)
+    :return: (Azimuth, Elevation)
     """
     (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = astronomy.observer_position(
         utc_time, sat_lon, sat_lat, sat_alt)

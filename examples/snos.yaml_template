@@ -1,0 +1,25 @@
+area:
+  - arctic_europe_1km
+
+station:
+  longitude: 16.1465
+  latitude: 58.5780
+  altitude: 0.03
+
+tle-dirs:
+  - '/home/a000680/data/tles/2015/201501'
+
+platform_names:
+  - NOAA-18
+  - NOAA-19
+  - NOAA-20
+  - Suomi-NPP
+  - Metop-B
+  - Metop-C
+
+tle-file-format: 'tle-%Y%m%d.txt'
+
+# Reference platform is usually Calipso or Aqua for a proxy of the A-train Calipso/Cloudsat
+reference_platform:
+  name: EOS-Aqua
+  

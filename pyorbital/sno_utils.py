@@ -29,10 +29,8 @@ from pyresample.spherical_geometry import Coordinate, Arc
 import math
 import logging
 import yaml
-try:
-    from yaml import UnsafeLoader
-except ImportError:
-    from yaml import Loader as UnsafeLoader
+from yaml import SafeLoader
+
 try:
     # python 3.3+
     from collections.abc import Mapping
@@ -84,7 +82,7 @@ def get_config(configfile):
     """
     config = {}
     with open(configfile, 'r') as fp_:
-        config = _recursive_dict_update(config, yaml.load(fp_, Loader=UnsafeLoader))
+        config = _recursive_dict_update(config, yaml.load(fp_, Loader=SafeLoader))
 
     return config
 

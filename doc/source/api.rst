@@ -21,3 +21,10 @@ Astronomical computations
 .. automodule:: pyorbital.astronomy
    :members:
    :undoc-members:
+
+Simultaneous Nadir Overpass computations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: pyorbital.sno_utils
+   :members:
+   :undoc-members:

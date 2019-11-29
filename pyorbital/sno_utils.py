@@ -75,7 +75,13 @@ def _recursive_dict_update(d, u):
 
 
 def get_config(configfile):
-    """Get the configuration from file."""
+    """Get the configuration from file.
+
+    :configfile: The file path of the yaml configuration file.
+
+    :return: A configuration dictionary.
+
+    """
     config = {}
     with open(configfile, 'r') as fp_:
         config = _recursive_dict_update(config, yaml.load(fp_, Loader=UnsafeLoader))
@@ -98,7 +104,15 @@ def _get_tle_file(tledirs, tle_file_format, timestamp):
 
 
 def get_tle(tle_dirs, tle_file_format, platform, timestamp=None):
-    """Get the tle from file, if not loaded already."""
+    """Get the tle from file, if not loaded already.
+
+    :tle_dirs: A list of paths where tle-files are located
+    :tle_file_format: The tle-file format pattern
+    :platorm: Satellite platform name
+
+    :return: A pyorbital Tle object
+
+    """
     stamp = platform + timestamp.strftime('-%Y%m%d')
     try:
         tle = TLE_BUFFER[stamp]
@@ -114,6 +128,13 @@ def get_arc(timeobj, delta_t, sat):
 
     It get's the arc defining the sub-satellite track from start time 'timeobj'
     to start time 'timeobj' plus a time step 'delta_t'.
+
+    :timeobj: Start time (datetime object)
+    :delta_t: Time step to add to the start time
+    :sat: Orbital object for the satellite platform
+
+    :return: A Pyresample spherical geometry arc object
+
     """
     # Get the start and end positions:
     pos_start = sat.get_lonlatalt(timeobj - delta_t)

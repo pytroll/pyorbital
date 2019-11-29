@@ -1,9 +1,13 @@
-Finding SNOs for two different platforms
-----------------------------------------
+Finding Simultaneous Nadir Overpasses for two different platforms
+------------------------------------------------------------------
 
 Pyorbital facilitates the identification and calculation of simultaneous nadir
-overpasses (SNOs) for two different platforms.
-
+overpasses (SNOs) for two different platforms. This is for example useful when
+you want to colocate observations in time and space and where the viewing
+conditions are the same (nadir viewing) for both platforms. One example is when
+validating clous parameters derived from Imager sensors like VIIRS, AVHRR or
+MODIS against the active nadir viewing sensors of the Calipso and CloudSat in
+the A-train constellation.
 
 **Example usage:**
 

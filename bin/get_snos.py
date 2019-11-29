@@ -22,7 +22,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Getting SNOs for two configurable satellite platforms."""
+"""Getting SNOs for two configurable satellite platforms.
+
+SNO = Simultaneous Nadir Overpass: When two platforms sub-satellite track nadir
+views cross each other in space and time. One can set a threshold in time
+allowing the times to differ by up to a few minutes.
+
+"""
 
 import sys
 from datetime import datetime, timedelta

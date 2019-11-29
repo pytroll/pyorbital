@@ -26,7 +26,7 @@ import os
 from datetime import timedelta
 from pyorbital.tlefile import Tle
 from pyresample.spherical_geometry import Coordinate, Arc
-
+import math
 import logging
 import yaml
 try:
@@ -123,3 +123,72 @@ def get_arc(timeobj, delta_t, sat):
     coord_end = Coordinate(lon=pos_end[0], lat=pos_end[1])
 
     return Arc(coord_start, coord_end)
+
+
+def get_sno_point(platform_id, cmp_platform, ref_platform, tobj, delta_t,
+                  arc_ref_pltfrm, arc_cmp_platform, station, minute_thr):
+    """Get the SNO point if there is any.
+
+    If the two sub-satellite tracks of the overpasses intersects
+    get the sub-satellite position and time where they cross,
+    and determine if the time deviation is smaller than the require threshold:
+    """
+    intersect = arc_ref_pltfrm.intersection(arc_cmp_platform)
+    point = (math.degrees(intersect.lon),
+             math.degrees(intersect.lat))
+
+    nextp = cmp_platform.get_next_passes(tobj-delta_t,
+                                         2,
+                                         point[0],
+                                         point[1],
+                                         0)
+    if len(nextp) > 0:
+        riset, fallt, maxt = nextp[0]
+    else:
+        LOG.warning("No next passes found for " +
+                    platform_id + "! " + str(nextp))
+        return None
+
+    nextp = ref_platform.get_next_passes(tobj-delta_t,
+                                         2,
+                                         point[0],
+                                         point[1],
+                                         0)
+    if len(nextp) > 0:
+        riset, fallt, maxt_ref_pltfrm = nextp[0]
+    else:
+        LOG.warning("No next passes found! " + str(nextp))
+        return None
+
+    # Get observer look from the specified DR station to the satellite when it
+    # is at zenith over the SNO point:
+    azi, elev = cmp_platform.get_observer_look(maxt,
+                                               station['lon'],
+                                               station['lat'],
+                                               station['alt'])
+
+    is_within_antenna_horizon = (elev > 0.0)
+
+    ref_pltfrmsec = (int(maxt_ref_pltfrm.strftime("%S")) +
+                     int(maxt_ref_pltfrm.strftime("%f"))/1000000.)
+    sec = (int(maxt.strftime("%S")) +
+           int(maxt.strftime("%f"))/1000000.)
+
+    tdelta = (maxt_ref_pltfrm - maxt)
+    tdmin = (tdelta.seconds + tdelta.days * 24*3600) / 60.
+    if abs(tdmin) < minute_thr:
+        orbit_nr = cmp_platform.get_orbit_number(maxt)
+
+        result = {}
+        result['maxt'] = maxt
+        result['maxt_ref_pltfrm'] = maxt_ref_pltfrm
+        result['ref_pltfrmsec'] = ref_pltfrmsec
+        result['sec'] = sec
+        result['is_within_antenna_horizon'] = is_within_antenna_horizon
+        result['tdmin'] = tdmin
+        result['orbit_nr'] = orbit_nr
+        result['point'] = point
+
+        return result
+    else:
+        return None

@@ -26,11 +26,13 @@
 
 import sys
 from datetime import datetime, timedelta
-import math
+
 from pyorbital.orbital import Orbital
 from pyorbital.sno_utils import get_config
 from pyorbital.sno_utils import get_arc
 from pyorbital.sno_utils import get_tle
+from pyorbital.sno_utils import get_sno_point
+
 import logging
 import time
 
@@ -73,12 +75,6 @@ def get_arguments():
                         type=str,
                         default=None,
                         help="The name of the satellite platform")
-    parser.add_argument("-a", "--area-configfile",
-                        required=True,
-                        dest="area_def",
-                        type=str,
-                        default=None,
-                        help="The path to the area configuration file")
     parser.add_argument("-c", "--configfile",
                         required=True,
                         dest="configfile",
@@ -92,74 +88,6 @@ def get_arguments():
 
     args = parser.parse_args()
     return args
-
-
-def get_sno_point(platform_id, cmp_platform, tobj, delta_t, arc_ref_pltfrm, arc_cmp_platform, station):
-    """Get the SNO point if there is any.
-
-    If the two sub-satellite tracks of the overpasses intersects
-    get the sub-satellite position and time where they cross,
-    and determine if the time deviation is smaller than the require threshold:
-    """
-    intersect = arc_ref_pltfrm.intersection(arc_cmp_platform)
-    point = (math.degrees(intersect.lon),
-             math.degrees(intersect.lat))
-
-    nextp = cmp_platform.get_next_passes(tobj-delta_t,
-                                         2,
-                                         point[0],
-                                         point[1],
-                                         0)
-    if len(nextp) > 0:
-        riset, fallt, maxt = nextp[0]
-    else:
-        LOG.warning("No next passes found for " +
-                    platform_id + "! " + str(nextp))
-        return None
-
-    nextp = ref_pltfrm.get_next_passes(tobj-delta_t,
-                                       2,
-                                       point[0],
-                                       point[1],
-                                       0)
-    if len(nextp) > 0:
-        riset, fallt, maxt_ref_pltfrm = nextp[0]
-    else:
-        LOG.warning("No next passes found! " + str(nextp))
-        return None
-
-    # Get observer look from the DR station to the satellite when it is
-    # in at zenith over the SNO point:
-    azi, elev = cmp_platform.get_observer_look(maxt,
-                                               station['lon'],
-                                               station['lat'],
-                                               station['alt'])
-
-    is_within_antenna_horizon = (elev > 0.0)
-
-    ref_pltfrmsec = (int(maxt_ref_pltfrm.strftime("%S")) +
-                     int(maxt_ref_pltfrm.strftime("%f"))/1000000.)
-    sec = (int(maxt.strftime("%S")) +
-           int(maxt.strftime("%f"))/1000000.)
-
-    tdelta = (maxt_ref_pltfrm - maxt)
-    tdmin = (tdelta.seconds + tdelta.days * 24*3600) / 60.
-    if abs(tdmin) < minthr:
-        orbit_nr = cmp_platform.get_orbit_number(maxt)
-
-        result = {}
-        result['maxt'] = maxt
-        result['maxt_ref_pltfrm'] = maxt_ref_pltfrm
-        result['ref_pltfrmsec'] = ref_pltfrmsec
-        result['sec'] = sec
-        result['is_within_antenna_horizon'] = is_within_antenna_horizon
-        result['tdmin'] = tdmin
-        result['orbit_nr'] = orbit_nr
-        result['point'] = point
-
-        return result
-    else:
-        return None
 
 
 if __name__ == "__main__":
@@ -212,18 +140,20 @@ if __name__ == "__main__":
                 # If the two sub-satellite tracks of the overpasses intersects
                 # get the sub-satellite position and time where they cross,
                 # and determine if the time deviation is smaller than the require threshold:
-                sno = get_sno_point(platform_id, cmp_platform, tobj, delta_t, arc_ref_pltfrm,
-                                    arc_cmp_platform, station)
+                sno = get_sno_point(platform_id, cmp_platform, ref_pltfrm,
+                                    tobj, delta_t, arc_ref_pltfrm,
+                                    arc_cmp_platform, station, minthr)
 
                 if sno:
                     print("  " +
-                          str(sno['maxt_ref_pltfrm'].strftime("%Y-%m-%d %H:%M ")) +
-                          "%5.1f" % sno['ref_pltfrmsec'] + " "*5 +
-                          str(sno['maxt'].strftime("%Y-%m-%d %H:%M ")) +
-                          "%5.1f" % sno['sec'] +
-                          " imager-orbit %d " % (sno['orbit_nr'] + 1) +
-                          " "*6 + "%7.2f  %7.2f" % (sno['point'][1], sno['point'][0]) +
-                          "   " + "%4.1f" % abs(sno['tdmin']) + "   " + str(sno['is_within_antenna_horizon'])
+                          str(sno['maxt_ref_pltfrm'].strftime("%Y-%m-%d %H:%M, ")) +
+                          "%5.1f," % sno['ref_pltfrmsec'] + " "*5 +
+                          str(sno['maxt'].strftime("%Y-%m-%d %H:%M, ")) +
+                          "%5.1f," % sno['sec'] +
+                          # " imager-orbit, %d, " % (sno['orbit_nr'] + 1) +
+                          " %d, " % (sno['orbit_nr'] + 1) +
+                          " "*6 + "%7.2f,  %7.2f," % (sno['point'][1], sno['point'][0]) +
+                          "   " + "%4.1f," % abs(sno['tdmin']) + "   " + str(sno['is_within_antenna_horizon'])
                           )
 
         else:

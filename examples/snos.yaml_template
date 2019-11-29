@@ -1,13 +1,10 @@
-area:
-  - arctic_europe_1km
-
 station:
   longitude: 16.1465
   latitude: 58.5780
   altitude: 0.03
 
 tle-dirs:
-  - '/home/a000680/data/tles/2015/201501'
+  - /path/to/tle/files
 
 platform_names:
   - NOAA-18

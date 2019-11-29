@@ -38,11 +38,8 @@ from pyorbital.sno_utils import get_config
 from pyorbital.sno_utils import get_arc
 from pyorbital.sno_utils import get_tle
 from pyorbital.sno_utils import get_sno_point
-
 import logging
-import time
 
-t = time.time()
 LOG = logging.getLogger('snos')
 
 handler = logging.StreamHandler(sys.stderr)
@@ -96,8 +93,8 @@ def get_arguments():
     return args
 
 
-if __name__ == "__main__":
-
+def main():
+    """Find SNOs for the two platforms within the time period given."""
     args = get_arguments()
     conf = get_config(args.configfile)
 
@@ -123,7 +120,6 @@ if __name__ == "__main__":
     tle_ref_pltfrm = None
     tle_cmp_platform = None
     tobj_tmp = time_start
-    is_within_antenna_horizon = False
     while tobj < time_end:
         if not tle_ref_pltfrm or abs(tle_ref_pltfrm.epoch.astype(datetime) - tobj) > timedelta(days=1):
             tle_ref_pltfrm = get_tle(tle_dirs, tle_file_format, ref_platform_name, tobj)
@@ -169,3 +165,7 @@ if __name__ == "__main__":
         if tobj - tobj_tmp > timedelta(days=1):
             tobj_tmp = tobj
             LOG.debug(tobj_tmp.strftime("%Y-%m-%d"))
+
+
+if __name__ == "__main__":
+    main()

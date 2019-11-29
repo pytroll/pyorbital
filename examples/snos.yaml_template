@@ -1,11 +1,18 @@
+# The position of a Direct Readout station of interest.  It is not necessary to
+# change this in order to calculate the SNOs, but if/when set the sno-script
+# will mark those crossings where the (imager) satellite is within the
+# reception horizon (makred=True).
 station:
   longitude: 16.1465
   latitude: 58.5780
   altitude: 0.03
 
+# Here a list of directories can be given, to determine where to look up the
+# TLE files covering the time period of interest.
 tle-dirs:
   - /path/to/tle/files
 
+# The platform names supported.
 platform_names:
   - NOAA-18
   - NOAA-19
@@ -14,9 +21,11 @@ platform_names:
   - Metop-B
   - Metop-C
 
+# The format of tle filenames.
 tle-file-format: 'tle-%Y%m%d.txt'
 
-# Reference platform is usually Calipso or Aqua for a proxy of the A-train Calipso/Cloudsat
+# Reference platform is usually Calipso or Aqua for a proxy of the A-train
+# Calipso/Cloudsat
 reference_platform:
   name: EOS-Aqua
   

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2014 Martin Raspaud
+# Copyright (c) 2014, 2019 Martin Raspaud
 
 # Author(s):
 
@@ -19,15 +19,15 @@
 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""The tests package."""
+"""Test the pyorbital package."""
 
 from pyorbital.tests import (test_aiaa, test_tlefile, test_orbital,
-                             test_astronomy, test_geoloc)
+                             test_astronomy, test_geoloc, test_snos)
 import unittest
 
 
 def suite():
-    """The global test suite."""
+    """Test the Pyorbital package."""
     mysuite = unittest.TestSuite()
     # Test the documentation strings
     # mysuite.addTests(doctest.DocTestSuite(image))
@@ -37,6 +37,7 @@ def suite():
     mysuite.addTests(test_orbital.suite())
     mysuite.addTests(test_astronomy.suite())
     mysuite.addTests(test_geoloc.suite())
+    mysuite.addTests(test_snos.suite())
     return mysuite
 
 

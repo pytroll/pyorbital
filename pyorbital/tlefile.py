@@ -48,7 +48,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def read_platform_numbers(in_upper=False, num_as_int=False):
-    """Read platform numbers from $PPP_CONFIG_DIR/platforms.txt if available."""
+    """Read platform numbers from $PPP_CONFIG_DIR/platforms.txt."""
     out_dict = {}
     if "PPP_CONFIG_DIR" in os.environ:
         platform_file = os.path.join(os.environ["PPP_CONFIG_DIR"],
@@ -281,7 +281,8 @@ class Tle(object):
 
 
 PLATFORM_NAMES_TABLE = "(satid text primary key, platform_name text)"
-SATID_TABLE = "'{}' (epoch date primary key, tle text, insertion_time date, source text)"
+SATID_TABLE = ("'{}' (epoch date primary key, tle text, insertion_time date,"
+               " source text)")
 SATID_VALUES = "INSERT INTO '{}' VALUES (?, ?, ?, ?)"
 PLATFORM_VALUES = "INSERT INTO platform_names VALUES (?, ?)"
 
@@ -308,8 +309,9 @@ class Downloader(object):
                     else:
                         failures.append(uri)
                 if len(failures) > 0:
-                    logging.error("Could not fetch TLEs from %s, %d failure(s): [%s]",
-                                  source, len(failures), ', '.join(failures))
+                    logging.error(
+                        "Could not fetch TLEs from %s, %d failure(s): [%s]",
+                        source, len(failures), ', '.join(failures))
                 logging.info("Downloaded %d TLEs from %s",
                              len(tles[source]), source)
         return tles
@@ -447,7 +449,8 @@ class SQLiteTLE(object):
 
     def write_tle_txt(self):
         """Write TLE data to a text file."""
-        if not self.updated and not self.writer_config.get('write_always', False):
+        if not self.updated and not self.writer_config.get('write_always',
+                                                           False):
             return
         pattern = os.path.join(self.writer_config["output_dir"],
                                self.writer_config["filename_pattern"])

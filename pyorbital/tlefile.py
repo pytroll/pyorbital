@@ -361,6 +361,7 @@ class Downloader(object):
                 fnames += glob.glob(path)
             else:
                 if not os.path.exists(path):
+                    logging.error("File %s doesn't exist.", path)
                     continue
                 fnames += [path]
 

@@ -9,6 +9,7 @@ import logging.config
 import yaml
 from pyorbital.tlefile import Downloader, SQLiteTLE
 
+
 def read_config(config_fname):
     """Read and parse config file."""
     with open(config_fname, 'r') as fid:

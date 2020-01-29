@@ -375,11 +375,7 @@ class Downloader(object):
         return tles
 
     def parse_tles(self, raw_data):
-        """Parse all the TLEs in the given raw text data.
-
-        Return only the platforms that are configured.
-
-        """
+        """Parse all the TLEs in the given raw text data."""
         tles = []
         line1, line2 = None, None
         raw_data = raw_data.split('\n')

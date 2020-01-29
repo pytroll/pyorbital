@@ -1,27 +1,28 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+#
 # Copyright (c) 2011 - 2018
-
+#
 # Author(s):
-
+#
 #   Esben S. Nielsen <esn@dmi.dk>
 #   Martin Raspaud <martin.raspaud@smhi.se>
 #   Panu Lahtinen <panu.lahtinen@fmi.fi>
-
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""Classes and functions for handling TLE files."""
 
 import io
 import logging
@@ -45,9 +46,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def read_platform_numbers(in_upper=False, num_as_int=False):
-    '''Read platform numbers from $PPP_CONFIG_DIR/platforms.txt if available.
-    '''
-
+    """Read platform numbers from $PPP_CONFIG_DIR/platforms.txt if available."""
     out_dict = {}
     if "PPP_CONFIG_DIR" in os.environ:
         platform_file = os.path.join(os.environ["PPP_CONFIG_DIR"],
@@ -74,27 +73,29 @@ def read_platform_numbers(in_upper=False, num_as_int=False):
 
 
 SATELLITES = read_platform_numbers(in_upper=True, num_as_int=False)
-'''
+"""
 The platform numbers are given in a file $PPP_CONFIG/platforms.txt
 in the following format:
 
 .. literalinclude:: ../../etc/platforms.txt
   :language: text
   :lines: 4-
-'''
+"""
 
 
 def read(platform, tle_file=None, line1=None, line2=None):
-    """Read TLE for *satellite* from *tle_file*, from *line1* and *line2*, from
-   the newest file provided in the TLES pattern, or from internet if none is
-   provided.
-   """
+    """Read TLE for *platform*.
+
+    The data are read from *tle_file*, from *line1* and *line2*, from
+    the newest file provided in the TLES pattern, or from internet if
+    none is provided.
+
+    """
     return Tle(platform, tle_file=tle_file, line1=line1, line2=line2)
 
 
 def fetch(destination):
-    """fetch TLE from internet and save it to *destination*.
-   """
+    """Fetch TLE from internet and save it to *destination*."""
     with io.open(destination, mode="w", encoding="utf-8") as dest:
         for url in TLE_URLS:
             response = urlopen(url)
@@ -102,18 +103,16 @@ def fetch(destination):
 
 
 class ChecksumError(Exception):
+    """ChecksumError."""
 
-    '''ChecksumError.
-    '''
     pass
 
 
 class Tle(object):
-
-    """Class holding TLE objects.
-   """
+    """Class holding TLE objects."""
 
     def __init__(self, platform, tle_file=None, line1=None, line2=None):
+        """Init."""
         self._platform = platform.strip().upper()
         self._tle_file = tle_file
         self._line1 = line1
@@ -146,22 +145,21 @@ class Tle(object):
 
     @property
     def line1(self):
-        '''Return first TLE line.'''
+        """Return first TLE line."""
         return self._line1
 
     @property
     def line2(self):
-        '''Return second TLE line.'''
+        """Return second TLE line."""
         return self._line2
 
     @property
     def platform(self):
-        '''Return satellite platform name.'''
+        """Return satellite platform name."""
         return self._platform
 
     def _checksum(self):
-        """Performs the checksum for the current TLE.
-        """
+        """Calculate checksum for the current TLE."""
         for line in [self._line1, self._line2]:
             check = 0
             for char in line[:-1]:
@@ -174,9 +172,7 @@ class Tle(object):
                 raise ChecksumError(self._platform + " " + line)
 
     def _read_tle(self):
-        '''Read TLE data.
-        '''
-
+        """Read TLE data."""
         if self._line1 is not None and self._line2 is not None:
             tle = self._line1.strip() + "\n" + self._line2.strip()
         else:
@@ -228,11 +224,9 @@ class Tle(object):
         self._line1, self._line2 = tle.split('\n')
 
     def _parse_tle(self):
-        '''Parse values from TLE data.
-        '''
+        """Parse values from TLE data."""
         def _read_tle_decimal(rep):
-            '''Convert *rep* to decimal value.
-            '''
+            """Convert *rep* to decimal value."""
             if rep[0] in ["-", " ", "+"]:
                 digits = rep[1:-2].strip()
                 val = rep[0] + "." + digits + "e" + rep[-2:]
@@ -270,6 +264,7 @@ class Tle(object):
         self.orbit = int(self._line2[63:68])
 
     def __str__(self):
+        """Format the class data for printing."""
         import pprint
         import sys
         if sys.version_info < (3, 0):
@@ -284,8 +279,7 @@ class Tle(object):
 
 
 def main():
-    '''Main for testing TLE reading.
-    '''
+    """Run a test TLE reading."""
     tle_data = read('Noaa-19')
     print(tle_data)
 

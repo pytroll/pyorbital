@@ -362,7 +362,7 @@ class Downloader(object):
             else:
                 if not os.path.exists(path):
                     continue
-                fnames += path
+                fnames += [path]
 
         tles = []
         for fname in fnames:

@@ -227,6 +227,29 @@ class TestDownloader(unittest.TestCase):
         self.assertEqual(res[0].line1, line1)
         self.assertEqual(res[0].line2, line2)
 
+    def test_parse_tles(self):
+        """Test TLE parsing."""
+        tle_text = '\n'.join((line0, line1, line2))
+
+        # Valid data
+        res = self.dl.parse_tles(tle_text)
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0].line1, line1)
+        self.assertEqual(res[0].line2, line2)
+
+        # Only one valid line
+        res = self.dl.parse_tles(line1 + '\nbar')
+        self.assertTrue(res == [])
+
+        # Valid start of the lines, but bad data
+        res = self.dl.parse_tles('1 foo\n2 bar')
+        self.assertTrue(res == [])
+
+        # Something wrong in the data
+        bad_line2 = '2 ' + 'x' * (len(line2)-2)
+        res = self.dl.parse_tles('\n'.join((line1, bad_line2)))
+        self.assertTrue(res == [])
+
 
 def suite():
     """Create the test suite for test_tlefile."""

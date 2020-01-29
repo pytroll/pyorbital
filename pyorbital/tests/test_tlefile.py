@@ -1,27 +1,27 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+#
 # Copyright (c) 2014 Martin Raspaud
-
+#
 # Author(s):
-
+#
 #   Martin Raspaud <martin.raspaud@smhi.se>
-
+#   Panu Lahtinen <panu.lahtinen@fmi.fi>
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Testing TLE file reading
-"""
+"""Test TLE file reading, TLE downloading and stroging TLEs to database."""
 
 
 from pyorbital.tlefile import Tle
@@ -31,7 +31,6 @@ import unittest
 line0 = "ISS (ZARYA)"
 line1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
 line2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537"
-
 
 
 class TLETest(unittest.TestCase):
@@ -46,8 +45,7 @@ class TLETest(unittest.TestCase):
     """
 
     def check_example(self, tle):
-        """Check the *tle* instance against predetermined values.
-        """
+        """Check the *tle* instance against predetermined values."""
         # line 1
         self.assertEqual(tle.satnumber, "25544")
         self.assertEqual(tle.classification, "U")
@@ -75,10 +73,12 @@ class TLETest(unittest.TestCase):
         self.assertEqual(tle.orbit, 56353)
 
     def test_from_line(self):
+        """Test parsing from line elements."""
         tle = Tle("ISS (ZARYA)", line1=line1, line2=line2)
         self.check_example(tle)
 
     def test_from_file(self):
+        """Test reading and parsing from a file."""
         from tempfile import mkstemp
         from os import write, close, remove
         filehandle, filename = mkstemp()
@@ -92,11 +92,9 @@ class TLETest(unittest.TestCase):
 
 
 def suite():
-    """The suite for test_tlefile
-    """
+    """Create the test suite for test_tlefile."""
     loader = unittest.TestLoader()
     mysuite = unittest.TestSuite()
     mysuite.addTest(loader.loadTestsFromTestCase(TLETest))
 
     return mysuite
-

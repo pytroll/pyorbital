@@ -153,6 +153,54 @@ class TestDownloader(unittest.TestCase):
         self.assertTrue(mock.call("mocked_url_1") in requests.get.mock_calls)
         self.assertEqual(len(requests.get.mock_calls), 4)
 
+    @mock.patch('pyorbital.tlefile.requests')
+    def test_fetch_spacetrack(self, requests):
+        """Test downloading and TLEs from space-track.org."""
+        mock_post = mock.MagicMock()
+        mock_get = mock.MagicMock()
+        mock_session = mock.MagicMock()
+        mock_session.post = mock_post
+        mock_session.get = mock_get
+        requests.Session.return_value.__enter__.return_value = mock_session
+
+        tle_text = '\n'.join((line0, line1, line2))
+        self.dl.config["platforms"] = {
+            25544: 'ISS'
+        }
+        self.dl.config["downloaders"] = {
+            "fetch_spacetrack": {
+                "user": "username",
+                "password": "passw0rd"
+            }
+        }
+
+        # Login fails, because the server is a teapot
+        mock_post.return_value.status_code = 418
+        res = self.dl.fetch_spacetrack()
+        # Empty list of TLEs is returned
+        self.assertTrue(res == [])
+        # The login was anyway attempted
+        mock_post.assert_called_with(
+            'https://www.space-track.org/ajaxauth/login',
+            data={'identity': 'username', 'password': 'passw0rd'})
+
+        # Login works, but something is wrong (teapot) when asking for data
+        mock_post.return_value.status_code = 200
+        mock_get.return_value.status_code = 418
+        res = self.dl.fetch_spacetrack()
+        self.assertTrue(res == [])
+        mock_get.assert_called_with("https://www.space-track.org/"
+                                    "basicspacedata/query/class/tle_latest/"
+                                    "ORDINAL/1/NORAD_CAT_ID/25544/format/tle")
+
+        # Data is received
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.text = tle_text
+        res = self.dl.fetch_spacetrack()
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0].line1, line1)
+        self.assertEqual(res[0].line2, line2)
+
 
 def suite():
     """Create the test suite for test_tlefile."""

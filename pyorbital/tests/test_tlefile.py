@@ -201,6 +201,32 @@ class TestDownloader(unittest.TestCase):
         self.assertEqual(res[0].line1, line1)
         self.assertEqual(res[0].line2, line2)
 
+    def test_read_tle_files(self):
+        """Test reading TLE files from a file system."""
+        from tempfile import TemporaryDirectory
+        import os
+
+        tle_text = '\n'.join((line0, line1, line2))
+
+        save_dir = TemporaryDirectory()
+        with save_dir:
+            fname = os.path.join(save_dir.name, 'tle_20200129_1600.txt')
+            with open(fname, 'w') as fid:
+                fid.write(tle_text)
+            # Add a non-existent file, it shouldn't cause a crash
+            nonexistent = os.path.join(save_dir.name, 'not_here.txt')
+            # Use a wildcard to collect files (passed to glob)
+            starred_fname = os.path.join(save_dir.name, 'tle*txt')
+            self.dl.config["downloaders"] = {
+                "read_tle_files": {
+                    "paths": [fname, nonexistent, starred_fname]
+                }
+            }
+            res = self.dl.read_tle_files()
+        self.assertEqual(len(res), 2)
+        self.assertEqual(res[0].line1, line1)
+        self.assertEqual(res[0].line2, line2)
+
 
 def suite():
     """Create the test suite for test_tlefile."""

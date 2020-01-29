@@ -27,6 +27,7 @@
 from pyorbital.tlefile import Tle
 import datetime
 import unittest
+from unittest import mock
 
 line0 = "ISS (ZARYA)"
 line1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
@@ -91,10 +92,73 @@ class TLETest(unittest.TestCase):
             remove(filename)
 
 
+class TestDownloader(unittest.TestCase):
+    """Test TLE downloader."""
+
+    def setUp(self):
+        """Create a downloader instance."""
+        from pyorbital.tlefile import Downloader
+        self.config = {}
+        self.dl = Downloader(self.config)
+
+    def test_init(self):
+        """Test the initialization."""
+        assert self.dl.config is self.config
+
+    @mock.patch('pyorbital.tlefile.requests')
+    def test_fetch_plain_tle(self, requests):
+        """Test downloading and a TLE file from internet."""
+        requests.get = mock.MagicMock()
+        # The return value of requests.get()
+        req = mock.MagicMock()
+        req.status_code = 200
+        req.text = '\n'.join((line0, line1, line2))
+        requests.get.return_value = req
+
+        # Not configured
+        self.dl.config["downloaders"] = {}
+        res = self.dl.fetch_plain_tle()
+        self.assertTrue(res == {})
+        requests.get.assert_not_called()
+
+        # Two sources, one with multiple locations
+        self.dl.config["downloaders"] = {
+            "fetch_plain_tle": {
+                "source_1": ["mocked_url_1", "mocked_url_2", "mocked_url_3"],
+                "source_2": ["mocked_url_4"]
+            }
+        }
+        res = self.dl.fetch_plain_tle()
+        self.assertTrue("source_1" in res)
+        self.assertEqual(len(res["source_1"]), 3)
+        self.assertEqual(res["source_1"][0].line1, line1)
+        self.assertEqual(res["source_1"][0].line2, line2)
+        self.assertTrue("source_2" in res)
+        self.assertEqual(len(res["source_2"]), 1)
+        self.assertTrue(mock.call("mocked_url_1") in requests.get.mock_calls)
+        self.assertEqual(len(requests.get.mock_calls), 4)
+
+        # Reset mocks
+        requests.get.reset_mock()
+        req.reset_mock()
+
+        # No data returned because the server is a teapot
+        req.status_code = 418
+        res = self.dl.fetch_plain_tle()
+        # The sources are in the dict ...
+        self.assertEqual(len(res), 2)
+        # ... but there are no TLEs
+        self.assertEqual(len(res["source_1"]), 0)
+        self.assertEqual(len(res["source_2"]), 0)
+        self.assertTrue(mock.call("mocked_url_1") in requests.get.mock_calls)
+        self.assertEqual(len(requests.get.mock_calls), 4)
+
+
 def suite():
     """Create the test suite for test_tlefile."""
     loader = unittest.TestLoader()
     mysuite = unittest.TestSuite()
     mysuite.addTest(loader.loadTestsFromTestCase(TLETest))
+    mysuite.addTest(loader.loadTestsFromTestCase(TestDownloader))
 
     return mysuite

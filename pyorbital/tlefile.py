@@ -488,13 +488,6 @@ def table_exists(db, name):
     return db.execute(query, (name,)).fetchone() is not None
 
 
-def value_exists(db, table, name):
-    """Check if the table 'name' exists in the database."""
-    name = str(name)
-    query = "SELECT 1 FROM sqlite_master WHERE type='table' and name=?"
-    return db.execute(query, (name,)).fetchone() is not None
-
-
 def main():
     """Run a test TLE reading."""
     tle_data = read('Noaa-19')

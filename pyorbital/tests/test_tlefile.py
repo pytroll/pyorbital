@@ -28,6 +28,7 @@ from pyorbital.tlefile import Tle
 import datetime
 import unittest
 from unittest import mock
+import os
 
 line0 = "ISS (ZARYA)"
 line1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
@@ -251,11 +252,166 @@ class TestDownloader(unittest.TestCase):
         self.assertTrue(res == [])
 
 
+class TestSQLiteTLE(unittest.TestCase):
+    """Test saving TLE data to a SQLite database."""
+
+    def setUp(self):
+        """Create a database instance."""
+        from pyorbital.tlefile import SQLiteTLE
+        from pyorbital.tlefile import Tle
+        from tempfile import TemporaryDirectory
+
+        self.temp_dir = TemporaryDirectory()
+        self.db_fname = os.path.join(self.temp_dir.name, 'tle.db')
+        self.platforms = {25544: "ISS"}
+        self.writer_config = {
+            "output_dir": os.path.join(self.temp_dir.name, 'tle_dir'),
+            "filename_pattern": "tle_%Y%m%d_%H%M%S.%f.txt",
+            "write_name": True,
+            "write_always": False
+        }
+        self.db = SQLiteTLE(self.db_fname, self.platforms, self.writer_config)
+        self.tle = Tle('ISS', line1=line1, line2=line2)
+
+    def tearDown(self):
+        """Clean temporary files."""
+        self.temp_dir.cleanup()
+
+    def test_init(self):
+        """Test that the init did what it should have."""
+        from pyorbital.tlefile import table_exists, PLATFORM_NAMES_TABLE
+
+        columns = [col.strip() for col in
+                   PLATFORM_NAMES_TABLE.strip('()').split(',')]
+        num_columns = len(columns)
+
+        self.assertTrue(os.path.exists(self.db_fname))
+        self.assertTrue(table_exists(self.db.db, "platform_names"))
+        res = self.db.db.execute('select * from platform_names')
+        names = [description[0] for description in res.description]
+        self.assertEqual(len(names), num_columns)
+        for col in columns:
+            self.assertTrue(col.split(' ')[0] in names)
+
+    def test_update_db(self):
+        """Test updating database with new data."""
+        from pyorbital.tlefile import table_exists, SATID_TABLE
+
+        # Get the column names
+        columns = [col.strip() for col in
+                   SATID_TABLE.replace("'{}' (", "").strip(')').split(',')]
+        # Platform number
+        satid = str(list(self.platforms.keys())[0])
+
+        # Data from a platform that isn't configured
+        self.db.platforms = {}
+        self.db.update_db(self.tle, 'foo')
+        self.assertFalse(table_exists(self.db.db, satid))
+        self.assertFalse(self.db.updated)
+
+        # Configured platform
+        self.db.platforms = self.platforms
+        self.db.update_db(self.tle, 'foo')
+        self.assertTrue(table_exists(self.db.db, satid))
+        self.assertTrue(self.db.updated)
+
+        # Check that all the columns were added
+        res = self.db.db.execute("select * from '%s'" % satid)
+        names = [description[0] for description in res.description]
+        for col in columns:
+            self.assertTrue(col.split(' ')[0] in names)
+
+        # Check the data
+        data = res.fetchall()
+        self.assertEqual(len(data), 1)
+        # epoch
+        self.assertEqual(data[0][0], '2008-09-20T12:25:40.104192')
+        # TLE
+        self.assertEqual(data[0][1], '\n'.join((line1, line2)))
+        # Date when the data were added should be close to current time
+        date_added = datetime.datetime.strptime(data[0][2],
+                                                "%Y-%m-%dT%H:%M:%S.%f")
+        now = datetime.datetime.utcnow()
+        self.assertTrue((now - date_added).total_seconds() < 1.0)
+        # Source of the data
+        self.assertTrue(data[0][3] == 'foo')
+
+        # Try to add the same data again. Nothing should change even
+        # if the source is different if the epoch is the same
+        self.db.update_db(self.tle, 'bar')
+        res = self.db.db.execute("select * from '%s'" % satid)
+        data = res.fetchall()
+        self.assertEqual(len(data), 1)
+        date_added2 = datetime.datetime.strptime(data[0][2],
+                                                 "%Y-%m-%dT%H:%M:%S.%f")
+        self.assertEqual(date_added, date_added2)
+        # Source of the data
+        self.assertTrue(data[0][3] == 'foo')
+
+    def test_write_tle_txt(self):
+        """Test reading data from the database and writing it to a file."""
+        import glob
+        tle_dir = self.writer_config["output_dir"]
+
+        # Put some data in the database
+        self.db.update_db(self.tle, 'foo')
+
+        # Fake that the database hasn't been updated
+        self.db.updated = False
+
+        # Try to dump the data to disk
+        self.db.write_tle_txt()
+
+        # The output dir hasn't been created
+        self.assertFalse(os.path.exists(tle_dir))
+
+        self.db.updated = True
+        self.db.write_tle_txt()
+
+        # The dir should be there
+        self.assertTrue(os.path.exists(tle_dir))
+        # There should be one file in the directory
+        files = glob.glob(os.path.join(tle_dir, 'tle_*txt'))
+        self.assertEqual(len(files), 1)
+        # The file should have been named with the date ('%' characters
+        # not there anymore)
+        self.assertTrue('%' not in files[0])
+        # The satellite name should be in the file
+        with open(files[0], 'r') as fid:
+            data = fid.read().split('\n')
+        self.assertEqual(len(data), 3)
+        self.assertTrue('ISS' in data[0])
+        self.assertEqual(data[1], line1)
+        self.assertEqual(data[2], line2)
+
+        # Call the writing again, nothing should be written. In
+        # real-life this assumes a re-run has been done without new
+        # TLE data
+        self.db.updated = False
+        self.db.write_tle_txt()
+        files = glob.glob(os.path.join(tle_dir, 'tle_*txt'))
+        self.assertEqual(len(files), 1)
+
+        # Force writing with every call
+        # Do not write the satellite name
+        self.db.writer_config["write_always"] = True
+        self.db.writer_config["write_name"] = False
+        self.db.write_tle_txt()
+        files = sorted(glob.glob(os.path.join(tle_dir, 'tle_*txt')))
+        self.assertEqual(len(files), 2)
+        with open(files[1], 'r') as fid:
+            data = fid.read().split('\n')
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0], line1)
+        self.assertEqual(data[1], line2)
+
+
 def suite():
     """Create the test suite for test_tlefile."""
     loader = unittest.TestLoader()
     mysuite = unittest.TestSuite()
     mysuite.addTest(loader.loadTestsFromTestCase(TLETest))
     mysuite.addTest(loader.loadTestsFromTestCase(TestDownloader))
+    mysuite.addTest(loader.loadTestsFromTestCase(TestSQLiteTLE))
 
     return mysuite

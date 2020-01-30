@@ -295,6 +295,7 @@ SATID_TABLE = ("'{}' (epoch date primary key, tle text, insertion_time date,"
                " source text)")
 SATID_VALUES = "INSERT INTO '{}' VALUES (?, ?, ?, ?)"
 PLATFORM_VALUES = "INSERT INTO platform_names VALUES (?, ?)"
+ISO_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f"
 
 
 class Downloader(object):
@@ -478,8 +479,14 @@ class SQLiteTLE(object):
         for satid, platform_name in self.platforms.items():
             if self.writer_config.get("write_name", False):
                 data.append(platform_name)
-            query = "SELECT tle FROM '%s' ORDER BY epoch DESC LIMIT 1" % satid
-            tle = self.db.execute(query).fetchone()[0]
+            query = ("SELECT epoch, tle FROM '%s' ORDER BY "
+                     "epoch DESC LIMIT 1" % satid)
+            epoch, tle = self.db.execute(query).fetchone()
+            date_epoch = dt.datetime.strptime(epoch, ISO_TIME_FORMAT)
+            tle_age = (
+                dt.datetime.utcnow() - date_epoch).total_seconds() / 3600.
+            logging.info("Latest TLE for '%s' (%s) is %d hours old.",
+                         satid, platform_name, int(tle_age))
             data.append(tle)
 
         with open(fname, 'w') as fid:

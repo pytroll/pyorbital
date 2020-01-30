@@ -439,7 +439,7 @@ class SQLiteTLE(object):
         cmd = SATID_VALUES.format(num)
         epoch = tle.epoch.item().isoformat()
         tle = '\n'.join([tle.line1, tle.line2])
-        now = dt.datetime.utcnow()
+        now = dt.datetime.utcnow().isoformat()
         try:
             with self.db:
                 self.db.execute(cmd, (epoch, tle, now, source))

@@ -391,8 +391,9 @@ class Downloader(object):
                 try:
                     tle = Tle('', line1=line1, line2=line2)
                 except ValueError:
-                    logging.warning("Invalid data found - line1: %s, line2: %s",
-                                    line1, line2)
+                    logging.warning(
+                        "Invalid data found - line1: %s, line2: %s",
+                        line1, line2)
                 else:
                     tles.append(tle)
                 line1, line2 = None, None

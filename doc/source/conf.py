@@ -17,7 +17,7 @@ import os
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-#sys.path.insert(0, os.path.abspath('.'))
+
 sys.path.insert(0, os.path.abspath('../../'))
 sys.path.insert(0, os.path.abspath('../../pyorbital'))
 from pyorbital import __version__  # noqa
@@ -45,7 +45,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'pyorbital'
-copyright = u'2012-2015, The Pytroll crew'
+copyright = u'2012-2015, 2018, The Pytroll crew'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

@@ -19,28 +19,26 @@
 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-"""The tests package.
-"""
+"""The tests package."""
 
 from pyorbital.tests import (test_aiaa, test_tlefile, test_orbital,
                              test_astronomy, test_geoloc)
 import unittest
 
+
 def suite():
-    """The global test suite.
-    """
+    """The global test suite."""
     mysuite = unittest.TestSuite()
     # Test the documentation strings
-    #mysuite.addTests(doctest.DocTestSuite(image))
+    # mysuite.addTests(doctest.DocTestSuite(image))
     # Use the unittests also
     mysuite.addTests(test_aiaa.suite())
     mysuite.addTests(test_tlefile.suite())
     mysuite.addTests(test_orbital.suite())
     mysuite.addTests(test_astronomy.suite())
     mysuite.addTests(test_geoloc.suite())
-    
     return mysuite
+
 
 if __name__ == '__main__':
     unittest.TextTestRunner(verbosity=2).run(suite())

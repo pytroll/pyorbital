@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013 - 2018 PyTroll Community
+# Copyright (c) 2013 - 2019 PyTroll Community
 
 # Author(s):
 
@@ -156,7 +156,7 @@ def viirs(scans_nb, scan_indices=slice(0, None),
     """
 
     entire_width = np.arange(chn_pixels)
-    scan_points = entire_width[scan_indices]
+    scan_points = entire_width[scan_indices.astype('int')]
     scan_pixels = len(scan_points)
 
     ''' initial angle 55.84 deg replaced with 56.28 deg found in
@@ -209,14 +209,14 @@ def viirs_edge_geom(scans_nb):
 #
 ################################################################
 
-def amsua(scans_nb, edges_only=False):
+def amsua(scans_nb, scan_points=None):
     """ Describe AMSU-A instrument geometry
 
     Parameters:
        scans_nb | int -  number of scan lines
 
      Keywords:
-     * edges_only - use only edge pixels
+     * scan_points - FIXME!
 
     Returns:
        pyorbital.geoloc.ScanGeometry object
@@ -229,9 +229,7 @@ def amsua(scans_nb, edges_only=False):
     sampling_interval = 0.2  # single view, seconds
     sync_time = 0.00355  # delay before the actual scan starts
 
-    if edges_only:
-        scan_points = np.array([0, scan_len - 1])
-    else:
+    if scan_points is None:
         scan_points = np.arange(0, scan_len)
 
     # build the instrument (scan angles)
@@ -250,29 +248,27 @@ def amsua(scans_nb, edges_only=False):
     return ScanGeometry(samples, times)
 
 
-def amsua_edge_geom(scans_nb):
-    # we take only edge pixels
-    return amsua(scans_nb, edges_only=True)
-
-
 ################################################################
 #
 #   MHS
 #
 ################################################################
 
-def mhs(scans_nb, edges_only=False):
+def mhs(scans_nb, scan_points=None):
     """ Describe MHS instrument geometry
+
     See:
+
     - https://www.eumetsat.int/website/home/Satellites/CurrentSatellites/Metop/MetopDesign/MHS/index.html
-    - https://www1.ncdc.noaa.gov/pub/data/satellite/publications/podguides/N-15%20thru%20N-19/pdf/0.0%20NOAA%20KLM%20Users%20Guide.pdf
+    - https://www1.ncdc.noaa.gov/pub/data/satellite/publications/podguides/
+          N-15%20thru%20N-19/pdf/0.0%20NOAA%20KLM%20Users%20Guide.pdf
       (NOAA KLM Users Guide –August 2014 Revision)
 
     Parameters:
        scans_nb | int -  number of scan lines
 
      Keywords:
-     * edges_only - use only edge pixels
+     * scan_points - FIXME!
 
     Returns:
        pyorbital.geoloc.ScanGeometry object
@@ -283,30 +279,32 @@ def mhs(scans_nb, edges_only=False):
     scan_rate = 8 / 3.  # single scan, seconds
     scan_angle = -49.444  # swath, degrees
     sampling_interval = (8 / 3. - 1) / 90.  # single view, seconds
+    sync_time = 0.0  # delay before the actual scan starts - don't know! FIXME!
 
-    if edges_only:
-        scan_points = np.array([0, scan_len - 1])
-    else:
+    if scan_points is None:
         scan_points = np.arange(0, scan_len)
 
     # build the instrument (scan angles)
-    samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1)
-                         * np.deg2rad(scan_angle),
+    samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1) * np.deg2rad(scan_angle),
                          np.zeros((len(scan_points),))))
     samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
 
     # building the corresponding times array
     offset = np.arange(scans_nb) * scan_rate
-    times = (np.tile(scan_points * sampling_interval, [np.int(scans_nb), 1])
-             + np.expand_dims(offset, 1))
+    times = (np.tile(scan_points * sampling_interval + sync_time, [np.int(scans_nb), 1]) + np.expand_dims(offset, 1))
+
+    # scan_angles = np.linspace(-np.deg2rad(scan_angle), np.deg2rad(scan_angle), scan_len)[scan_points]
+
+    # samples = np.vstack((scan_angles, np.zeros(len(scan_points) * 1,)))
+    # samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+
+    # # building the corresponding times array
+    # offset = np.arange(scans_nb) * scan_rate
+    # times = (np.tile(scan_points * sampling_interval, [np.int(scans_nb), 1])
+    #          + np.expand_dims(offset, 1))
 
     # build the scan geometry object
     return ScanGeometry(samples, times)
-
-
-def mhs_edge_geom(scans_nb):
-    # we take only edge pixels
-    return mhs(scans_nb, edges_only=True)
 
 
 ################################################################
@@ -315,18 +313,20 @@ def mhs_edge_geom(scans_nb):
 #
 ################################################################
 
-def hirs4(scans_nb, edges_only=False):
-    """ Describe HIRS/4 instrument geometry
+def hirs4(scans_nb, scan_points=None):
+    """Describe HIRS/4 instrument geometry.
+
     See:
     - https://www.eumetsat.int/website/home/Satellites/CurrentSatellites/Metop/MetopDesign/HIRS/index.html
-    - https://www1.ncdc.noaa.gov/pub/data/satellite/publications/podguides/N-15%20thru%20N-19/pdf/0.0%20NOAA%20KLM%20Users%20Guide.pdf
+    - https://www1.ncdc.noaa.gov/pub/data/satellite/publications/podguides/
+          N-15%20thru%20N-19/pdf/0.0%20NOAA%20KLM%20Users%20Guide.pdf
       (NOAA KLM Users Guide –August 2014 Revision)
 
     Parameters:
        scans_nb | int -  number of scan lines
 
      Keywords:
-     * edges_only - use only edge pixels
+     * scan_points - FIXME!
 
     Returns:
        pyorbital.geoloc.ScanGeometry object
@@ -338,9 +338,7 @@ def hirs4(scans_nb, edges_only=False):
     scan_angle = -49.5  # swath, degrees
     sampling_interval = abs(scan_rate) / scan_len  # single view, seconds
 
-    if edges_only:
-        scan_points = np.array([0, scan_len - 1])
-    else:
+    if scan_points is None:
         scan_points = np.arange(0, scan_len)
 
     # build the instrument (scan angles)
@@ -358,28 +356,27 @@ def hirs4(scans_nb, edges_only=False):
     return ScanGeometry(samples, times)
 
 
-def hirs4_edge_geom(scans_nb):
-    # we take only edge pixels
-    return hirs4(scans_nb, edges_only=True)
-
-
 ################################################################
 #
 #   ATMS
 #
 ################################################################
 
-def atms(scans_nb, edges_only=False):
-    """ Describe MHS instrument geometry
+def atms(scans_nb, scan_points=None):
+    """ Describe ATMS instrument geometry
     See:
-    https://dtcenter.org/com-GSI/users/docs/presentations/2013_workshop/Garrett_GSI_2013.pdf (Assimilation of Suomi-NPP ATMS, Kevin Garrett et al., August 8, 2013)
-    https://www.star.nesdis.noaa.gov/star/documents/meetings/2016JPSSAnnual/S4/S4_13_JPSSScience2016_session4Part2_ATMS_Scan_Reversal_HYANG.pdf (Suomi NPP ATMS Scan Reversal Study, Hu (Tiger) Yang, NOAA/STAR ATMS SDR Working Group)
+
+    - https://dtcenter.org/com-GSI/users/docs/presentations/2013_workshop/
+          Garrett_GSI_2013.pdf (Assimilation of Suomi-NPP ATMS, Kevin Garrett et al., August 8, 2013)
+    - https://www.star.nesdis.noaa.gov/star/documents/meetings/2016JPSSAnnual/
+          S4/S4_13_JPSSScience2016_session4Part2_ATMS_Scan_Reversal_HYANG.pdf
+          (Suomi NPP ATMS Scan Reversal Study, Hu (Tiger) Yang, NOAA/STAR ATMS SDR Working Group)
 
     Parameters:
        scans_nb | int -  number of scan lines
 
      Keywords:
-     * edges_only - use only edge pixels
+     * scan_points - FIXME!
 
     Returns:
        pyorbital.geoloc.ScanGeometry object
@@ -391,15 +388,13 @@ def atms(scans_nb, edges_only=False):
     scan_angle = -52.7  # swath, degrees
     sampling_interval = 18e-3  # single view, seconds
 
-    if edges_only:
-        scan_points = np.array([0, scan_len - 1])
-    else:
+    if scan_points is None:
         scan_points = np.arange(0, scan_len)
 
     # build the instrument (scan angles)
-    samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1)
-                         * np.deg2rad(scan_angle),
-                         np.zeros((len(scan_points),))))
+    scan_angles = np.linspace(-np.deg2rad(scan_angle), np.deg2rad(scan_angle), scan_len)[scan_points]
+
+    samples = np.vstack((scan_angles, np.zeros(len(scan_points) * 1,)))
     samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
 
     # building the corresponding times array
@@ -411,9 +406,71 @@ def atms(scans_nb, edges_only=False):
     return ScanGeometry(samples, times)
 
 
-def atms_edge_geom(scans_nb):
-    # we take only edge pixels
-    return atms(scans_nb, edges_only=True)
+################################################################
+#
+#   MWHS-2
+#
+################################################################
+
+def mwhs2(scans_nb, scan_points=None):
+    """Describe MWHS-2 instrument geometry
+
+    The scanning period is 2.667 s. Main beams of the antenna scan over the ob-
+    serving swath (±53.35◦ from nadir) in the cross-track direction at a
+    constant time of 1.71 s. There are 98 pixels sampled per scan during 1.71s,
+    and each sample has the same integration period.
+
+    See:
+
+       http://english.nssc.cas.cn/rh/rp/201501/W020150122580098790190.pdf
+
+    Parameters:
+       scans_nb | int -  number of scan lines
+
+     Keywords:
+     * scan_points - FIXME!
+
+    Returns:
+       pyorbital.geoloc.ScanGeometry object
+
+    """
+
+    scan_len = 98  # 98 samples per scan
+    scan_rate = 8 / 3.  # single scan, seconds
+    scan_angle = -53.35  # swath, degrees
+    sampling_interval = (8 / 3. - 1) / 98.  # single view, seconds
+    # sampling_interval = 17.449e-3  # single view, seconds
+    sync_time = 0.0  # delay before the actual scan starts - don't know! FIXME!
+
+    if scan_points is None:
+        scan_points = np.arange(0, scan_len)
+
+    # build the instrument (scan angles)
+    samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1)
+                         * np.deg2rad(scan_angle),
+                         np.zeros((len(scan_points),))))
+    samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+
+    # building the corresponding times array
+    offset = np.arange(scans_nb) * scan_rate
+    times = (np.tile(scan_points * sampling_interval + sync_time,
+                     [np.int(scans_nb), 1])
+             + np.expand_dims(offset, 1))
+
+    # # build the instrument (scan angles)
+    # scan_angles = np.linspace(-np.deg2rad(scan_angle), np.deg2rad(scan_angle), scan_len)[scan_points]
+
+    # samples = np.vstack((scan_angles, np.zeros(len(scan_points) * 1,)))
+    # samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+
+    # # building the corresponding times array
+    # offset = np.arange(scans_nb) * scan_rate
+    # times = (np.tile(scan_points * sampling_interval, [np.int(scans_nb), 1])
+    #          + np.expand_dims(offset, 1))
+
+    # build the scan geometry object
+    return ScanGeometry(samples, times)
+
 
 ################################################################
 #

@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012, 2013, 2014, 2015, 2017.
+# Copyright (c) 2011 - 2019 Pytroll Community
 
 # Author(s):
 
 #   Martin Raspaud <martin.raspaud@smhi.se>
+#   Adam Dybbroe <adam.dybbroe@smhi.se>
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,23 +31,20 @@
 # - test !!!
 
 from __future__ import print_function
-
 import numpy as np
-from numpy import cos, sin, sqrt
 
 # DIRTY STUFF. Needed the get_lonlatalt function to work on pos directly if
 # we want to print out lonlats in the end.
 from pyorbital import astronomy
-from pyorbital.orbital import *
+from pyorbital.orbital import XKMPER, F
 from pyorbital.orbital import Orbital
 
-a = 6378.137  # km
-b = 6356.75231414  # km, GRS80
-# b = 6356.752314245 # km, WGS84
+A = 6378.137  # WGS84 Equatorial radius (km)
+B = 6356.75231414  # km, GRS80
+# B = 6356.752314245 # km, WGS84
 
 
-def geodetic_lat(point, a=a, b=b):
-
+def geodetic_lat(point, a=A, b=B):
     x, y, z = point
     r = np.sqrt(x * x + y * y)
     geoc_lat = np.arctan2(z, r)
@@ -55,31 +53,28 @@ def geodetic_lat(point, a=a, b=b):
     e2 = (a * a - b * b) / (a * a)
     while True:
         phi = geod_lat
-        C = 1 / sqrt(1 - e2 * sin(phi)**2)
-        geod_lat = np.arctan2(z + a * C * e2 * sin(phi), r)
+        C = 1 / np.sqrt(1 - e2 * np.sin(phi)**2)
+        geod_lat = np.arctan2(z + a * C * e2 * np.sin(phi), r)
         if np.allclose(geod_lat, phi):
             return geod_lat
 
 
-def subpoint(query_point, a=a, b=b):
-    """Get the point on the ellipsoid under the *query_point*.
-    """
+def subpoint(query_point, a=A, b=B):
+    """Get the point on the ellipsoid under the *query_point*."""
     x, y, z = query_point
-    r = sqrt(x * x + y * y)
 
     lat = geodetic_lat(query_point)
     lon = np.arctan2(y, x)
     e2_ = (a * a - b * b) / (a * a)
-    n__ = a / sqrt(1 - e2_ * sin(lat)**2)
-    nx_ = n__ * cos(lat) * cos(lon)
-    ny_ = n__ * cos(lat) * sin(lon)
-    nz_ = (1 - e2_) * n__ * sin(lat)
+    n__ = a / np.sqrt(1 - e2_ * np.sin(lat)**2)
+    nx_ = n__ * np.cos(lat) * np.cos(lon)
+    ny_ = n__ * np.cos(lat) * np.sin(lon)
+    nz_ = (1 - e2_) * n__ * np.sin(lat)
 
     return np.stack([nx_, ny_, nz_], axis=0)
 
 
 class ScanGeometry(object):
-
     """Description of the geometry of an instrument.
 
     *fovs* is the x and y viewing angles of the instrument. y is zero if the we
@@ -88,10 +83,7 @@ class ScanGeometry(object):
     size as the *fovs*. *attitude* is the attitude correction to apply.
     """
 
-    def __init__(self,
-                 fovs,
-                 times,
-                 attitude=(0, 0, 0)):
+    def __init__(self, fovs, times, attitude=(0, 0, 0)):
         self.fovs = np.array(fovs)
         self._times = np.array(times) * np.timedelta64(1000000000, 'ns')
         self.attitude = attitude
@@ -108,7 +100,7 @@ class ScanGeometry(object):
         # looking down at the centre of the ellipsoid and the surface of the
         # ellipsoid. Nadir on the other hand is the point which vertical goes
         # through the satellite...
-        #nadir = -pos / vnorm(pos)
+        # nadir = -pos / vnorm(pos)
 
         nadir = subpoint(-pos)
         nadir /= vnorm(nadir)
@@ -128,8 +120,8 @@ class ScanGeometry(object):
         return qrotate(xy_rotated, nadir, yaw)
 
     def times(self, start_of_scan):
-        #tds = [timedelta(seconds=i) for i in self._times]
-        tds = self._times.astype('timedelta64[us]')
+        # tds = [timedelta(seconds=i) for i in self._times]
+        # tds = self._times.astype('timedelta64[us]')
         try:
             return np.array(self._times) + np.datetime64(start_of_scan)
         except ValueError:
@@ -168,14 +160,14 @@ def qrotate(vector, axis, angle):
     This function uses quaternion rotation.
     """
     n_axis = axis / vnorm(axis)
-    sin_angle = np.expand_dims(sin(angle / 2), 0)
+    sin_angle = np.expand_dims(np.sin(angle / 2), 0)
     if np.ndim(n_axis) == 1:
         n_axis = np.expand_dims(n_axis, 1)
         p__ = np.dot(n_axis, sin_angle)[:, np.newaxis]
     else:
         p__ = n_axis * sin_angle
 
-    q__ = Quaternion(cos(angle / 2), p__)
+    q__ = Quaternion(np.cos(angle / 2), p__)
     shape = vector.shape
     return np.einsum("kj, ikj->ij",
                      vector.reshape((3, -1)),
@@ -183,15 +175,13 @@ def qrotate(vector, axis, angle):
 
 
 def get_lonlatalt(pos, utc_time):
-    """Calculate sublon, sublat and altitude of satellite, considering the
-    earth an ellipsoid.
+    """Calculate sublon, sublat and altitude of satellite, considering the earth an ellipsoid.
 
     http://celestrak.com/columns/v02n03/
+
     """
     (pos_x, pos_y, pos_z) = pos / XKMPER
-    lon = ((np.arctan2(pos_y * XKMPER, pos_x * XKMPER) - astronomy.gmst(utc_time))
-           % (2 * np.pi))
-
+    lon = ((np.arctan2(pos_y * XKMPER, pos_x * XKMPER) - astronomy.gmst(utc_time)) % (2 * np.pi))
     lon = np.where(lon > np.pi, lon - np.pi * 2, lon)
     lon = np.where(lon <= -np.pi, lon + np.pi * 2, lon)
 
@@ -213,8 +203,7 @@ def get_lonlatalt(pos, utc_time):
 
 
 def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0)):
-    """Compute cartesian coordinates of the pixels in instrument scan.
-    """
+    """Compute cartesian coordinates of the pixels in instrument scan."""
     if isinstance(orb, (list, tuple)):
         tle1, tle2 = orb
         orb = Orbital("mysatellite", line1=tle1, line2=tle2)
@@ -255,23 +244,21 @@ def norm(v):
 
 
 def mnorm(m, axis=None):
-    """norm of a matrix of vectors stacked along the *axis* dimension.
-    """
+    """norm of a matrix of vectors stacked along the *axis* dimension."""
     if axis is None:
         axis = np.ndim(m) - 1
     return np.sqrt((m**2).sum(axis))
 
 
 def vnorm(m):
-    """norms of a matrix of column vectors.
-    """
+    """norms of a matrix of column vectors."""
     return np.sqrt((m**2).sum(0))
 
 
 def hnorm(m):
-    """norms of a matrix of row vectors.
-    """
+    """norms of a matrix of row vectors."""
     return np.sqrt((m**2).sum(1))
+
 
 if __name__ == '__main__':
     # NOAA 18 (from the 2011-10-12, 16:55 utc)

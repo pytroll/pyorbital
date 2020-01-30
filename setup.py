@@ -23,7 +23,8 @@
 
 """Setup for pyorbital."""
 
-from setuptools import setup
+import os
+from setuptools import setup, find_packages
 import versioneer
 
 setup(name='pyorbital',
@@ -42,8 +43,8 @@ setup(name='pyorbital',
                    "Topic :: Scientific/Engineering :: Astronomy"],
       url="https://github.com/pytroll/pyorbital",
       test_suite='pyorbital.tests.suite',
-      package_dir={'pyorbital': 'pyorbital'},
-      packages=['pyorbital'],
+      packages=find_packages(),
+      package_data={'pyorbital': [os.path.join('etc', 'platforms.txt')]},
       scripts=['bin/fetch_tles.py', ],
       install_requires=['numpy>=1.11.0,!=1.14.0', 'scipy'],
       zip_safe=False,

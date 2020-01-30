@@ -8,6 +8,7 @@
 #   Esben S. Nielsen <esn@dmi.dk>
 #   Martin Raspaud <martin.raspaud@smhi.se>
 #   Panu Lahtinen <panu.lahtinen@fmi.fi>
+#   Will Evonosky <william.evonosky@gmail.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -37,39 +38,48 @@ import numpy as np
 import requests
 import sqlite3
 
-TLE_URLS = ('http://celestrak.com/NORAD/elements/weather.txt',
+TLE_URLS = ('http://www.celestrak.com/NORAD/elements/active.txt',
+            'http://celestrak.com/NORAD/elements/weather.txt',
             'http://celestrak.com/NORAD/elements/resource.txt',
             'https://www.celestrak.com/NORAD/elements/cubesat.txt',
             'http://celestrak.com/NORAD/elements/stations.txt',
             'https://www.celestrak.com/NORAD/elements/sarsat.txt',
-            'https://www.celestrak.com/NORAD/elements/noaa.txt')
+            'https://www.celestrak.com/NORAD/elements/noaa.txt',
+            'https://www.celestrak.com/NORAD/elements/amateur.txt',
+            'https://www.celestrak.com/NORAD/elements/engineering.txt')
+
 
 LOGGER = logging.getLogger(__name__)
+PKG_CONFIG_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'etc')
 
 
 def read_platform_numbers(in_upper=False, num_as_int=False):
     """Read platform numbers from $PPP_CONFIG_DIR/platforms.txt."""
     out_dict = {}
-    if "PPP_CONFIG_DIR" in os.environ:
-        platform_file = os.path.join(os.environ["PPP_CONFIG_DIR"],
-                                     "platforms.txt")
-        try:
-            fid = open(platform_file, 'r')
-        except IOError:
-            LOGGER.error("Platform file %s not found.", platform_file)
-            return out_dict
-        for row in fid:
-            # skip comment lines
-            if not row.startswith('#'):
-                parts = row.split()
-                if len(parts) < 2:
-                    continue
-                if in_upper:
-                    parts[0] = parts[0].upper()
-                if num_as_int:
-                    parts[1] = int(parts[1])
-                out_dict[parts[0]] = parts[1]
-        fid.close()
+    os.getenv('PPP_CONFIG_DIR', PKG_CONFIG_DIR)
+    platform_file = None
+    if 'PPP_CONFIG_DIR' in os.environ:
+        platform_file = os.path.join(os.environ['PPP_CONFIG_DIR'], 'platforms.txt')
+    if not platform_file or not os.path.isfile(platform_file):
+        platform_file = os.path.join(PKG_CONFIG_DIR, 'platforms.txt')
+
+    try:
+        fid = open(platform_file, 'r')
+    except IOError:
+        LOGGER.error("Platform file %s not found.", platform_file)
+        return out_dict
+    for row in fid:
+        # skip comment lines
+        if not row.startswith('#'):
+            parts = row.split()
+            if len(parts) < 2:
+                continue
+            if in_upper:
+                parts[0] = parts[0].upper()
+            if num_as_int:
+                parts[1] = int(parts[1])
+            out_dict[parts[0]] = parts[1]
+    fid.close()
 
     return out_dict
 
@@ -97,7 +107,7 @@ def read(platform, tle_file=None, line1=None, line2=None):
 
 
 def fetch(destination):
-    """Fetch TLE from internet and save it to *destination*."""
+    """Fetch TLE from internet and save it to `destination`."""
     with io.open(destination, mode="w", encoding="utf-8") as dest:
         for url in TLE_URLS:
             response = urlopen(url)

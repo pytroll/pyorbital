@@ -66,7 +66,7 @@ XJ3 = -0.253881e-5
 XKE = 0.743669161e-1
 XKMPER = 6378.135
 XMNPDA = 1440.0
-#MFACTOR = 7.292115E-5
+# MFACTOR = 7.292115E-5
 AE = 1.0
 SECDAY = 8.6400E4
 
@@ -91,12 +91,12 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     """Calculate observers look angle to a satellite.
     http://celestrak.com/columns/v02n02/
 
-    utc_time: Observation time (datetime object)
-    lon: Longitude of observer position on ground in degrees east
-    lat: Latitude of observer position on ground in degrees north
-    alt: Altitude above sea-level (geoid) of observer position on ground in km
+    :utc_time: Observation time (datetime object)
+    :lon: Longitude of observer position on ground in degrees east
+    :lat: Latitude of observer position on ground in degrees north
+    :alt: Altitude above sea-level (geoid) of observer position on ground in km
 
-    Return: (Azimuth, Elevation)
+    :return: (Azimuth, Elevation)
     """
     (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = astronomy.observer_position(
         utc_time, sat_lon, sat_lat, sat_alt)
@@ -181,7 +181,7 @@ class Orbital(object):
         pos0, vel0 = self.get_position(t_old, normalize=False)
         pos1, vel1 = self.get_position(t_new, normalize=False)
         while not (pos0[2] > 0 and pos1[2] < 0):
-            pos0, vel0 = pos1, vel1
+            pos0 = pos1
             t_old = t_new
             t_new = t_old - dt
             pos1, vel1 = self.get_position(t_new, normalize=False)
@@ -194,7 +194,7 @@ class Orbital(object):
 
         # Bisect to z within 1 km
         while np.abs(pos1[2]) > 1:
-            pos0, vel0 = pos1, vel1
+            # pos0, vel0 = pos1, vel1
             dt = (t_old - t_new) / 2
             t_mid = t_old - dt
             pos1, vel1 = self.get_position(t_mid, normalize=False)
@@ -338,15 +338,15 @@ class Orbital(object):
 
         Original by Martin.
 
-        utc_time: Observation time (datetime object)
-        length: Number of hours to find passes (int)
-        lon: Longitude of observer position on ground (float)
-        lat: Latitude of observer position on ground (float)
-        alt: Altitude above sea-level (geoid) of observer position on ground (float)
-        tol: precision of the result in seconds
-        horizon: the elevation of horizon to compute risetime and falltime.
+        :utc_time: Observation time (datetime object)
+        :length: Number of hours to find passes (int)
+        :lon: Longitude of observer position on ground (float)
+        :lat: Latitude of observer position on ground (float)
+        :alt: Altitude above sea-level (geoid) of observer position on ground (float)
+        :tol: precision of the result in seconds
+        :horizon: the elevation of horizon to compute risetime and falltime.
 
-        Return: [(rise-time, fall-time, max-elevation-time), ...]
+        :return: [(rise-time, fall-time, max-elevation-time), ...]
         """
 
         def elevation(minutes):
@@ -463,15 +463,15 @@ class Orbital(object):
         tx0 = utc_time - timedelta(seconds=1.0)
         tx1 = utc_time
         idx = 0
-        #eps = 500.
+        # eps = 500.
         eps = 100.
         while abs(tx1 - tx0) > precision and idx < nmax_iter:
             tx0 = tx1
             fpr = fprime(tx0)
             # When the elevation is high the scale is high, and when
             # the elevation is low the scale is low
-            #var_scale = np.abs(np.sin(fpr[0] * np.pi/180.))
-            #var_scale = np.sqrt(var_scale)
+            # var_scale = np.abs(np.sin(fpr[0] * np.pi/180.))
+            # var_scale = np.sqrt(var_scale)
             var_scale = np.abs(fpr[0])
             tx1 = tx0 - timedelta(seconds=(eps * var_scale * fpr[1]))
             idx = idx + 1
@@ -547,20 +547,20 @@ class _SGDP4(object):
     def __init__(self, orbit_elements):
         self.mode = None
 
-        perigee = orbit_elements.perigee
+        # perigee = orbit_elements.perigee
         self.eo = orbit_elements.excentricity
         self.xincl = orbit_elements.inclination
         self.xno = orbit_elements.original_mean_motion
-        k_2 = CK2
-        k_4 = CK4
-        k_e = XKE
+        # k_2 = CK2
+        # k_4 = CK4
+        # k_e = XKE
         self.bstar = orbit_elements.bstar
         self.omegao = orbit_elements.arg_perigee
         self.xmo = orbit_elements.mean_anomaly
         self.xnodeo = orbit_elements.right_ascension
         self.t_0 = orbit_elements.epoch
         self.xn_0 = orbit_elements.mean_motion
-        A30 = -XJ3 * AE**3
+        # A30 = -XJ3 * AE**3
 
         if not(0 < self.eo < ECC_LIMIT_HIGH):
             raise OrbitalError('Eccentricity out of range: %e' % self.eo)
@@ -632,12 +632,11 @@ class _SGDP4(object):
 
         self.c1 = self.bstar * self.c2
 
-        self.c4 = (2.0 * self.xnodp * coef_1 * self.aodp * betao2 * (self.eta *
-                                                                     (2.0 + 0.5 * etasq) + self.eo * (0.5 + 2.0 *
-                                                                                                      etasq) - (2.0 * CK2) * tsi / (self.aodp * psisq) * (-3.0 *
-                                                                                                                                                          self.x3thm1 * (1.0 - 2.0 * eeta + etasq *
-                                                                                                                                                                         (1.5 - 0.5 * eeta)) + 0.75 * self.x1mth2 * (2.0 *
-                                                                                                                                                                                                                     etasq - eeta * (1.0 + etasq)) * np.cos(2.0 * self.omegao))))
+        self.c4 = (2.0 * self.xnodp * coef_1 * self.aodp * betao2 * (
+            self.eta * (2.0 + 0.5 * etasq) + self.eo * (0.5 + 2.0 * etasq) - (2.0 * CK2) * tsi /
+            (self.aodp * psisq) * (-3.0 * self.x3thm1 * (1.0 - 2.0 * eeta + etasq * (1.5 - 0.5 * eeta)) +
+                                   0.75 * self.x1mth2 * (2.0 * etasq - eeta * (1.0 + etasq)) *
+                                   np.cos(2.0 * self.omegao))))
 
         self.c5, self.c3, self.omgcof = 0.0, 0.0, 0.0
 
@@ -710,7 +709,7 @@ class _SGDP4(object):
         kep = {}
 
         # get the time delta in minutes
-        #ts = astronomy._days(utc_time - self.t_0) * XMNPDA
+        # ts = astronomy._days(utc_time - self.t_0) * XMNPDA
         # print utc_time.shape
         # print self.t_0
         utc_time = dt2np(utc_time)
@@ -877,6 +876,7 @@ def kep2xyz(kep):
     v_z = kep['rdotk'] * uz + kep['rfdotk'] * vz
 
     return np.array((x, y, z)), np.array((v_x, v_y, v_z))
+
 
 if __name__ == "__main__":
     obs_lon, obs_lat = np.deg2rad((12.4143, 55.9065))

@@ -1,0 +1,63 @@
+# Settings for the TLE dataset
+database:
+  # Path to the dataset where all the data are saved.
+  path: /tmp/tle.db
+
+text_writer:
+  # Directory to save to. Created if missing.
+  output_dir: "/tmp/%Y-%m"
+  # Pattern of the filenames to write.
+  filename_pattern: "tle_%Y%m%d_%H%M.txt"
+  # Write the platform name before the TLE data. Default: False.
+  write_name: False
+  # Write the text file after every invocation. Default: False
+  write_always: False
+
+platforms:
+  # Satellite NORAD ID numbers and corresponding platform names
+  # Only IDs listed here will be added to database and saved to text files
+  25338: NOAA-15
+  28654: NOAA-18
+  33591: NOAA-19
+  37849: Suomi-NPP
+  43013: NOAA-20
+  29499: Metop-A
+  38771: Metop-B
+  43689: Metop-C
+
+downloaders:
+  fetch_plain_tle:
+    eumetsat:  # This is a name used for the source in logs
+      - http://oiswww.eumetsat.int/metopTLEs/html/data_out/latest_m02_tle.txt
+      - http://oiswww.eumetsat.int/metopTLEs/html/data_out/latest_m01_tle.txt
+      - http://oiswww.eumetsat.int/metopTLEs/html/data_out/latest_m03_tle.txt
+      - http://oiswww.eumetsat.int/metopTLEs/html/data_out/latest_n15_tle.txt
+      - http://oiswww.eumetsat.int/metopTLEs/html/data_out/latest_n18_tle.txt
+      - http://oiswww.eumetsat.int/metopTLEs/html/data_out/latest_n19_tle.txt
+      - http://oiswww.eumetsat.int/metopTLEs/html/data_out/latest_npp_tle.txt
+    celestrak:  # This is a name used for the source in logs
+      - https://www.celestrak.com/NORAD/elements/weather.txt
+  fetch_spacetrack:
+    user: <username>
+    password: <password>
+  read_tle_files:
+    # For "kickstarting" the database, local files can also be added
+    paths:
+      - /path/to/a/file/tle.txt
+      - /path/to/many/files/tle*.txt
+
+logging:
+  version: 1
+  formatters:
+    fmt:
+      format: '[%(asctime)s %(levelname)-8s %(name)s] %(message)s'
+  handlers:
+    console:
+      class: logging.StreamHandler
+      level: DEBUG
+      formatter: fmt
+      # stream: ext://sys.stdout
+  root:
+    level: DEBUG
+    propagate: false
+    handlers: [console]

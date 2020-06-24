@@ -1,31 +1,33 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-# Copyright (c) 2011 - 2019
-
+#
+# Copyright (c) 2011 - 2018
+#
 # Author(s):
-
+#
 #   Esben S. Nielsen <esn@dmi.dk>
 #   Martin Raspaud <martin.raspaud@smhi.se>
 #   Panu Lahtinen <panu.lahtinen@fmi.fi>
-
+#   Will Evonosky <william.evonosky@gmail.com>
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""Classes and functions for handling TLE files."""
 
 import io
 import logging
-import datetime
+import datetime as dt
 try:
     from urllib2 import urlopen
 except ImportError:
@@ -33,8 +35,11 @@ except ImportError:
 import os
 import glob
 import numpy as np
+import requests
+import sqlite3
 
-TLE_URLS = ('http://celestrak.com/NORAD/elements/weather.txt',
+TLE_URLS = ('http://www.celestrak.com/NORAD/elements/active.txt',
+            'http://celestrak.com/NORAD/elements/weather.txt',
             'http://celestrak.com/NORAD/elements/resource.txt',
             'https://www.celestrak.com/NORAD/elements/cubesat.txt',
             'http://celestrak.com/NORAD/elements/stations.txt',
@@ -49,7 +54,7 @@ PKG_CONFIG_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'etc'
 
 
 def read_platform_numbers(in_upper=False, num_as_int=False):
-    """Read platform numbers from $PPP_CONFIG_DIR/platforms.txt if available."""
+    """Read platform numbers from $PPP_CONFIG_DIR/platforms.txt."""
     out_dict = {}
     os.getenv('PPP_CONFIG_DIR', PKG_CONFIG_DIR)
     platform_file = None
@@ -80,21 +85,23 @@ def read_platform_numbers(in_upper=False, num_as_int=False):
 
 
 SATELLITES = read_platform_numbers(in_upper=True, num_as_int=False)
-'''
+"""
 The platform numbers are given in a file $PPP_CONFIG/platforms.txt
 in the following format:
 
 .. literalinclude:: ../../etc/platforms.txt
   :language: text
   :lines: 4-
-'''
+"""
 
 
 def read(platform, tle_file=None, line1=None, line2=None):
-    """Read TLE for `platform` from `tle_file`
+    """Read TLE for *platform*.
 
-    File is read from `line1` to `line2`, from the newest file provided in the
-    TLES pattern, or from internet if none is provided.
+    The data are read from *tle_file*, from *line1* and *line2*, from
+    the newest file provided in the TLES pattern, or from internet if
+    none is provided.
+
     """
     return Tle(platform, tle_file=tle_file, line1=line1, line2=line2)
 
@@ -109,6 +116,7 @@ def fetch(destination):
 
 class ChecksumError(Exception):
     """ChecksumError."""
+
     pass
 
 
@@ -116,6 +124,7 @@ class Tle(object):
     """Class holding TLE objects."""
 
     def __init__(self, platform, tle_file=None, line1=None, line2=None):
+        """Init."""
         self._platform = platform.strip().upper()
         self._tle_file = tle_file
         self._line1 = line1
@@ -162,7 +171,7 @@ class Tle(object):
         return self._platform
 
     def _checksum(self):
-        """Performs the checksum for the current TLE."""
+        """Calculate checksum for the current TLE."""
         for line in [self._line1, self._line2]:
             check = 0
             for char in line[:-1]:
@@ -228,7 +237,6 @@ class Tle(object):
 
     def _parse_tle(self):
         """Parse values from TLE data."""
-
         def _read_tle_decimal(rep):
             """Convert *rep* to decimal value."""
             if rep[0] in ["-", " ", "+"]:
@@ -248,8 +256,8 @@ class Tle(object):
         self.epoch_year = self._line1[18:20]
         self.epoch_day = float(self._line1[20:32])
         self.epoch = \
-            np.datetime64(datetime.datetime.strptime(self.epoch_year, "%y") +
-                          datetime.timedelta(days=self.epoch_day - 1), 'us')
+            np.datetime64(dt.datetime.strptime(self.epoch_year, "%y") +
+                          dt.timedelta(days=self.epoch_day - 1), 'us')
         self.mean_motion_derivative = float(self._line1[33:43])
         self.mean_motion_sec_derivative = _read_tle_decimal(self._line1[44:52])
         self.bstar = _read_tle_decimal(self._line1[53:61])
@@ -268,6 +276,7 @@ class Tle(object):
         self.orbit = int(self._line2[63:68])
 
     def __str__(self):
+        """Format the class data for printing."""
         import pprint
         import sys
         if sys.version_info < (3, 0):
@@ -281,8 +290,224 @@ class Tle(object):
         return s_var.getvalue()[:-1]
 
 
+PLATFORM_NAMES_TABLE = "(satid text primary key, platform_name text)"
+SATID_TABLE = ("'{}' (epoch date primary key, tle text, insertion_time date,"
+               " source text)")
+SATID_VALUES = "INSERT INTO '{}' VALUES (?, ?, ?, ?)"
+PLATFORM_VALUES = "INSERT INTO platform_names VALUES (?, ?)"
+ISO_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f"
+
+
+class Downloader(object):
+    """Class for downloading TLE data."""
+
+    def __init__(self, config):
+        """Init."""
+        self.config = config
+
+    def fetch_plain_tle(self):
+        """Fetch plain text-formated TLE data."""
+        tles = {}
+        if "fetch_plain_tle" in self.config["downloaders"]:
+            sources = self.config["downloaders"]["fetch_plain_tle"]
+            for source in sources:
+                tles[source] = []
+                failures = []
+                for uri in sources[source]:
+                    req = requests.get(uri)
+                    if req.status_code == 200:
+                        tles[source] += self.parse_tles(req.text)
+                    else:
+                        failures.append(uri)
+                if len(failures) > 0:
+                    logging.error(
+                        "Could not fetch TLEs from %s, %d failure(s): [%s]",
+                        source, len(failures), ', '.join(failures))
+                logging.info("Downloaded %d TLEs from %s",
+                             len(tles[source]), source)
+        return tles
+
+    def fetch_spacetrack(self):
+        """Fetch TLE data from Space-Track."""
+        tles = []
+        login_url = "https://www.space-track.org/ajaxauth/login"
+        download_url = ("https://www.space-track.org/basicspacedata/query/"
+                        "class/tle_latest/ORDINAL/1/NORAD_CAT_ID/%s/format/"
+                        "tle")
+        download_url = download_url % ','.join(
+            [str(key) for key in self.config['platforms']])
+
+        user = self.config["downloaders"]["fetch_spacetrack"]["user"]
+        password = self.config["downloaders"]["fetch_spacetrack"]["password"]
+        credentials = {"identity": user, "password": password}
+
+        with requests.Session() as session:
+            # Login
+            req = session.post(login_url, data=credentials)
+
+            if req.status_code != 200:
+                logging.error("Could not login to Space-Track")
+                return tles
+
+            # Get the data
+            req = session.get(download_url)
+
+            if req.status_code == 200:
+                tles += self.parse_tles(req.text)
+            else:
+                logging.error("Could not retrieve TLEs from Space-Track")
+
+        logging.info("Downloaded %d TLEs from %s", len(tles), "spacetrack")
+
+        return tles
+
+    def read_tle_files(self):
+        """Read TLE data from files."""
+        paths = self.config["downloaders"]["read_tle_files"]["paths"]
+
+        # Collect filenames
+        fnames = []
+        for path in paths:
+            if '*' in path:
+                fnames += glob.glob(path)
+            else:
+                if not os.path.exists(path):
+                    logging.error("File %s doesn't exist.", path)
+                    continue
+                fnames += [path]
+
+        tles = []
+        for fname in fnames:
+            with open(fname, 'r') as fid:
+                data = fid.read()
+            tles += self.parse_tles(data)
+
+        logging.info("Loaded %d TLEs from local files", len(tles))
+
+        return tles
+
+    def parse_tles(self, raw_data):
+        """Parse all the TLEs in the given raw text data."""
+        tles = []
+        line1, line2 = None, None
+        raw_data = raw_data.split('\n')
+        for row in raw_data:
+            if row.startswith('1 '):
+                line1 = row
+            elif row.startswith('2 '):
+                line2 = row
+            else:
+                continue
+            if line1 is not None and line2 is not None:
+                try:
+                    tle = Tle('', line1=line1, line2=line2)
+                except ValueError:
+                    logging.warning(
+                        "Invalid data found - line1: %s, line2: %s",
+                        line1, line2)
+                else:
+                    tles.append(tle)
+                line1, line2 = None, None
+        return tles
+
+
+class SQLiteTLE(object):
+    """Store TLE data in a sqlite3 database."""
+
+    def __init__(self, db_location, platforms, writer_config):
+        """Init."""
+        self.db = sqlite3.connect(db_location)
+        self.platforms = platforms
+        self.writer_config = writer_config
+        self.updated = False
+
+        # Create platform_names table if it doesn't exist
+        if not table_exists(self.db, "platform_names"):
+            cmd = "CREATE TABLE platform_names " + PLATFORM_NAMES_TABLE
+            with self.db:
+                self.db.execute(cmd)
+                logging.info("Created database table 'platform_names'")
+
+    def update_db(self, tle, source):
+        """Update the collected data.
+
+        Only data with newer epoch than the existing one is used.
+
+        """
+        num = int(tle.satnumber)
+        if num not in self.platforms:
+            return
+        tle.platform_name = self.platforms[num]
+        if not table_exists(self.db, num):
+            cmd = "CREATE TABLE " + SATID_TABLE.format(num)
+            with self.db:
+                self.db.execute(cmd)
+                logging.info("Created database table '%d'", num)
+            cmd = ""
+            with self.db:
+                self.db.execute(PLATFORM_VALUES, (num, self.platforms[num]))
+                logging.info("Added platform name '%s' for ID '%d'",
+                             self.platforms[num], num)
+        cmd = SATID_VALUES.format(num)
+        epoch = tle.epoch.item().isoformat()
+        tle = '\n'.join([tle.line1, tle.line2])
+        now = dt.datetime.utcnow().isoformat()
+        try:
+            with self.db:
+                self.db.execute(cmd, (epoch, tle, now, source))
+                logging.info("Added TLE for %d (%s), epoch: %s, source: %s",
+                             num, self.platforms[num], epoch, source)
+                self.updated = True
+        except sqlite3.IntegrityError:
+            pass
+
+    def write_tle_txt(self):
+        """Write TLE data to a text file."""
+        if not self.updated and not self.writer_config.get('write_always',
+                                                           False):
+            return
+        pattern = os.path.join(self.writer_config["output_dir"],
+                               self.writer_config["filename_pattern"])
+        now = dt.datetime.utcnow()
+        fname = now.strftime(pattern)
+        out_dir = os.path.dirname(fname)
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+            logging.info("Created directory %s", out_dir)
+        data = []
+
+        for satid, platform_name in self.platforms.items():
+            if self.writer_config.get("write_name", False):
+                data.append(platform_name)
+            query = ("SELECT epoch, tle FROM '%s' ORDER BY "
+                     "epoch DESC LIMIT 1" % satid)
+            epoch, tle = self.db.execute(query).fetchone()
+            date_epoch = dt.datetime.strptime(epoch, ISO_TIME_FORMAT)
+            tle_age = (
+                dt.datetime.utcnow() - date_epoch).total_seconds() / 3600.
+            logging.info("Latest TLE for '%s' (%s) is %d hours old.",
+                         satid, platform_name, int(tle_age))
+            data.append(tle)
+
+        with open(fname, 'w') as fid:
+            fid.write('\n'.join(data))
+
+        logging.info("Wrote %d TLEs to %s", len(data), fname)
+
+    def close(self):
+        """Close the database."""
+        self.db.close()
+
+
+def table_exists(db, name):
+    """Check if the table 'name' exists in the database."""
+    name = str(name)
+    query = "SELECT 1 FROM sqlite_master WHERE type='table' and name=?"
+    return db.execute(query, (name,)).fetchone() is not None
+
+
 def main():
-    """Main for testing TLE reading."""
+    """Run a test TLE reading."""
     tle_data = read('Noaa-19')
     print(tle_data)
 

@@ -27,6 +27,21 @@ Pyorbital has a module for parsing NORAD TLE-files
     99.043499999999995
 
 If no path is given pyorbital tries to read the earth observation TLE-files from celestrak.com
+
+TLE download and database
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There is also a script, ``fetch_tles.py``, that can be used to collect
+TLE data from several locations.  Then currently supported locaions
+are:
+
+* generic network locations without login
+* Space-Track (login credentials needed)
+* local files
+
+The data are saved in a SQLite3 database, and can be written to a file
+after each run.  To see configuration options, see the example
+configuration in ``examples/tle.yaml``.
     
 Computing satellite position
 ----------------------------

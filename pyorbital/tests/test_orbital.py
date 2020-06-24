@@ -24,6 +24,10 @@
 """
 
 import unittest
+try:
+    from unittest import mock
+except ImportError:
+    import mock
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -150,6 +154,52 @@ class Test(unittest.TestCase):
             timedelta(seconds=0.01))
 
         self.assertTrue(len(res) == 15)
+
+    @mock.patch('pyorbital.orbital.Orbital.get_lonlatalt')
+    def test_utc2local(self, get_lonlatalt):
+        get_lonlatalt.return_value = -45, None, None
+        sat = orbital.Orbital("METOP-A",
+                              line1="1 29499U 06044A   13060.48822809  "
+                                    ".00000017  00000-0  27793-4 0  9819",
+                              line2="2 29499  98.6639 121.6164 0001449  "
+                                    "71.9056  43.3132 14.21510544330271")
+        self.assertEqual(sat.utc2local(datetime(2009, 7, 1, 12)),
+                         datetime(2009, 7, 1, 9))
+
+    @mock.patch('pyorbital.orbital.Orbital.utc2local')
+    @mock.patch('pyorbital.orbital.Orbital.get_orbit_number')
+    def test_get_equatorial_crossing_time(self, get_orbit_number, utc2local):
+        def get_orbit_number_patched(utc_time, **kwargs):
+            utc_time = np.datetime64(utc_time)
+            diff = (utc_time - np.datetime64('2009-07-01 12:38:12')) / np.timedelta64(7200, 's')
+            return 1234 + diff
+
+        get_orbit_number.side_effect = get_orbit_number_patched
+        utc2local.return_value = 'local_time'
+        sat = orbital.Orbital("METOP-A",
+                              line1="1 29499U 06044A   13060.48822809  "
+                                    ".00000017  00000-0  27793-4 0  9819",
+                              line2="2 29499  98.6639 121.6164 0001449  "
+                                    "71.9056  43.3132 14.21510544330271")
+
+        # Ascending node
+        res = sat.get_equatorial_crossing_time(tstart=datetime(2009, 7, 1, 12),
+                                               tend=datetime(2009, 7, 1, 13))
+        exp = datetime(2009, 7, 1, 12, 38, 12)
+        self.assertTrue((res - exp) < timedelta(seconds=0.01))
+
+        # Descending node
+        res = sat.get_equatorial_crossing_time(tstart=datetime(2009, 7, 1, 12),
+                                               tend=datetime(2009, 7, 1, 14, 0),
+                                               node='descending')
+        exp = datetime(2009, 7, 1, 13, 38, 12)
+        self.assertTrue((res - exp) < timedelta(seconds=0.01))
+
+        # Conversion to local time
+        res = sat.get_equatorial_crossing_time(tstart=datetime(2009, 7, 1, 12),
+                                               tend=datetime(2009, 7, 1, 14),
+                                               local_time=True)
+        self.assertEqual(res, 'local_time')
 
 
 class TestGetObserverLook(unittest.TestCase):

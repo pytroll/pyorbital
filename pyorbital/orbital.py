@@ -495,8 +495,9 @@ class Orbital(object):
         lon, _, _ = self.get_lonlatalt(utc_time)
         return utc_time + timedelta(hours=lon * 24 / 360.0)
 
-    def get_equatorial_crossing_time(self, tstart, tend, local_time=False, rtol=1E-9):
-        """Estimate the equatorial crossing time (ascending node) of an orbit.
+    def get_equatorial_crossing_time(self, tstart, tend, node='ascending', local_time=False,
+                                     rtol=1E-9):
+        """Estimate the equatorial crossing time of an orbit.
 
         The crossing time is determined via the orbit number, which increases by one if the
         spacecraft passes the ascending node at the equator. A bisection algorithm is used to find
@@ -507,6 +508,8 @@ class Orbital(object):
             tend: End time of the orbit. Orbit number at the end must be at least one greater than
                 at the start. If there are multiple revolutions in the given time interval, the
                 crossing time of the last revolution in that interval will be computed.
+            node: Specifies whether to compute the crossing time at the ascending or descending
+                node. Choices: ('ascending', 'descending').
             local_time: By default the UTC crossing time is returned. Use this flag to convert UTC
                 to local time.
             rtol: Tolerance of the bisection algorithm. The smaller the tolerance, the more accurate
@@ -525,6 +528,8 @@ class Orbital(object):
         # Let n'(t) = n(t) - offset. Determine offset so that n'(tstart) < 0 and n'(tend) > 0 and
         # n'(tcross) = 0.
         offset = int(n_end)
+        if node == 'descending':
+            offset = offset + 0.5
 
         # Use bisection algorithm to find the root of n'(t), which is the crossing time. The
         # algorithm requires continuous time coordinates, so convert timestamps to microseconds

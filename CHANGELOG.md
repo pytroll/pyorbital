@@ -1,3 +1,34 @@
+## Version 1.6.0 (2020/06/24)
+
+### Issues Closed
+
+* [Issue 52](https://github.com/pytroll/pyorbital/issues/52) - Pyorbital fails to find TLE For some satellites ([PR 53](https://github.com/pytroll/pyorbital/pull/53))
+* [Issue 28](https://github.com/pytroll/pyorbital/issues/28) - Unknown units in return value for get_alt_az ([PR 46](https://github.com/pytroll/pyorbital/pull/46))
+
+In this release 2 issues were closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 46](https://github.com/pytroll/pyorbital/pull/46) - Fix doc about get_alt_az() return units ([28](https://github.com/pytroll/pyorbital/issues/28))
+
+#### Features added
+
+* [PR 56](https://github.com/pytroll/pyorbital/pull/56) - Add a script to download TLEs and store them to a database
+* [PR 53](https://github.com/pytroll/pyorbital/pull/53) - Added active.txt tle path to TLE_URLS ([52](https://github.com/pytroll/pyorbital/issues/52))
+* [PR 50](https://github.com/pytroll/pyorbital/pull/50) - docstring fixes
+* [PR 49](https://github.com/pytroll/pyorbital/pull/49) - Equatorial Crossing Time
+* [PR 47](https://github.com/pytroll/pyorbital/pull/47) - Add support for MWHS-2 (FY-3) and skip edge-functions
+* [PR 45](https://github.com/pytroll/pyorbital/pull/45) - Adds engineering.txt TLE source ([15](https://github.com/pytroll/pyorbital/issues/15))
+
+#### Documentation changes
+
+* [PR 50](https://github.com/pytroll/pyorbital/pull/50) - docstring fixes
+
+In this release 8 pull requests were closed.
+
+
 ## Version 1.5.0 (2018/11/16)
 
 ### Pull Requests Merged

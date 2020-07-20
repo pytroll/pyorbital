@@ -544,8 +544,8 @@ class Orbital(object):
 
         try:
             tcross = optimize.bisect(_nprime,
-                                     a=np.datetime64(tstart, time_unit).astype(int),
-                                     b=np.datetime64(tend, time_unit).astype(int),
+                                     a=np.datetime64(tstart, time_unit).astype(np.int64),
+                                     b=np.datetime64(tend, time_unit).astype(np.int64),
                                      rtol=rtol)
         except ValueError:
             # Bisection did not converge

@@ -79,10 +79,15 @@ def get_results(satnumber, delay):
             line = f_2.readline()
 
 
+_DATAPATH = os.path.dirname(os.path.abspath(__file__))
+
 class AIAAIntegrationTest(unittest.TestCase):
     """Test against the AIAA test cases.
     """
 
+    @unittest.skipIf(
+        not os.path.exists(os.path.join(_DATAPATH, "SGP4-VER.TLE")),
+        'SGP4-VER.TLE not available')
     def test_aiaa(self):
         """Do the tests against AIAA test cases.
         """

@@ -109,10 +109,10 @@ class TestGeoloc(unittest.TestCase):
         start_of_scan = np.datetime64(datetime(2014, 1, 8, 11, 30))
         times = instrument.times(start_of_scan)
 
-        self.assertEquals(times[0, 1], start_of_scan)
-        self.assertEquals(times[0, 0], start_of_scan -
+        self.assertEqual(times[0, 1], start_of_scan)
+        self.assertEqual(times[0, 0], start_of_scan -
                           np.timedelta64(100, 'ms'))
-        self.assertEquals(times[0, 2], start_of_scan +
+        self.assertEqual(times[0, 2], start_of_scan +
                           np.timedelta64(100, 'ms'))
 
     def test_geodetic_lat(self):

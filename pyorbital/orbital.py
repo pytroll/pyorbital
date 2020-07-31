@@ -394,7 +394,7 @@ class Orbital(object):
                     try:
                         x = x - 0.5 * (((b - a) ** 2 * (f_b - f_c)
                                         - (b - c) ** 2 * (f_b - f_a)) /
-                                    ((b - a) * (f_b - f_c) - (b - c) * (f_b - f_a)))
+                                       ((b - a) * (f_b - f_c) - (b - c) * (f_b - f_a)))
                     except FloatingPointError:
                         return b
                     if abs(b - x) <= tol:

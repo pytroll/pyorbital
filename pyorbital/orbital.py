@@ -22,8 +22,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Module for computing the orbital parameters of satellites.
-"""
+"""Module for computing the orbital parameters of satellites."""
 
 import warnings
 from datetime import datetime, timedelta
@@ -390,18 +389,19 @@ class Orbital(object):
             f_c = fun(c)
 
             x = b
+            with np.errstate(invalid='raise'):
+                while True:
+                    try:
+                        x = x - 0.5 * (((b - a) ** 2 * (f_b - f_c)
+                                        - (b - c) ** 2 * (f_b - f_a)) /
+                                       ((b - a) * (f_b - f_c) - (b - c) * (f_b - f_a)))
+                    except FloatingPointError:
+                        return b
+                    if abs(b - x) <= tol:
+                        return x
 
-            while True:
-                x = x - 0.5 * (((b - a) ** 2 * (f_b - f_c)
-                                - (b - c) ** 2 * (f_b - f_a)) /
-                               ((b - a) * (f_b - f_c) - (b - c) * (f_b - f_a)))
-                if np.isnan(x):
-                    return b
-                if abs(b - x) <= tol:
-                    return x
-
-                a, b, c = (a + x) / 2.0, x, (x + c) / 2.0
-                f_a, f_b, f_c = fun(a), fun(b), fun(c)
+                    a, b, c = (a + x) / 2.0, x, (x + c) / 2.0
+                    f_a, f_b, f_c = fun(a), fun(b), fun(c)
 
         # every minute
         times = utc_time + np.array([timedelta(minutes=minutes)

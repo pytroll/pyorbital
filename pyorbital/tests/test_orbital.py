@@ -283,6 +283,22 @@ class TestGetObserverLook(unittest.TestCase):
         np.testing.assert_allclose(elev.data.compute(), self.exp_elev)
 
 
+class TestRegressions(unittest.TestCase):
+    """Test regressions."""
+
+    def test_63(self):
+        """Check that no runtimewarning is raised, #63."""
+        import warnings
+        from pyorbital.orbital import Orbital
+        from dateutil import parser
+        warnings.filterwarnings('error')
+        orb = Orbital("Suomi-NPP",
+                      line1="1 37849U 11061A   19292.84582509  .00000011  00000-0  25668-4 0  9997",
+                      line2="2 37849  98.7092 229.3263 0000715  98.5313 290.6262 14.19554485413345")
+        orb.get_next_passes(parser.parse("2019-10-21 16:00:00"), 12, 123.29736, -13.93763, 0)
+        warnings.filterwarnings('default')
+
+
 def suite():
     """The suite for test_orbital
     """
@@ -290,5 +306,6 @@ def suite():
     mysuite = unittest.TestSuite()
     mysuite.addTest(loader.loadTestsFromTestCase(Test))
     mysuite.addTest(loader.loadTestsFromTestCase(TestGetObserverLook))
+    mysuite.addTest(loader.loadTestsFromTestCase(TestRegressions))
 
     return mysuite

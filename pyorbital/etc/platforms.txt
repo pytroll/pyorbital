@@ -5,6 +5,7 @@
 # platform names from OSCAR.
 ALOS-2 39766
 CloudSat 29107
+CALIPSO 29108
 CryoSat-2 36508
 CSK-1 31598
 CSK-2 32376

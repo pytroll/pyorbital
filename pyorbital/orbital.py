@@ -161,60 +161,93 @@ class Orbital(object):
         satellite = satellite.upper()
         self.satellite_name = satellite
         self.tle_file = tle_file
+        self.utctime = None
         self.tle = tlefile.read(satellite, tle_file=tle_file,
                                 line1=line1, line2=line2)
         self.orbit_elements = OrbitElements(self.tle)
+        self.sgdp4 = _SGDP4(self.orbit_elements)
+
+    @property
+    def tle(self):
+        #if not self.tle_file:
+        tle_data = self.read_tle_file(self.tle_file)
+        dates = self.tle2datetime64(
+            np.array([float(line[18:32]) for line in tle_data[::2]]))
+        
+        if self.utctime is None:
+            sdate = dates[-1]
+        else:
+            sdate = np.datetime64(self.utctime) #.timestamp() #self.utcs[0]
+        # Find index "iindex" such that dates[iindex-1] < sdate <= dates[iindex]
+        # Notes:
+        #     1. If sdate < dates[0] then iindex = 0
+        #     2. If sdate > dates[-1] then iindex = len(dates), beyond the right boundary!
+        iindex = np.searchsorted(dates, sdate)
+
+        if iindex in (0, len(dates)):
+            if iindex == len(dates):
+                # Reset index if beyond the right boundary (see note 2. above)
+                iindex -= 1
+        elif abs(sdate - dates[iindex - 1]) < abs(sdate - dates[iindex]):
+            # Choose the closest of the two surrounding dates
+            iindex -= 1
+
+        # Make sure the TLE we found is within the threshold
+        delta_days = abs(sdate - dates[iindex]) / np.timedelta64(1, 'D')
+        tle_thresh = 7
+        if delta_days > tle_thresh:
+            raise IndexError(
+                "Can't find tle data for %s within +/- %d days around %s" %
+                (self.satellite_name, tle_thresh, sdate))
+
+        #if delta_days > 3:
+        #    LOG.warning("Found TLE data for %s that is %f days appart",
+        #                sdate, delta_days)
+        #else:
+        #    LOG.debug("Found TLE data for %s that is %f days appart",
+        #              sdate, delta_days)
+
+        # Select TLE data
+        tle1 = tle_data[iindex * 2]
+        tle2 = tle_data[iindex * 2 + 1]
+        self._tle = tlefile.read(self.satellite_name, tle_file=None,
+                                line1=tle1, line2=tle2)
+
+        return self._tle
+
+    @tle.setter
+    def tle(self, new_tle):
+        self._tle = new_tle
+
+    @property
+    def orbit_elements(self):
+        return OrbitElements(self.tle)        
+    @orbit_elements.setter
+    def orbit_elements(self, new_orbit_elements):
+        self._orbit_elements = new_orbit_elements
+
+    @property
+    def sgdp4(self):
+        return _SGDP4(self.orbit_elements)
+    @sgdp4.setter
+    def sgdp4(self, new_sgdp4):
         self._sgdp4 = _SGDP4(self.orbit_elements)
 
     @property
     def utctime(self):
         return self._utctime
-
     @utctime.setter
     def utctime(self, utc_time):
-        self._utctime = utc_time
-        if not self.tle_file:
-            tle_data = self.read_tle_file(self.tle_file)
-            sdate = dt2np(self.utctime) #self.utcs[0]
-            dates = self.tle2datetime64(
-                np.array([float(line[18:32]) for line in tle_data[::2]]))
-
-            # Find index "iindex" such that dates[iindex-1] < sdate <= dates[iindex]
-            # Notes:
-            #     1. If sdate < dates[0] then iindex = 0
-            #     2. If sdate > dates[-1] then iindex = len(dates), beyond the right boundary!
-            iindex = np.searchsorted(dates, sdate)
-
-            if iindex in (0, len(dates)):
-                if iindex == len(dates):
-                    # Reset index if beyond the right boundary (see note 2. above)
-                    iindex -= 1
-            elif abs(sdate - dates[iindex - 1]) < abs(sdate - dates[iindex]):
-                # Choose the closest of the two surrounding dates
-                iindex -= 1
-
-            # Make sure the TLE we found is within the threshold
-            delta_days = abs(sdate - dates[iindex]) / np.timedelta64(1, 'D')
-            if delta_days > 7:
-                raise IndexError(
-                    "Can't find tle data for %s within +/- %d days around %s" %
-                    (self.spacecraft_name, self.tle_thresh, sdate))
-
-            if delta_days > 3:
-                LOG.warning("Found TLE data for %s that is %f days appart",
-                            sdate, delta_days)
-            else:
-                LOG.debug("Found TLE data for %s that is %f days appart",
-                          sdate, delta_days)
-
-            # Select TLE data
-            tle1 = tle_data[iindex * 2]
-            tle2 = tle_data[iindex * 2 + 1]
-            self.tle = tlefile.read(self.satellite_name, tle_file=None,
-                                    line1=tle1, line2=tle2)
-
-            self.orbit_elements = OrbitElements(self.tle)
-            self._sgdp4 = _SGDP4(self.orbit_elements)
+        if type(utc_time) is not datetime:
+            times = np.array(utc_time, dtype = 'datetime64[m]')
+            if times.max() - times.min() > np.timedelta64(3,'D'):
+                raise ValueError(
+                        "Dates must not exceed 3 days")
+            utctime = np.array(times.astype(float).mean(),
+                               dtype='datetime64[m]').astype(datetime)
+            self._utctime = utctime.tolist()
+        else:
+            self._utctime = utc_time
 
     @staticmethod
     def tle2datetime64(times):
@@ -286,7 +319,7 @@ class Orbital(object):
         """
 
         self.utctime = utc_time
-        kep = self._sgdp4.propagate(utc_time)
+        kep = self.sgdp4.propagate(utc_time)
         pos, vel = kep2xyz(kep)
 
         if normalize:

@@ -226,9 +226,9 @@ class Orbital(object):
             mismatch = self.utctime - sat_time
             if mismatch.days > abs(7):
                 raise IndexError(
-                    "Current TLE from celestrek is %d days newer than 
+                   """Current TLE from celestrek is %d days newer than 
                      requested orbital parameter. Please use TLE archive
-                     for accurate results" %
+                     for accurate results""" %
                     (mismatch.days))
 
         return self._tle

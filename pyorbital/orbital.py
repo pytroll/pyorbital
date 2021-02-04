@@ -221,7 +221,7 @@ class Orbital(object):
         else:
             sat_time = self.tle2datetime64(float(self._tle.line1[18:32]))
             # Object just created
-            if self.utctime = None:
+            if not self.utctime:
                 self.utctime = datetime.now()
             mismatch = self.utctime - sat_time
             if mismatch.days > abs(7):

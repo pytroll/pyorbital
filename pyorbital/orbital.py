@@ -174,12 +174,12 @@ class Orbital(object):
             tle_data = self.read_tle_file(self.tle_file)
             dates = self.tle2datetime64(
                 np.array([float(line[18:32]) for line in tle_data[::2]]))
-            
+
             #  set utctime to arbitrary value inside archive if object init
             if self.utctime is None:
                 sdate = dates[-1]
             else:
-                sdate = np.datetime64(self.utctime) #.timestamp() #self.utcs[0]
+                sdate = np.datetime64(self.utctime)  # .timestamp() #self.utcs[0]
             # Find index "iindex" such that dates[iindex-1] < sdate <= dates[iindex]
             # Notes:
             #     1. If sdate < dates[0] then iindex = 0
@@ -202,18 +202,18 @@ class Orbital(object):
                     "Can't find tle data for %s within +/- %d days around %s" %
                     (self.satellite_name, tle_thresh, sdate))
 
-            #if delta_days > 3:
-            #    LOG.warning("Found TLE data for %s that is %f days appart",
-            #                sdate, delta_days)
-            #else:
-            #    LOG.debug("Found TLE data for %s that is %f days appart",
-            #              sdate, delta_days)
+            # if delta_days > 3:
+            #     LOG.warning("Found TLE data for %s that is %f days appart",
+            #                 sdate, delta_days)
+            # else:
+            #     LOG.debug("Found TLE data for %s that is %f days appart",
+            #               sdate, delta_days)
 
             # Select TLE data
             tle1 = tle_data[iindex * 2]
             tle2 = tle_data[iindex * 2 + 1]
             self._tle = tlefile.read(self.satellite_name, tle_file=None,
-                                    line1=tle1, line2=tle2)
+                                     line1=tle1, line2=tle2)
 
         # Not using TLE archive;
         # Either using current celestrek TLE,
@@ -223,12 +223,12 @@ class Orbital(object):
             # Object just created
             if not self.utctime:
                 self.utctime = datetime.now()
-            mismatch = self.utctime - sat_time.as_type(datetime)
+            mismatch = self.utctime - sat_time.astype(datetime)
             if mismatch.days > abs(7):
                 raise IndexError(
-                   """Current TLE from celestrek is %d days newer than 
-                     requested orbital parameter. Please use TLE archive
-                     for accurate results""" %
+                    """Current TLE from celestrek is %d days newer than
+                       requested orbital parameter. Please use TLE archive
+                       for accurate results""" %
                     (mismatch.days))
 
         return self._tle
@@ -239,7 +239,8 @@ class Orbital(object):
 
     @property
     def orbit_elements(self):
-        return OrbitElements(self.tle)        
+        return OrbitElements(self.tle)
+
     @orbit_elements.setter
     def orbit_elements(self, new_orbit_elements):
         self._orbit_elements = new_orbit_elements
@@ -247,6 +248,7 @@ class Orbital(object):
     @property
     def sgdp4(self):
         return _SGDP4(self.orbit_elements)
+
     @sgdp4.setter
     def sgdp4(self, new_sgdp4):
         self._sgdp4 = _SGDP4(self.orbit_elements)
@@ -254,11 +256,12 @@ class Orbital(object):
     @property
     def utctime(self):
         return self._utctime
+
     @utctime.setter
     def utctime(self, utc_time):
         if type(utc_time) is not datetime:
-            times = np.array(utc_time, dtype = 'datetime64[m]')
-            if times.max() - times.min() > np.timedelta64(3,'D'):
+            times = np.array(utc_time, dtype='datetime64[m]')
+            if times.max() - times.min() > np.timedelta64(3, 'D'):
                 raise ValueError(
                         "Dates must not exceed 3 days")
             utctime = np.array(times.astype(float).mean(),

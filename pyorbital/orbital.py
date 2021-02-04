@@ -262,7 +262,7 @@ class Orbital(object):
             times = np.array(utc_time, dtype='datetime64[m]')
             if times.max() - times.min() > np.timedelta64(3, 'D'):
                 raise ValueError(
-                        "Dates must not exceed 3 days")
+                    "Dates must not exceed 3 days")
             utctime = np.array(times.astype(float).mean(),
                                dtype='datetime64[m]').astype(datetime)
             self._utctime = utctime.tolist()

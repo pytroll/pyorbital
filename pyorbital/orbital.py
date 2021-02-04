@@ -169,49 +169,49 @@ class Orbital(object):
 
     @property
     def tle(self):
-        #if not self.tle_file:
-        tle_data = self.read_tle_file(self.tle_file)
-        dates = self.tle2datetime64(
-            np.array([float(line[18:32]) for line in tle_data[::2]]))
-        
-        if self.utctime is None:
-            sdate = dates[-1]
-        else:
-            sdate = np.datetime64(self.utctime) #.timestamp() #self.utcs[0]
-        # Find index "iindex" such that dates[iindex-1] < sdate <= dates[iindex]
-        # Notes:
-        #     1. If sdate < dates[0] then iindex = 0
-        #     2. If sdate > dates[-1] then iindex = len(dates), beyond the right boundary!
-        iindex = np.searchsorted(dates, sdate)
+        if self.tle_file:
+            tle_data = self.read_tle_file(self.tle_file)
+            dates = self.tle2datetime64(
+                np.array([float(line[18:32]) for line in tle_data[::2]]))
+            
+            if self.utctime is None:
+                sdate = dates[-1]
+            else:
+                sdate = np.datetime64(self.utctime) #.timestamp() #self.utcs[0]
+            # Find index "iindex" such that dates[iindex-1] < sdate <= dates[iindex]
+            # Notes:
+            #     1. If sdate < dates[0] then iindex = 0
+            #     2. If sdate > dates[-1] then iindex = len(dates), beyond the right boundary!
+            iindex = np.searchsorted(dates, sdate)
 
-        if iindex in (0, len(dates)):
-            if iindex == len(dates):
-                # Reset index if beyond the right boundary (see note 2. above)
+            if iindex in (0, len(dates)):
+                if iindex == len(dates):
+                    # Reset index if beyond the right boundary (see note 2. above)
+                    iindex -= 1
+            elif abs(sdate - dates[iindex - 1]) < abs(sdate - dates[iindex]):
+                # Choose the closest of the two surrounding dates
                 iindex -= 1
-        elif abs(sdate - dates[iindex - 1]) < abs(sdate - dates[iindex]):
-            # Choose the closest of the two surrounding dates
-            iindex -= 1
 
-        # Make sure the TLE we found is within the threshold
-        delta_days = abs(sdate - dates[iindex]) / np.timedelta64(1, 'D')
-        tle_thresh = 7
-        if delta_days > tle_thresh:
-            raise IndexError(
-                "Can't find tle data for %s within +/- %d days around %s" %
-                (self.satellite_name, tle_thresh, sdate))
+            # Make sure the TLE we found is within the threshold
+            delta_days = abs(sdate - dates[iindex]) / np.timedelta64(1, 'D')
+            tle_thresh = 7
+            if delta_days > tle_thresh:
+                raise IndexError(
+                    "Can't find tle data for %s within +/- %d days around %s" %
+                    (self.satellite_name, tle_thresh, sdate))
 
-        #if delta_days > 3:
-        #    LOG.warning("Found TLE data for %s that is %f days appart",
-        #                sdate, delta_days)
-        #else:
-        #    LOG.debug("Found TLE data for %s that is %f days appart",
-        #              sdate, delta_days)
+            #if delta_days > 3:
+            #    LOG.warning("Found TLE data for %s that is %f days appart",
+            #                sdate, delta_days)
+            #else:
+            #    LOG.debug("Found TLE data for %s that is %f days appart",
+            #              sdate, delta_days)
 
-        # Select TLE data
-        tle1 = tle_data[iindex * 2]
-        tle2 = tle_data[iindex * 2 + 1]
-        self._tle = tlefile.read(self.satellite_name, tle_file=None,
-                                line1=tle1, line2=tle2)
+            # Select TLE data
+            tle1 = tle_data[iindex * 2]
+            tle2 = tle_data[iindex * 2 + 1]
+            self._tle = tlefile.read(self.satellite_name, tle_file=None,
+                                    line1=tle1, line2=tle2)
 
         return self._tle
 

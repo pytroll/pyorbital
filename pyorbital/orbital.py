@@ -169,11 +169,13 @@ class Orbital(object):
 
     @property
     def tle(self):
+        # using an archive; select appropriate TLE from file
         if self.tle_file:
             tle_data = self.read_tle_file(self.tle_file)
             dates = self.tle2datetime64(
                 np.array([float(line[18:32]) for line in tle_data[::2]]))
             
+            #  set utctime to arbitrary value inside archive if object init
             if self.utctime is None:
                 sdate = dates[-1]
             else:
@@ -212,6 +214,22 @@ class Orbital(object):
             tle2 = tle_data[iindex * 2 + 1]
             self._tle = tlefile.read(self.satellite_name, tle_file=None,
                                     line1=tle1, line2=tle2)
+
+        # Not using TLE archive;
+        # Either using current celestrek TLE,
+        # or using user supplied Line 1 and line 2
+        else:
+            sat_time = self.tle2datetime64(float(self._tle.line1[18:32]))
+            # Object just created
+            if self.utctime = None:
+                self.utctime = datetime.now()
+            mismatch = self.utctime - sat_time
+            if mismatch.days > abs(7):
+                raise IndexError(
+                    "Current TLE from celestrek is %d days newer than 
+                     requested orbital parameter. Please use TLE archive
+                     for accurate results" %
+                    (mismatch.days))
 
         return self._tle
 

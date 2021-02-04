@@ -224,7 +224,7 @@ class Orbital(object):
             if not self.utctime:
                 self.utctime = datetime.now()
             mismatch = self.utctime - sat_time.astype(datetime)
-            if mismatch.days > abs(7):
+            if abs(mismatch.days) > 7:
                 raise IndexError(
                     """Current TLE from celestrek is %d days newer than
                        requested orbital parameter. Please use TLE archive

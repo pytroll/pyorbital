@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2014 SMHI
+# Copyright (c) 2011 - 2021 Pytroll Community
 
 # Author(s):
 
@@ -81,9 +81,9 @@ def get_results(satnumber, delay):
 
 _DATAPATH = os.path.dirname(os.path.abspath(__file__))
 
+
 class AIAAIntegrationTest(unittest.TestCase):
-    """Test against the AIAA test cases.
-    """
+    """Test against the AIAA test cases."""
 
     @unittest.skipIf(
         not os.path.exists(os.path.join(_DATAPATH, "SGP4-VER.TLE")),

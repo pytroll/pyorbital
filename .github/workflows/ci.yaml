@@ -12,7 +12,10 @@ jobs:
         python-version: ["3.7", "3.8"]
         experimental: [false]
         include:
-          - python-version: ["3.7", "3.8"]
+          - python-version: "3.7"
+            os: "windows-latest"
+            continue-on-error: true
+          - python-version: "3.8" 
             os: "windows-latest"
             continue-on-error: true
 

@@ -5,17 +5,16 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: true
       matrix:
-        os: ["windows-latest", "ubuntu-latest", "macos-latest"]
+        os: ["ubuntu-latest", "macos-latest"]
         python-version: ["3.7", "3.8"]
         experimental: [false]
         include:
-          - python-version: "3.8"
-            os: "ubuntu-latest"
-            experimental: true
+          - python-version: ["3.7", "3.8"]
+            os: "windows-latest"
+            continue-on-error: true
 
     env:
       PYTHON_VERSION: ${{ matrix.python-version }}

@@ -28,6 +28,13 @@ import os
 from setuptools import setup, find_packages
 import versioneer
 
+try:
+    with open('./README.md', 'r') as fd:
+        long_description = fd.read()
+except IOError:
+    long_description = ''
+
+
 setup(name='pyorbital',
       version=versioneer.get_version(),
       cmdclass=versioneer.get_cmdclass(),
@@ -43,6 +50,7 @@ setup(name='pyorbital',
                    "Topic :: Scientific/Engineering",
                    "Topic :: Scientific/Engineering :: Astronomy"],
       url="https://github.com/pytroll/pyorbital",
+      long_description=long_description,
       test_suite='pyorbital.tests.suite',
       packages=find_packages(),
       package_data={'pyorbital': [os.path.join('etc', 'platforms.txt')]},

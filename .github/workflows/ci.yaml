@@ -14,10 +14,10 @@ jobs:
         include:
           - python-version: "3.7"
             os: "windows-latest"
-            continue-on-error: true
+            experimental: true
           - python-version: "3.8" 
             os: "windows-latest"
-            continue-on-error: true
+            experimental: true
 
     env:
       PYTHON_VERSION: ${{ matrix.python-version }}

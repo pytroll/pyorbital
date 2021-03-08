@@ -159,10 +159,10 @@ def viirs(scans_nb, scan_indices=slice(0, None),
     scan_points = entire_width[scan_indices.astype('int')]
     scan_pixels = len(scan_points)
 
-    ''' initial angle 55.84 deg replaced with 56.28 deg found in
-    VIIRS User's Guide from NESDIS, version 1.2 (09/10/2013).
-    Ref : NOAA Technical Report NESDIS 142.
-    Seems to be better (not quantified)'''
+    # Initial angle 55.84 deg replaced with 56.28 deg found in
+    # VIIRS User's Guide from NESDIS, version 1.2 (09/10/2013).
+    # Ref : NOAA Technical Report NESDIS 142.
+    # Seems to be better (not quantified).
     across_track = \
         (scan_points / (chn_pixels / 2. - 0.5) - 1) * np.deg2rad(-56.28)
     y_max_angle = np.arctan2(11.87 / 2, 824.0)

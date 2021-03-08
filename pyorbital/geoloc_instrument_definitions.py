@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013 - 2019 PyTroll Community
+# Copyright (c) 2013 - 2021 PyTroll Community
 
 # Author(s):
 
@@ -62,15 +62,15 @@ def avhrr(scans_nb, scan_points,
                             np.zeros((len(scan_points),))))
 
     avhrr_inst = np.tile(
-        avhrr_inst[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+        avhrr_inst[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
 
     # building the corresponding times array
     # times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
     #         + np.expand_dims(offset, 1))
 
-    times = np.tile(scan_points * 0.000025, [np.int(scans_nb), 1])
+    times = np.tile(scan_points * 0.000025, [np.int32(scans_nb), 1])
     if apply_offset:
-        offset = np.arange(np.int(scans_nb)) * frequency
+        offset = np.arange(np.int32(scans_nb)) * frequency
         times += np.expand_dims(offset, 1)
 
     return ScanGeometry(avhrr_inst, times)
@@ -95,7 +95,7 @@ def avhrr_gac(scan_times, scan_points,
                             np.zeros((len(scan_points),))))
 
     avhrr_inst = np.tile(
-        avhrr_inst[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+        avhrr_inst[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
     # building the corresponding times array
     times = (np.tile(scan_points * 0.000025, [scans_nb, 1])
              + np.expand_dims(offset, 1))
@@ -188,7 +188,7 @@ def viirs(scans_nb, scan_indices=slice(0, None),
     SEC_EACH_SCANCOLUMN = 0.0002779947917
     sec_scan_duration = 1.779166667
     times = np.tile(scan_points * SEC_EACH_SCANCOLUMN,
-                    [np.int(scans_nb*scan_lines), 1])
+                    [np.int32(scans_nb*scan_lines), 1])
     offset = np.repeat(np.arange(scans_nb) *
                        sec_scan_duration*scan_step, scan_lines)
     times += np.expand_dims(offset, 1)
@@ -236,12 +236,12 @@ def amsua(scans_nb, scan_points=None):
     samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1)
                          * np.deg2rad(scan_angle),
                          np.zeros((len(scan_points),))))
-    samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+    samples = np.tile(samples[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
 
     # building the corresponding times array
     offset = np.arange(scans_nb) * scan_rate
     times = (np.tile(scan_points * sampling_interval + sync_time,
-                     [np.int(scans_nb), 1])
+                     [np.int32(scans_nb), 1])
              + np.expand_dims(offset, 1))
 
     # build the scan geometry object
@@ -287,11 +287,11 @@ def mhs(scans_nb, scan_points=None):
     # build the instrument (scan angles)
     samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1) * np.deg2rad(scan_angle),
                          np.zeros((len(scan_points),))))
-    samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+    samples = np.tile(samples[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
 
     # building the corresponding times array
     offset = np.arange(scans_nb) * scan_rate
-    times = (np.tile(scan_points * sampling_interval + sync_time, [np.int(scans_nb), 1]) + np.expand_dims(offset, 1))
+    times = (np.tile(scan_points * sampling_interval + sync_time, [np.int32(scans_nb), 1]) + np.expand_dims(offset, 1))
 
     # scan_angles = np.linspace(-np.deg2rad(scan_angle), np.deg2rad(scan_angle), scan_len)[scan_points]
 
@@ -345,11 +345,11 @@ def hirs4(scans_nb, scan_points=None):
     samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1)
                          * np.deg2rad(scan_angle),
                          np.zeros((len(scan_points),))))
-    samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+    samples = np.tile(samples[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
 
     # building the corresponding times array
     offset = np.arange(scans_nb) * scan_rate
-    times = (np.tile(scan_points * sampling_interval, [np.int(scans_nb), 1])
+    times = (np.tile(scan_points * sampling_interval, [np.int32(scans_nb), 1])
              + np.expand_dims(offset, 1))
 
     # build the scan geometry object
@@ -395,11 +395,11 @@ def atms(scans_nb, scan_points=None):
     scan_angles = np.linspace(-np.deg2rad(scan_angle), np.deg2rad(scan_angle), scan_len)[scan_points]
 
     samples = np.vstack((scan_angles, np.zeros(len(scan_points) * 1,)))
-    samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+    samples = np.tile(samples[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
 
     # building the corresponding times array
     offset = np.arange(scans_nb) * scan_rate
-    times = (np.tile(scan_points * sampling_interval, [np.int(scans_nb), 1])
+    times = (np.tile(scan_points * sampling_interval, [np.int32(scans_nb), 1])
              + np.expand_dims(offset, 1))
 
     # build the scan geometry object
@@ -449,12 +449,12 @@ def mwhs2(scans_nb, scan_points=None):
     samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1)
                          * np.deg2rad(scan_angle),
                          np.zeros((len(scan_points),))))
-    samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+    samples = np.tile(samples[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
 
     # building the corresponding times array
     offset = np.arange(scans_nb) * scan_rate
     times = (np.tile(scan_points * sampling_interval + sync_time,
-                     [np.int(scans_nb), 1])
+                     [np.int32(scans_nb), 1])
              + np.expand_dims(offset, 1))
 
     # # build the instrument (scan angles)
@@ -500,13 +500,13 @@ def olci(scans_nb, scan_points=None):
                                   np.deg2rad(scan_angle_east), scan_len)
     inst = np.vstack((scanline_angles, np.zeros(scan_len,)))
 
-    inst = np.tile(inst[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+    inst = np.tile(inst[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
 
     # building the corresponding times array
     # times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
     #         + np.expand_dims(offset, 1))
 
-    times = np.tile(np.zeros_like(scanline_angles), [np.int(scans_nb), 1])
+    times = np.tile(np.zeros_like(scanline_angles), [np.int32(scans_nb), 1])
     # if apply_offset:
     #     offset = np.arange(np.int(scans_nb)) * frequency
     #     times += np.expand_dims(offset, 1)
@@ -544,12 +544,12 @@ def ascat(scan_nb, scan_points=None):
         [scanline_angles_one, scanline_angles_two])[scan_points]
 
     inst = np.vstack((scan_angles, np.zeros(scan_len * 1,)))
-    inst = np.tile(inst[:, np.newaxis, :], [1, np.int(scan_nb), 1])
+    inst = np.tile(inst[:, np.newaxis, :], [1, np.int32(scan_nb), 1])
 
     # building the corresponding times array
     offset = np.arange(scan_nb) * scan_rate
 
     times = (np.tile(scan_points * sampling_interval,
-                     [np.int(scan_nb), 1]) + np.expand_dims(offset, 1))
+                     [np.int32(scan_nb), 1]) + np.expand_dims(offset, 1))
 
     return ScanGeometry(inst, times)

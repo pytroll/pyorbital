@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2014, 2017, 2018 Martin Raspaud
+# Copyright (c) 2014, 2017, 2018, 2021 Martin Raspaud
 
 # Author(s):
 
@@ -72,9 +72,9 @@ class TestGeoloc(unittest.TestCase):
 
         xy = np.vstack((np.deg2rad(np.array([10, 0, -10])),
                         np.array([0, 0, 0])))
-        xy = np.tile(xy[:, np.newaxis, :], [1, np.int(scans_nb), 1])
+        xy = np.tile(xy[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
 
-        times = np.tile([-0.1, 0, 0.1], [np.int(scans_nb), 1])
+        times = np.tile([-0.1, 0, 0.1], [np.int32(scans_nb), 1])
 
         instrument = ScanGeometry(xy, times)
 
@@ -111,9 +111,9 @@ class TestGeoloc(unittest.TestCase):
 
         self.assertEqual(times[0, 1], start_of_scan)
         self.assertEqual(times[0, 0], start_of_scan -
-                          np.timedelta64(100, 'ms'))
+                         np.timedelta64(100, 'ms'))
         self.assertEqual(times[0, 2], start_of_scan +
-                          np.timedelta64(100, 'ms'))
+                         np.timedelta64(100, 'ms'))
 
     def test_geodetic_lat(self):
         """Test the determination of the geodetic latitude."""
@@ -178,7 +178,7 @@ class TestGeolocDefs(unittest.TestCase):
         geom = viirs(1, np.array([0, 3200, 6399]))
         expected_fovs = np.array([
             np.tile(np.array([[0.98, -0., -0.98]]), [32, 1]),
-            np.tile(np.array([[0., -0., 0]]), [32, 1])], dtype=np.float)
+            np.tile(np.array([[0., -0., 0]]), [32, 1])], dtype=np.float64)
 
         self.assertTrue(np.allclose(geom.fovs,
                                     expected_fovs, rtol=1e-2, atol=1e-2))
@@ -186,7 +186,7 @@ class TestGeolocDefs(unittest.TestCase):
         geom = viirs(2, np.array([0, 3200, 6399]))
         expected_fovs = np.array([
             np.tile(np.array([[0.98, -0., -0.98]]), [32*2, 1]),
-            np.tile(np.array([[0., -0., 0]]), [32*2, 1])], dtype=np.float)
+            np.tile(np.array([[0., -0., 0]]), [32*2, 1])], dtype=np.float64)
 
         self.assertTrue(np.allclose(geom.fovs,
                                     expected_fovs, rtol=1e-2, atol=1e-2))
@@ -200,7 +200,7 @@ class TestGeolocDefs(unittest.TestCase):
               0.32,  0.26,  0.2,  0.15,  0.09,  0.03, -0.03, -0.09, -0.15,
               -0.2, -0.26, -0.32, -0.38, -0.44, -0.49, -0.55, -0.61, -0.67,
               -0.73, -0.78, -0.84]],
-            np.zeros((1, 30))], dtype=np.float)
+            np.zeros((1, 30))], dtype=np.float64)
         self.assertTrue(np.allclose(geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
 
     def test_mhs(self):
@@ -218,7 +218,7 @@ class TestGeolocDefs(unittest.TestCase):
               -0.36, -0.38, -0.4, -0.42, -0.44, -0.46, -0.48, -0.49, -0.51,
               -0.53, -0.55, -0.57, -0.59, -0.61, -0.63, -0.65, -0.67, -0.69,
               -0.71, -0.73, -0.75, -0.77, -0.79, -0.8, -0.82, -0.84, -0.86]],
-            np.zeros((1, 90))], dtype=np.float)
+            np.zeros((1, 90))], dtype=np.float64)
         self.assertTrue(np.allclose(geom.fovs,
                                     expected_fovs, rtol=1e-2, atol=1e-2))
 
@@ -234,7 +234,7 @@ class TestGeolocDefs(unittest.TestCase):
               -0.27, -0.3, -0.33, -0.36, -0.39, -0.42, -0.46, -0.49, -0.52,
               -0.55, -0.58, -0.61, -0.64, -0.68, -0.71, -0.74, -0.77, -0.8,
               -0.83, -0.86]],
-            np.zeros((1, 56))], dtype=np.float)
+            np.zeros((1, 56))], dtype=np.float64)
         self.assertTrue(np.allclose(geom.fovs,
                                     expected_fovs, rtol=1e-2, atol=1e-2))
 
@@ -254,7 +254,7 @@ class TestGeolocDefs(unittest.TestCase):
               -0.47, -0.49, -0.51, -0.53, -0.55, -0.57, -0.59, -0.61, -0.63,
               -0.65, -0.67, -0.69, -0.71, -0.73, -0.75, -0.76, -0.78, -0.8,
               -0.82, -0.84, -0.86, -0.88, -0.9, -0.92]],
-            np.zeros((1, 96))], dtype=np.float)
+            np.zeros((1, 96))], dtype=np.float64)
         self.assertTrue(np.allclose(geom.fovs,
                                     expected_fovs, rtol=1e-2, atol=1e-2))
 
@@ -273,13 +273,13 @@ class TestGeolocDefs(unittest.TestCase):
               -0.60737458, -0.63180919, -0.6562438, -0.68067841,
               -0.70511302, -0.72954763, -0.75398224, -0.77841685,
               -0.80285146, -0.82728607, -0.85172067, -0.87615528,
-              -0.90058989, -0.9250245]], np.zeros((1, 42))], dtype=np.float)
+              -0.90058989, -0.9250245]], np.zeros((1, 42))], dtype=np.float64)
 
         self.assertTrue(np.allclose(
             geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
         geom = ascat(1, np.array([0, 41]))
         expected_fovs = np.array([[[0.9250245,  -0.9250245]],
-                                  [[0.,  0.]]], dtype=np.float)
+                                  [[0.,  0.]]], dtype=np.float64)
         self.assertTrue(np.allclose(
             geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
 

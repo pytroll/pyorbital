@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2011-2014, 2018, 2020
+# Copyright (c) 2011-2021 Pytroll Community
 #
 # Author(s):
 #
 #   Martin Raspaud <martin.raspaud@smhi.se>
 #   Panu Lahtinen <panu.lahtinen@fmi.fi>
+#   Adam Dybbroe <adam.dybbroe@smhi.se>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -31,8 +32,8 @@ setup(name='pyorbital',
       version=versioneer.get_version(),
       cmdclass=versioneer.get_cmdclass(),
       description='Orbital parameters and astronomical computations in Python',
-      author='Martin Raspaud, Esben S. Nielsen',
-      author_email='martin.raspaud@smhi.se',
+      author='The Pytroll Team',
+      author_email='pytroll@googlegroups.com',
       classifiers=["Development Status :: 5 - Production/Stable",
                    "Intended Audience :: Science/Research",
                    "License :: OSI Approved :: GNU General Public License v3 " +
@@ -46,6 +47,6 @@ setup(name='pyorbital',
       packages=find_packages(),
       package_data={'pyorbital': [os.path.join('etc', 'platforms.txt')]},
       scripts=['bin/fetch_tles.py', ],
-      install_requires=['numpy>=1.11.0,!=1.14.0', 'scipy', 'requests'],
+      install_requires=['numpy>=1.19.0', 'scipy', 'requests'],
       zip_safe=False,
       )

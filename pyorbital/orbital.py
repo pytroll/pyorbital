@@ -160,10 +160,139 @@ class Orbital(object):
     def __init__(self, satellite, tle_file=None, line1=None, line2=None):
         satellite = satellite.upper()
         self.satellite_name = satellite
+        self.tle_file = tle_file
+        self.utctime = None
         self.tle = tlefile.read(satellite, tle_file=tle_file,
                                 line1=line1, line2=line2)
         self.orbit_elements = OrbitElements(self.tle)
+        self.sgdp4 = _SGDP4(self.orbit_elements)
+
+    @property
+    def tle(self):
+        # using an archive; select appropriate TLE from file
+        if self.tle_file:
+            tle_data = self.read_tle_file(self.tle_file)
+            dates = self.tle2datetime64(
+                np.array([float(line[18:32]) for line in tle_data[::2]]))
+
+            #  set utctime to arbitrary value inside archive if object init
+            if self.utctime is None:
+                sdate = dates[-1]
+            else:
+                sdate = np.datetime64(self.utctime)  # .timestamp() #self.utcs[0]
+            # Find index "iindex" such that dates[iindex-1] < sdate <= dates[iindex]
+            # Notes:
+            #     1. If sdate < dates[0] then iindex = 0
+            #     2. If sdate > dates[-1] then iindex = len(dates), beyond the right boundary!
+            iindex = np.searchsorted(dates, sdate)
+
+            if iindex in (0, len(dates)):
+                if iindex == len(dates):
+                    # Reset index if beyond the right boundary (see note 2. above)
+                    iindex -= 1
+            elif abs(sdate - dates[iindex - 1]) < abs(sdate - dates[iindex]):
+                # Choose the closest of the two surrounding dates
+                iindex -= 1
+
+            # Make sure the TLE we found is within the threshold
+            delta_days = abs(sdate - dates[iindex]) / np.timedelta64(1, 'D')
+            tle_thresh = 7
+            if delta_days > tle_thresh:
+                raise IndexError(
+                    "Can't find tle data for %s within +/- %d days around %s" %
+                    (self.satellite_name, tle_thresh, sdate))
+
+            # if delta_days > 3:
+            #     LOG.warning("Found TLE data for %s that is %f days appart",
+            #                 sdate, delta_days)
+            # else:
+            #     LOG.debug("Found TLE data for %s that is %f days appart",
+            #               sdate, delta_days)
+
+            # Select TLE data
+            tle1 = tle_data[iindex * 2]
+            tle2 = tle_data[iindex * 2 + 1]
+            self._tle = tlefile.read(self.satellite_name, tle_file=None,
+                                     line1=tle1, line2=tle2)
+
+        # Not using TLE archive;
+        # Either using current celestrek TLE,
+        # or using user supplied Line 1 and line 2
+        else:
+            sat_time = self.tle2datetime64(float(self._tle.line1[18:32]))
+            # Object just created
+            if not self.utctime:
+                self.utctime = datetime.now()
+            mismatch = sat_time.astype(datetime) - self.utctime
+            if abs(mismatch.days) > 7:
+                raise IndexError("""
+                    Current TLE from celestrek is %d days newer than
+                    requested orbital parameter. Please use TLE archive
+                    for accurate results""" % (mismatch.days))
+
+        return self._tle
+
+    @tle.setter
+    def tle(self, new_tle):
+        self._tle = new_tle
+
+    @property
+    def orbit_elements(self):
+        return OrbitElements(self.tle)
+
+    @orbit_elements.setter
+    def orbit_elements(self, new_orbit_elements):
+        self._orbit_elements = new_orbit_elements
+
+    @property
+    def sgdp4(self):
+        return _SGDP4(self.orbit_elements)
+
+    @sgdp4.setter
+    def sgdp4(self, new_sgdp4):
         self._sgdp4 = _SGDP4(self.orbit_elements)
+
+    @property
+    def utctime(self):
+        return self._utctime
+
+    @utctime.setter
+    def utctime(self, utc_time):
+        if type(utc_time) is not datetime:
+            times = np.array(utc_time, dtype='datetime64[m]')
+            if times.max() - times.min() > np.timedelta64(3, 'D'):
+                raise ValueError(
+                    "Dates must not exceed 3 days")
+            utctime = np.array(times.astype(float).mean(),
+                               dtype='datetime64[m]').astype(datetime)
+            self._utctime = utctime.tolist()
+        else:
+            self._utctime = utc_time
+
+    @staticmethod
+    def tle2datetime64(times):
+        """Convert TLE timestamps to numpy.datetime64.
+        Args:
+           times (float): TLE timestamps as %y%j.1234, e.g. 18001.25
+        """
+        # Convert %y%j.12345 to %Y%j.12345 (valid for 1950-2049)
+        times = np.where(times > 50000, times + 1900000, times + 2000000)
+
+        # Convert float to datetime64
+        doys = (times % 1000).astype('int') - 1
+        years = (times // 1000).astype('int')
+        msecs = np.rint(24 * 3600 * 1000 * (times % 1))
+        times64 = (
+            years - 1970).astype('datetime64[Y]').astype('datetime64[ms]')
+        times64 += doys.astype('timedelta64[D]')
+        times64 += msecs.astype('timedelta64[ms]')
+
+        return times64
+
+    def read_tle_file(self, tle_filename):
+        """Read TLE file."""
+        with open(tle_filename, 'r') as fp_:
+            return fp_.readlines()
 
     def __str__(self):
         return self.satellite_name + " " + str(self.tle)
@@ -174,6 +303,7 @@ class Orbital(object):
         """
 
         # Propagate backwards to ascending node
+        self.utctime = utc_time
         dt = np.timedelta64(10, 'm')
         t_old = utc_time
         t_new = t_old - dt
@@ -208,7 +338,8 @@ class Orbital(object):
         """Get the cartesian position and velocity from the satellite.
         """
 
-        kep = self._sgdp4.propagate(utc_time)
+        self.utctime = utc_time
+        kep = self.sgdp4.propagate(utc_time)
         pos, vel = kep2xyz(kep)
 
         if normalize:
@@ -221,6 +352,7 @@ class Orbital(object):
         """Calculate sublon, sublat and altitude of satellite.
         http://celestrak.com/columns/v02n03/
         """
+        self.utctime = utc_time
         (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(
             utc_time, normalize=True)
 

@@ -399,9 +399,13 @@ class Orbital(object):
                         return b
                     if abs(b - x) <= tol:
                         return x
+                    f_x = fun(x)
+                    # sometimes the estimation diverges... return best guess
+                    if f_x > f_b:
+                        return b
 
                     a, b, c = (a + x) / 2.0, x, (x + c) / 2.0
-                    f_a, f_b, f_c = fun(a), fun(b), fun(c)
+                    f_a, f_b, f_c = fun(a), f_x, fun(c)
 
         # every minute
         times = utc_time + np.array([timedelta(minutes=minutes)

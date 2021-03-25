@@ -155,6 +155,19 @@ class Test(unittest.TestCase):
 
         self.assertTrue(len(res) == 15)
 
+    def test_get_next_passes_issue_22(self):
+        """Check that max"""
+        line1 = '1 28654U 05018A   21083.16603416  .00000102  00000-0  79268-4 0  9999'
+        line2 = '2 28654  99.0035 147.6583 0014816 159.4931 200.6838 14.12591533816498'
+
+        orb = orbital.Orbital("NOAA 18", line1=line1, line2=line2)
+        t = datetime(2021, 3, 9, 22)
+        next_passes = orb.get_next_passes(t, 1, -15.6335, 27.762, 0.)
+        rise, fall, max_elevation = next_passes[0]
+        assert rise < max_elevation < fall
+        print(next_passes)
+
+
     @mock.patch('pyorbital.orbital.Orbital.get_lonlatalt')
     def test_utc2local(self, get_lonlatalt):
         get_lonlatalt.return_value = -45, None, None

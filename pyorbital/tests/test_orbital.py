@@ -167,7 +167,6 @@ class Test(unittest.TestCase):
         assert rise < max_elevation < fall
         print(next_passes)
 
-
     @mock.patch('pyorbital.orbital.Orbital.get_lonlatalt')
     def test_utc2local(self, get_lonlatalt):
         get_lonlatalt.return_value = -45, None, None

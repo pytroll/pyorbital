@@ -24,12 +24,13 @@
 
 """Module for computing the orbital parameters of satellites."""
 
+import logging
 import warnings
 from datetime import datetime, timedelta
 
+import numpy as np
 from scipy import optimize
 
-import numpy as np
 from pyorbital import astronomy, dt2np, tlefile
 
 try:
@@ -45,6 +46,8 @@ try:
 except ImportError:
     xr = None
     has_xarray = False
+
+logger = logging.getLogger(__name__)
 
 ECC_EPS = 1.0e-6  # Too low for computing further drops.
 ECC_LIMIT_LOW = -1.0e-3
@@ -205,9 +208,7 @@ class Orbital(object):
         return t_mid
 
     def get_position(self, utc_time, normalize=True):
-        """Get the cartesian position and velocity from the satellite.
-        """
-
+        """Get the cartesian position and velocity from the satellite."""
         kep = self._sgdp4.propagate(utc_time)
         pos, vel = kep2xyz(kep)
 
@@ -219,6 +220,7 @@ class Orbital(object):
 
     def get_lonlatalt(self, utc_time):
         """Calculate sublon, sublat and altitude of satellite.
+
         http://celestrak.com/columns/v02n03/
         """
         (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(
@@ -402,6 +404,7 @@ class Orbital(object):
                     f_x = fun(x)
                     # sometimes the estimation diverges... return best guess
                     if f_x > f_b:
+                        logger.info('Parabolic interpolation did not converge, returning best guess so far.')
                         return b
 
                     a, b, c = (a + x) / 2.0, x, (x + c) / 2.0
@@ -414,7 +417,6 @@ class Orbital(object):
         zcs = np.where(np.diff(np.sign(elev)))[0]
         res = []
         risetime = None
-        falltime = None
         for guess in zcs:
             horizon_mins = get_root(
                 elevation, guess, guess + 1.0, tol=tol / 60.0)
@@ -422,7 +424,6 @@ class Orbital(object):
             if elev[guess] < 0:
                 risetime = horizon_time
                 risemins = horizon_mins
-                falltime = None
             else:
                 falltime = horizon_time
                 fallmins = horizon_mins

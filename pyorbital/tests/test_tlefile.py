@@ -29,6 +29,7 @@ import datetime
 import unittest
 from unittest import mock
 import os
+from contextlib import suppress
 
 line0 = "ISS (ZARYA)"
 line1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
@@ -275,7 +276,8 @@ class TestSQLiteTLE(unittest.TestCase):
 
     def tearDown(self):
         """Clean temporary files."""
-        self.temp_dir.cleanup()
+        with suppress(PermissionError):
+            self.temp_dir.cleanup()
 
     def test_init(self):
         """Test that the init did what it should have."""

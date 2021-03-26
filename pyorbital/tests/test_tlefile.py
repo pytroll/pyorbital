@@ -276,7 +276,7 @@ class TestSQLiteTLE(unittest.TestCase):
 
     def tearDown(self):
         """Clean temporary files."""
-        with suppress(PermissionError):
+        with suppress(PermissionError, NotADirectoryError):
             self.temp_dir.cleanup()
 
     def test_init(self):

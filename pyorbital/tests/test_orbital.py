@@ -220,15 +220,15 @@ class TestGetObserverLook(unittest.TestCase):
     def setUp(self):
         self.t = datetime(2018, 1, 1, 0, 0, 0)
         self.sat_lon = np.array([[-89.5, -89.4], [-89.3, -89.2]])
-        self.sat_lat = np.array([[45.5, 45.4], [45.3, 45.2]])
+        self.sat_lat = np.array([[45.5, 45.4], [45.3, 40.2]])
         self.sat_alt = np.array([[35786, 35786], [35786, 35786]])
-        self.lon = np.array([[-85.5, -85.4], [-85.3, -85.2]])
+        self.lon = np.array([[-85.5, -85.4], [-85.3, -89.2]])
         self.lat = np.array([[40.5, 40.4], [40.3, 40.2]])
         self.alt = np.zeros((2, 2))
         self.exp_azi = np.array([[331.00275902, 330.95954165],
-                                 [330.91642994, 330.87342384]])
+                                 [330.91642994, 0]])
         self.exp_elev = np.array([[83.18070976, 83.17788976],
-                                  [83.17507167, 83.1722555]])
+                                  [83.17507167, 90]])
 
     def test_basic_numpy(self):
         """Test with numpy array inputs"""

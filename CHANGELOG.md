@@ -1,3 +1,31 @@
+## Version 1.6.1 (2021/04/12)
+
+### Issues Closed
+
+* [Issue 63](https://github.com/pytroll/pyorbital/issues/63) - Runtime error in get_next_passes ([PR 64](https://github.com/pytroll/pyorbital/pull/64))
+* [Issue 62](https://github.com/pytroll/pyorbital/issues/62) -  can  this tool run 
+* [Issue 22](https://github.com/pytroll/pyorbital/issues/22) - get_next_passes returns max-elevation-time time not between rise & fall time ([PR 76](https://github.com/pytroll/pyorbital/pull/76))
+
+In this release 3 issues were closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 76](https://github.com/pytroll/pyorbital/pull/76) - Fix parabolic estimation ([22](https://github.com/pytroll/pyorbital/issues/22))
+* [PR 65](https://github.com/pytroll/pyorbital/pull/65) - Add requests to the requirements
+* [PR 64](https://github.com/pytroll/pyorbital/pull/64) - Fix inappropriate runtime warning ([63](https://github.com/pytroll/pyorbital/issues/63))
+* [PR 60](https://github.com/pytroll/pyorbital/pull/60) - Skip tests if data are not available
+* [PR 59](https://github.com/pytroll/pyorbital/pull/59) - Fix tests on i386
+
+#### Features added
+
+* [PR 75](https://github.com/pytroll/pyorbital/pull/75) - Fix numpy deprecation warnings
+* [PR 67](https://github.com/pytroll/pyorbital/pull/67) - Added CALIPSO among platforms
+
+In this release 7 pull requests were closed.
+
+
 ## Version 1.6.0 (2020/06/24)
 
 ### Issues Closed

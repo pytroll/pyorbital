@@ -38,6 +38,7 @@ import numpy as np
 import requests
 import sqlite3
 
+
 TLE_URLS = ('http://www.celestrak.com/NORAD/elements/active.txt',
             'http://celestrak.com/NORAD/elements/weather.txt',
             'http://celestrak.com/NORAD/elements/resource.txt',
@@ -366,15 +367,7 @@ class Downloader(object):
         paths = self.config["downloaders"]["read_tle_files"]["paths"]
 
         # Collect filenames
-        fnames = []
-        for path in paths:
-            if '*' in path:
-                fnames += glob.glob(path)
-            else:
-                if not os.path.exists(path):
-                    logging.error("File %s doesn't exist.", path)
-                    continue
-                fnames += [path]
+        fnames = collect_fnames(paths)
 
         tles = []
         for fname in fnames:
@@ -409,6 +402,20 @@ class Downloader(object):
                     tles.append(tle)
                 line1, line2 = None, None
         return tles
+
+
+def collect_fnames(paths):
+    """Collect all filenames from *paths*."""
+    fnames = []
+    for path in paths:
+        if '*' in path:
+            fnames += glob.glob(path)
+        else:
+            if not os.path.exists(path):
+                logging.error("File %s doesn't exist.", path)
+                continue
+            fnames += [path]
+    return fnames
 
 
 class SQLiteTLE(object):

@@ -37,6 +37,7 @@ import glob
 import numpy as np
 import requests
 import sqlite3
+from xml.etree import ElementTree as ET
 
 
 TLE_URLS = ('http://www.celestrak.com/NORAD/elements/active.txt',
@@ -378,6 +379,28 @@ class Downloader(object):
         logging.info("Loaded %d TLEs from local files", len(tles))
 
         return tles
+
+    def read_xml_admin_messages(self):
+        """Read Eumetsat admin messages in XML format."""
+        paths = self.config["downloaders"]["read_admin_messages_xml"]["paths"]
+
+        # Collect filenames
+        fnames = collect_fnames(paths)
+
+        tles = []
+        for fname in fnames:
+            tree = ET.parse(fname)
+            root = tree.getroot()
+            data = []
+            for nav in root.findall(".//navigation"):
+                data.append(nav.find(".//line-1").text)
+                data.append(nav.find(".//line-2").text)
+            tles += self.parse_tles("\n".join(data))
+
+        logging.info("Loaded %d TLEs from admin message XML files", len(tles))
+
+        return tles
+
 
     def parse_tles(self, raw_data):
         """Parse all the TLEs in the given raw text data."""

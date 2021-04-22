@@ -400,7 +400,6 @@ class Downloader(object):
 
         return tles
 
-
     def parse_tles(self, raw_data):
         """Parse all the TLEs in the given raw text data."""
         tles = []

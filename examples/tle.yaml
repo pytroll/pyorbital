@@ -40,6 +40,11 @@ downloaders:
   fetch_spacetrack:
     user: <username>
     password: <password>
+  read_xml_admin_messages:
+    # Direct reception data from Metop satellites have Eumetsat admin messages in them.  This can be used
+    #   to read the TLEs from the XML variants
+    paths:
+      - /path/to/xml/admin/messages/*ADMIN_MESSAGE*xml
   read_tle_files:
     # For "kickstarting" the database, local files can also be added
     paths:

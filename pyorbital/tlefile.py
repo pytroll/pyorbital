@@ -119,8 +119,6 @@ def fetch(destination):
 class ChecksumError(Exception):
     """ChecksumError."""
 
-    pass
-
 
 class Tle(object):
     """Class holding TLE objects."""

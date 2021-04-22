@@ -206,7 +206,6 @@ class TestDownloader(unittest.TestCase):
     def test_read_tle_files(self):
         """Test reading TLE files from a file system."""
         from tempfile import TemporaryDirectory
-        import os
 
         tle_text = '\n'.join((line0, line1, line2))
 
@@ -232,7 +231,6 @@ class TestDownloader(unittest.TestCase):
     def test_read_xml_admin_messages(self):
         """Test reading TLE files from a file system."""
         from tempfile import TemporaryDirectory
-        import os
 
         tle_xml = '\n'.join(
             ('<?xml version="1.0" encoding="UTF-8"?>',

@@ -229,6 +229,43 @@ class TestDownloader(unittest.TestCase):
         self.assertEqual(res[0].line1, line1)
         self.assertEqual(res[0].line2, line2)
 
+    def test_read_xml_admin_messages(self):
+        """Test reading TLE files from a file system."""
+        from tempfile import TemporaryDirectory
+        import os
+
+        tle_xml = '\n'.join(
+            ('<?xml version="1.0" encoding="UTF-8"?>',
+            '<multi-mission-administrative-message>',
+            '<message>',
+            '<two-line-elements>',
+            '<navigation>',
+            '<line-1>' + line1 + '</line-1>',
+            '<line-2>' + line2 + '</line-2>',
+            '</navigation>',
+            '</two-line-elements>',
+            '</message>',
+            '</multi-mission-administrative-message>'))
+
+        save_dir = TemporaryDirectory()
+        with save_dir:
+            fname = os.path.join(save_dir.name, '20210420_Metop-B_ADMIN_MESSAGE_NO_127.xml')
+            with open(fname, 'w') as fid:
+                fid.write(tle_xml)
+            # Add a non-existent file, it shouldn't cause a crash
+            nonexistent = os.path.join(save_dir.name, 'not_here.txt')
+            # Use a wildcard to collect files (passed to glob)
+            starred_fname = os.path.join(save_dir.name, '*.xml')
+            self.dl.config["downloaders"] = {
+                "read_xml_admin_messages": {
+                    "paths": [fname, nonexistent, starred_fname]
+                }
+            }
+            res = self.dl.read_xml_admin_messages()
+        self.assertEqual(len(res), 2)
+        self.assertEqual(res[0].line1, line1)
+        self.assertEqual(res[0].line2, line2)
+
     def test_parse_tles(self):
         """Test TLE parsing."""
         tle_text = '\n'.join((line0, line1, line2))

@@ -236,16 +236,16 @@ class TestDownloader(unittest.TestCase):
 
         tle_xml = '\n'.join(
             ('<?xml version="1.0" encoding="UTF-8"?>',
-            '<multi-mission-administrative-message>',
-            '<message>',
-            '<two-line-elements>',
-            '<navigation>',
-            '<line-1>' + line1 + '</line-1>',
-            '<line-2>' + line2 + '</line-2>',
-            '</navigation>',
-            '</two-line-elements>',
-            '</message>',
-            '</multi-mission-administrative-message>'))
+             '<multi-mission-administrative-message>',
+             '<message>',
+             '<two-line-elements>',
+             '<navigation>',
+             '<line-1>' + line1 + '</line-1>',
+             '<line-2>' + line2 + '</line-2>',
+             '</navigation>',
+             '</two-line-elements>',
+             '</message>',
+             '</multi-mission-administrative-message>'))
 
         save_dir = TemporaryDirectory()
         with save_dir:

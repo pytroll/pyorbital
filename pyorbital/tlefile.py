@@ -382,11 +382,10 @@ class Downloader(object):
 
     def read_xml_admin_messages(self):
         """Read Eumetsat admin messages in XML format."""
-        paths = self.config["downloaders"]["read_admin_messages_xml"]["paths"]
+        paths = self.config["downloaders"]["read_xml_admin_messages"]["paths"]
 
         # Collect filenames
         fnames = collect_fnames(paths)
-
         tles = []
         for fname in fnames:
             tree = ET.parse(fname)

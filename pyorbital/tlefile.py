@@ -316,7 +316,7 @@ class Downloader(object):
                 for uri in sources[source]:
                     req = requests.get(uri)
                     if req.status_code == 200:
-                        tles[source] += self.parse_tles(req.text)
+                        tles[source] += parse_tles_from_raw_data(req.text)
                     else:
                         failures.append(uri)
                 if len(failures) > 0:
@@ -353,7 +353,7 @@ class Downloader(object):
             req = session.get(download_url)
 
             if req.status_code == 200:
-                tles += self.parse_tles(req.text)
+                tles += parse_tles_from_raw_data(req.text)
             else:
                 logging.error("Could not retrieve TLEs from Space-Track")
 
@@ -372,7 +372,7 @@ class Downloader(object):
         for fname in fnames:
             with open(fname, 'r') as fid:
                 data = fid.read()
-            tles += self.parse_tles(data)
+            tles += parse_tles_from_raw_data(data)
 
         logging.info("Loaded %d TLEs from local files", len(tles))
 
@@ -381,45 +381,9 @@ class Downloader(object):
     def read_xml_admin_messages(self):
         """Read Eumetsat admin messages in XML format."""
         paths = self.config["downloaders"]["read_xml_admin_messages"]["paths"]
-
-        # Collect filenames
-        fnames = collect_fnames(paths)
-        tles = []
-        for fname in fnames:
-            tree = ET.parse(fname)
-            root = tree.getroot()
-            data = []
-            for nav in root.findall(".//navigation"):
-                data.append(nav.find(".//line-1").text)
-                data.append(nav.find(".//line-2").text)
-            tles += self.parse_tles("\n".join(data))
-
+        tles = read_xml_admin_messages(paths)
         logging.info("Loaded %d TLEs from admin message XML files", len(tles))
 
-        return tles
-
-    def parse_tles(self, raw_data):
-        """Parse all the TLEs in the given raw text data."""
-        tles = []
-        line1, line2 = None, None
-        raw_data = raw_data.split('\n')
-        for row in raw_data:
-            if row.startswith('1 '):
-                line1 = row
-            elif row.startswith('2 '):
-                line2 = row
-            else:
-                continue
-            if line1 is not None and line2 is not None:
-                try:
-                    tle = Tle('', line1=line1, line2=line2)
-                except ValueError:
-                    logging.warning(
-                        "Invalid data found - line1: %s, line2: %s",
-                        line1, line2)
-                else:
-                    tles.append(tle)
-                line1, line2 = None, None
         return tles
 
 
@@ -435,6 +399,46 @@ def collect_fnames(paths):
                 continue
             fnames += [path]
     return fnames
+
+
+def read_xml_admin_messages(paths):
+    # Collect filenames
+    fnames = collect_fnames(paths)
+    tles = []
+    for fname in fnames:
+        tree = ET.parse(fname)
+        root = tree.getroot()
+        data = []
+        for nav in root.findall(".//navigation"):
+            data.append(nav.find(".//line-1").text)
+            data.append(nav.find(".//line-2").text)
+        tles += parse_tles_from_raw_data("\n".join(data))
+    return tles
+
+
+def parse_tles_from_raw_data(raw_data):
+    """Parse TLEs from raw text."""
+    tles = []
+    line1, line2 = None, None
+    raw_data = raw_data.split('\n')
+    for row in raw_data:
+        if row.startswith('1 '):
+            line1 = row
+        elif row.startswith('2 '):
+            line2 = row
+        else:
+            continue
+        if line1 is not None and line2 is not None:
+            try:
+                tle = Tle('', line1=line1, line2=line2)
+            except ValueError:
+                logging.warning(
+                    "Invalid data found - line1: %s, line2: %s",
+                    line1, line2)
+            else:
+                tles.append(tle)
+            line1, line2 = None, None
+    return tles
 
 
 class SQLiteTLE(object):

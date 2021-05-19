@@ -266,25 +266,26 @@ class TestDownloader(unittest.TestCase):
 
     def test_parse_tles(self):
         """Test TLE parsing."""
+        from pyorbital.tlefile import parse_tles_from_raw_data
         tle_text = '\n'.join((line0, line1, line2))
 
         # Valid data
-        res = self.dl.parse_tles(tle_text)
+        res = parse_tles_from_raw_data(tle_text)
         self.assertEqual(len(res), 1)
         self.assertEqual(res[0].line1, line1)
         self.assertEqual(res[0].line2, line2)
 
         # Only one valid line
-        res = self.dl.parse_tles(line1 + '\nbar')
+        res = parse_tles_from_raw_data(line1 + '\nbar')
         self.assertTrue(res == [])
 
         # Valid start of the lines, but bad data
-        res = self.dl.parse_tles('1 foo\n2 bar')
+        res = parse_tles_from_raw_data('1 foo\n2 bar')
         self.assertTrue(res == [])
 
         # Something wrong in the data
         bad_line2 = '2 ' + 'x' * (len(line2)-2)
-        res = self.dl.parse_tles('\n'.join((line1, bad_line2)))
+        res = parse_tles_from_raw_data('\n'.join((line1, bad_line2)))
         self.assertTrue(res == [])
 
 

@@ -347,9 +347,7 @@ class Downloader(object):
                 for uri in sources[source]:
                     req = requests.get(uri)
                     if req.status_code == 200:
-                        tles[source] += [
-                            Tle('', tle_file=io.StringIO(tle)) for tle in
-                            _get_tles_from_uris((req.text,), io.StringIO, platform='', only_first=False)]
+                        tles[source] += _parse_tles_for_downloader((req.text,), io.StringIO)
                     else:
                         failures.append(uri)
                 if len(failures) > 0:
@@ -386,9 +384,7 @@ class Downloader(object):
             req = session.get(download_url)
 
             if req.status_code == 200:
-                tles = [
-                    Tle('', tle_file=io.StringIO(tle)) for tle in
-                    _get_tles_from_uris((req.text,), io.StringIO, platform='', only_first=False)]
+                tles = _parse_tles_for_downloader((req.text,), io.StringIO)
             else:
                 logging.error("Could not retrieve TLEs from Space-Track")
 
@@ -402,11 +398,7 @@ class Downloader(object):
 
         # Collect filenames
         fnames = collect_fnames(paths)
-
-        tles = [
-            Tle('', tle_file=io.StringIO(tle)) for tle in
-            _get_tles_from_uris(fnames, open, platform='', only_first=False)]
-
+        tles = _parse_tles_for_downloader(fnames, open)
         logging.info("Loaded %d TLEs from local files", len(tles))
 
         return tles
@@ -418,6 +410,11 @@ class Downloader(object):
         logging.info("Loaded %d TLEs from admin message XML files", len(tles))
 
         return tles
+
+
+def _parse_tles_for_downloader(item, open_func):
+    return [Tle('', tle_file=io.StringIO(tle)) for tle in
+            _get_tles_from_uris(item, open_func, platform='', only_first=False)]
 
 
 def collect_fnames(paths):

@@ -28,10 +28,7 @@
 import io
 import logging
 import datetime as dt
-try:
-    from urllib2 import urlopen
-except ImportError:
-    from urllib.request import urlopen
+from urllib.request import urlopen
 import os
 import glob
 import numpy as np
@@ -246,12 +243,7 @@ class Tle(object):
     def __str__(self):
         """Format the class data for printing."""
         import pprint
-        import sys
-        if sys.version_info < (3, 0):
-            from StringIO import StringIO
-        else:
-            from io import StringIO
-        s_var = StringIO()
+        s_var = io.StringIO()
         d_var = dict(([(k, v) for k, v in
                        list(self.__dict__.items()) if k[0] != '_']))
         pprint.pprint(d_var, s_var)

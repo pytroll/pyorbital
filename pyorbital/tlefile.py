@@ -77,11 +77,14 @@ def read_platform_numbers(in_upper=False, num_as_int=False):
             parts = row.split()
             if len(parts) < 2:
                 continue
+            # The satellite name might have whitespace
+            platform = ' '.join(parts[:-1])
+            num = parts[-1]
             if in_upper:
-                parts[0] = parts[0].upper()
+                platform = platform.upper()
             if num_as_int:
-                parts[1] = int(parts[1])
-            out_dict[parts[0]] = parts[1]
+                num = int(num)
+            out_dict[platform] = num
     fid.close()
 
     return out_dict
@@ -193,7 +196,7 @@ class Tle(object):
             tle = self._line1.strip() + "\n" + self._line2.strip()
         else:
             uris, open_func = _get_uris_and_open_func(tle_file=self._tle_file)
-            tle = _get_tle_from_uris(uris, open_func, platform=self._platform)
+            tle = _get_first_tle(uris, open_func, platform=self._platform)
 
             if not tle:
                 raise KeyError("Found no TLE entry for '%s'" % self._platform)
@@ -284,36 +287,42 @@ def _get_uris_and_open_func(tle_file=None):
     return uris, open_func
 
 
-def _get_tle_from_uris(uris, open_func, platform=''):
-    tle = ""
+def _get_first_tle(uris, open_func, platform=''):
+    return _get_tles_from_uris(uris, open_func, platform=platform, only_first=True)
+
+
+def _get_tles_from_uris(uris, open_func, platform='', only_first=True):
+    tles = []
     designator = "1 " + platform
     for url in uris:
         fid = open_func(url)
         for l_0 in fid:
+            tle = ""
             l_0 = _decode(l_0)
             if l_0.strip() == platform:
                 l_1 = _decode(next(fid))
                 l_2 = _decode(next(fid))
                 tle = l_1.strip() + "\n" + l_2.strip()
-                break
-            if(platform in SATELLITES and
+            elif((platform in SATELLITES or not only_first) and
                 l_0.strip().startswith(designator)):
                 l_1 = l_0
                 l_2 = _decode(next(fid))
                 tle = l_1.strip() + "\n" + l_2.strip()
-                LOGGER.debug("Found platform %s, ID: %s",
-                             platform,
-                             SATELLITES[platform])
-                break
-            if open_func == _dummy_open_stringio and l_0.startswith(designator):
+                if platform:
+                    LOGGER.debug("Found platform %s, ID: %s",
+                                platform,
+                                SATELLITES[platform])
+            elif open_func == _dummy_open_stringio and l_0.startswith(designator):
                 l_1 = l_0
                 l_2 = _decode(next(fid))
                 tle = l_1.strip() + "\n" + l_2.strip()
-                break
-        fid.close()
-        if tle:
-            break
-    return tle
+            if tle:
+                if only_first:
+                    return tle
+                tles.append(tle)
+    if only_first:
+        return ""
+    return tles
 
 
 def _decode(itm):
@@ -400,11 +409,9 @@ class Downloader(object):
         # Collect filenames
         fnames = collect_fnames(paths)
 
-        tles = []
-        for fname in fnames:
-            with open(fname, 'r') as fid:
-                data = fid.read()
-            tles += parse_tles_from_raw_data(data)
+        tles = [
+            Tle('', tle_file=io.StringIO(tle)) for tle in
+            _get_tles_from_uris(fnames, open, platform='', only_first=False)]
 
         logging.info("Loaded %d TLEs from local files", len(tles))
 

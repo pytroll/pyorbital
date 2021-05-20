@@ -38,6 +38,7 @@ import numpy as np
 import requests
 import sqlite3
 from xml.etree import ElementTree as ET
+from itertools import zip_longest
 
 
 TLE_URLS = ('http://www.celestrak.com/NORAD/elements/active.txt',
@@ -95,6 +96,9 @@ in the following format:
   :language: text
   :lines: 4-
 """
+
+def _dummy_open_stringio(stream):
+    return stream
 
 
 def read(platform, tle_file=None, line1=None, line2=None):
@@ -189,7 +193,7 @@ class Tle(object):
             tle = self._line1.strip() + "\n" + self._line2.strip()
         else:
             uris, open_func = _get_uris_and_open_func(tle_file=self._tle_file)
-            tle = _get_first_tle(uris, open_func, platform=self._platform)
+            tle = _get_tle_from_uris(uris, open_func, platform=self._platform)
 
             if not tle:
                 raise KeyError("Found no TLE entry for '%s'" % self._platform)
@@ -256,8 +260,15 @@ def _get_uris_and_open_func(tle_file=None):
         return io.open(filename, 'rb')
 
     if tle_file:
-        uris = (tle_file,)
-        open_func = _open
+        if isinstance(tle_file, io.StringIO):
+            uris = (tle_file,)
+            open_func = _dummy_open_stringio
+        elif "ADMIN_MESSAGE" in tle_file:
+            uris = (read_tle_from_mmam_xml_file(tle_file),)
+            open_func = io.StringIO
+        else:
+            uris = (tle_file,)
+            open_func = _open
     elif "TLES" in os.environ:
         # TODO: get the TLE file closest in time to the actual satellite
         # overpass, NOT the latest!
@@ -273,35 +284,42 @@ def _get_uris_and_open_func(tle_file=None):
     return uris, open_func
 
 
-def _get_tles_from_uris(uris, open_func, platform=''):
+def _get_tle_from_uris(uris, open_func, platform=''):
     tle = ""
     designator = "1 " + platform
     for url in uris:
         fid = open_func(url)
         for l_0 in fid:
-            l_0 = l_0.decode('utf-8')
+            l_0 = _decode(l_0)
             if l_0.strip() == platform:
-                l_1 = next(fid).decode('utf-8')
-                l_2 = next(fid).decode('utf-8')
+                l_1 = _decode(next(fid))
+                l_2 = _decode(next(fid))
                 tle = l_1.strip() + "\n" + l_2.strip()
                 break
             if(platform in SATELLITES and
                 l_0.strip().startswith(designator)):
                 l_1 = l_0
-                l_2 = next(fid).decode('utf-8')
+                l_2 = _decode(next(fid))
                 tle = l_1.strip() + "\n" + l_2.strip()
                 LOGGER.debug("Found platform %s, ID: %s",
                              platform,
                              SATELLITES[platform])
                 break
+            if open_func == _dummy_open_stringio and l_0.startswith(designator):
+                l_1 = l_0
+                l_2 = _decode(next(fid))
+                tle = l_1.strip() + "\n" + l_2.strip()
+                break
         fid.close()
         if tle:
             break
-    yield tle
+    return tle
 
 
-def _get_first_tle(uris, open_func, platform=''):
-    return list(_get_tles_from_uris(uris, open_func, platform=platform))[0]
+def _decode(itm):
+    if isinstance(itm, str):
+        return itm
+    return itm.decode('utf-8')
 
 
 PLATFORM_NAMES_TABLE = "(satid text primary key, platform_name text)"
@@ -395,7 +413,7 @@ class Downloader(object):
     def read_xml_admin_messages(self):
         """Read Eumetsat admin messages in XML format."""
         paths = self.config["downloaders"]["read_xml_admin_messages"]["paths"]
-        tles = read_xml_admin_messages(paths)
+        tles = read_tles_from_mmam_xml_files(paths)
         logging.info("Loaded %d TLEs from admin message XML files", len(tles))
 
         return tles
@@ -415,17 +433,19 @@ def collect_fnames(paths):
     return fnames
 
 
-def read_xml_admin_messages(paths):
+def read_tles_from_mmam_xml_files(paths):
     # Collect filenames
     fnames = collect_fnames(paths)
     tles = []
     for fname in fnames:
-        data = _read_xml_admin_message(fname)
-        tles += parse_tles_from_raw_data(data)
+        data = read_tle_from_mmam_xml_file(fname).split('\n')
+        for two_lines in grouper(2, data):
+            tl_stream = io.StringIO('\n'.join(two_lines))
+            tles.append(Tle('', tle_file=tl_stream))
     return tles
 
 
-def _read_xml_admin_message(fname):
+def read_tle_from_mmam_xml_file(fname):
     tree = ET.parse(fname)
     root = tree.getroot()
     data = []
@@ -434,6 +454,13 @@ def _read_xml_admin_message(fname):
         data.append(nav.find(".//line-2").text)
 
     return "\n".join(data)
+
+
+def grouper(n, iterable, fillvalue=None):
+    "Collect data into fixed-length chunks or blocks"
+    # grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
+    args = [iter(iterable)] * n
+    return zip_longest(fillvalue=fillvalue, *args)
 
 
 def parse_tles_from_raw_data(raw_data):

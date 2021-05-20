@@ -474,31 +474,6 @@ def grouper(n, iterable, fillvalue=None):
     return zip_longest(fillvalue=fillvalue, *args)
 
 
-def parse_tles_from_raw_data(raw_data):
-    """Parse TLEs from raw text."""
-    tles = []
-    line1, line2 = None, None
-    raw_data = raw_data.split('\n')
-    for row in raw_data:
-        if row.startswith('1 '):
-            line1 = row
-        elif row.startswith('2 '):
-            line2 = row
-        else:
-            continue
-        if line1 is not None and line2 is not None:
-            try:
-                tle = Tle('', line1=line1, line2=line2)
-            except ValueError:
-                logging.warning(
-                    "Invalid data found - line1: %s, line2: %s",
-                    line1, line2)
-            else:
-                tles.append(tle)
-            line1, line2 = None, None
-    return tles
-
-
 class SQLiteTLE(object):
     """Store TLE data in a sqlite3 database."""
 

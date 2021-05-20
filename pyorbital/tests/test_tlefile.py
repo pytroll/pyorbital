@@ -280,30 +280,6 @@ class TestDownloader(unittest.TestCase):
         self.assertEqual(res[1].line1, line1_2)
         self.assertEqual(res[1].line2, line2_2)
 
-    def test_parse_tles(self):
-        """Test TLE parsing."""
-        from pyorbital.tlefile import parse_tles_from_raw_data
-        tle_text = '\n'.join((line0, line1, line2))
-
-        # Valid data
-        res = parse_tles_from_raw_data(tle_text)
-        self.assertEqual(len(res), 1)
-        self.assertEqual(res[0].line1, line1)
-        self.assertEqual(res[0].line2, line2)
-
-        # Only one valid line
-        res = parse_tles_from_raw_data(line1 + '\nbar')
-        self.assertTrue(res == [])
-
-        # Valid start of the lines, but bad data
-        res = parse_tles_from_raw_data('1 foo\n2 bar')
-        self.assertTrue(res == [])
-
-        # Something wrong in the data
-        bad_line2 = '2 ' + 'x' * (len(line2)-2)
-        res = parse_tles_from_raw_data('\n'.join((line1, bad_line2)))
-        self.assertTrue(res == [])
-
 
 class TestSQLiteTLE(unittest.TestCase):
     """Test saving TLE data to a SQLite database."""

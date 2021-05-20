@@ -97,6 +97,7 @@ in the following format:
   :lines: 4-
 """
 
+
 def _dummy_open_stringio(stream):
     return stream
 
@@ -295,15 +296,12 @@ def _get_tles_from_uris(uris, open_func, platform='', only_first=True):
                 l_1 = _decode(next(fid))
                 l_2 = _decode(next(fid))
                 tle = l_1.strip() + "\n" + l_2.strip()
-            elif((platform in SATELLITES or not only_first) and
-                l_0.strip().startswith(designator)):
+            elif((platform in SATELLITES or not only_first) and l_0.strip().startswith(designator)):
                 l_1 = l_0
                 l_2 = _decode(next(fid))
                 tle = l_1.strip() + "\n" + l_2.strip()
                 if platform:
-                    LOGGER.debug("Found platform %s, ID: %s",
-                                platform,
-                                SATELLITES[platform])
+                    LOGGER.debug("Found platform %s, ID: %s", platform, SATELLITES[platform])
             elif open_func == _dummy_open_stringio and l_0.startswith(designator):
                 l_1 = l_0
                 l_2 = _decode(next(fid))

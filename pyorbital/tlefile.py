@@ -420,14 +420,20 @@ def read_xml_admin_messages(paths):
     fnames = collect_fnames(paths)
     tles = []
     for fname in fnames:
-        tree = ET.parse(fname)
-        root = tree.getroot()
-        data = []
-        for nav in root.findall(".//navigation"):
-            data.append(nav.find(".//line-1").text)
-            data.append(nav.find(".//line-2").text)
-        tles += parse_tles_from_raw_data("\n".join(data))
+        data = _read_xml_admin_message(fname)
+        tles += parse_tles_from_raw_data(data)
     return tles
+
+
+def _read_xml_admin_message(fname):
+    tree = ET.parse(fname)
+    root = tree.getroot()
+    data = []
+    for nav in root.findall(".//navigation"):
+        data.append(nav.find(".//line-1").text)
+        data.append(nav.find(".//line-2").text)
+
+    return "\n".join(data)
 
 
 def parse_tles_from_raw_data(raw_data):

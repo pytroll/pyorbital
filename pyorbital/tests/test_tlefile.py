@@ -35,6 +35,9 @@ line0 = "ISS (ZARYA)"
 line1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
 line2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537"
 
+line1_2 = "1 38771U 12049A   21137.30264622  .00000000  00000+0 -49996-5 0 00017"
+line2_2 = "2 38771  98.7162 197.7716 0002383 106.1049 122.6344 14.21477797449453"
+
 
 class TLETest(unittest.TestCase):
     """Test TLE reading.
@@ -243,6 +246,14 @@ class TestDownloader(unittest.TestCase):
              '</navigation>',
              '</two-line-elements>',
              '</message>',
+             '<message>',
+             '<two-line-elements>',
+             '<navigation>',
+             '<line-1>' + line1_2 + '</line-1>',
+             '<line-2>' + line2_2 + '</line-2>',
+             '</navigation>',
+             '</two-line-elements>',
+             '</message>',
              '</multi-mission-administrative-message>'))
 
         save_dir = TemporaryDirectory()
@@ -260,9 +271,14 @@ class TestDownloader(unittest.TestCase):
                 }
             }
             res = self.dl.read_xml_admin_messages()
-        self.assertEqual(len(res), 2)
+
+        # There are two sets of TLEs in the file.  And as the same file is
+        # parsed twice, 4 TLE objects are returned
+        self.assertEqual(len(res), 4)
         self.assertEqual(res[0].line1, line1)
         self.assertEqual(res[0].line2, line2)
+        self.assertEqual(res[1].line1, line1_2)
+        self.assertEqual(res[1].line2, line2_2)
 
     def test_parse_tles(self):
         """Test TLE parsing."""

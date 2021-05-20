@@ -357,7 +357,9 @@ class Downloader(object):
                 for uri in sources[source]:
                     req = requests.get(uri)
                     if req.status_code == 200:
-                        tles[source] += parse_tles_from_raw_data(req.text)
+                        tles[source] += [
+                            Tle('', tle_file=io.StringIO(tle)) for tle in
+                            _get_tles_from_uris((req.text,), io.StringIO, platform='', only_first=False)]
                     else:
                         failures.append(uri)
                 if len(failures) > 0:
@@ -394,7 +396,9 @@ class Downloader(object):
             req = session.get(download_url)
 
             if req.status_code == 200:
-                tles += parse_tles_from_raw_data(req.text)
+                tles = [
+                    Tle('', tle_file=io.StringIO(tle)) for tle in
+                    _get_tles_from_uris((req.text,), io.StringIO, platform='', only_first=False)]
             else:
                 logging.error("Could not retrieve TLEs from Space-Track")
 

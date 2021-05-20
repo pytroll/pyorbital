@@ -106,9 +106,6 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \
         astronomy.observer_position(utc_time, lon, lat, alt)
 
-    # When satellit is at nadir, elevation is 90 degrees and azimuth is undefined.
-    sat_at_nadir = np.logical_and(lon == sat_lon, lat == sat_lat)
-
     lon = np.deg2rad(lon)
     lat = np.deg2rad(lat)
 
@@ -136,10 +133,15 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     else:
         az_data = az_
 
+    # When elevation is 90 degrees both top_s and top_e are close to zero
+    # and azimuth angle is undefined.
+    undet_azi = np.logical_and(top_s == 0, top_e == 0)
     if has_dask and isinstance(az_data, da.Array):
+        az_data = da.where(undet_azi, 0, az_data)
         az_data = da.where(top_s > 0, az_data + np.pi, az_data)
         az_data = da.where(az_data < 0, az_data + 2 * np.pi, az_data)
     else:
+        az_data[np.where(undet_azi)] = 0
         az_data[np.where(top_s > 0)] += np.pi
         az_data[np.where(az_data < 0)] += 2 * np.pi
 
@@ -161,14 +163,6 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     else:
         el_data[np.where(top_z_divided_by_rg_ > 1.0)] = np.pi/2
         az_data[np.where(el_data == np.pi/2)] = 0
-
-    # When lat/lon is equal to sat_lat/sat_lon el_ is 90 degrees and az_ is undefined.
-    if has_dask and isinstance(az_data, da.Array):
-        el_data = da.where(sat_at_nadir, np.pi/2, el_data)
-        az_data = da.where(sat_at_nadir, 0, az_data)
-    else:
-        el_data[np.where(sat_at_nadir)] = np.pi / 2
-        az_data[np.where(sat_at_nadir)] = 0
 
     if has_xarray and isinstance(az_, xr.DataArray):
         az_.data = az_data

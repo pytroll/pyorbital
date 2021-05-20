@@ -188,47 +188,8 @@ class Tle(object):
         if self._line1 is not None and self._line2 is not None:
             tle = self._line1.strip() + "\n" + self._line2.strip()
         else:
-            def _open(filename):
-                return io.open(filename, 'rb')
-
-            if self._tle_file:
-                urls = (self._tle_file,)
-                open_func = _open
-            elif "TLES" in os.environ:
-                # TODO: get the TLE file closest in time to the actual satellite
-                # overpass, NOT the latest!
-                urls = (max(glob.glob(os.environ["TLES"]),
-                            key=os.path.getctime), )
-                LOGGER.debug("Reading TLE from %s", urls[0])
-                open_func = _open
-            else:
-                LOGGER.debug("Fetch TLE from the internet.")
-                urls = TLE_URLS
-                open_func = urlopen
-
-            tle = ""
-            designator = "1 " + SATELLITES.get(self._platform, '')
-            for url in urls:
-                fid = open_func(url)
-                for l_0 in fid:
-                    l_0 = l_0.decode('utf-8')
-                    if l_0.strip() == self._platform:
-                        l_1 = next(fid).decode('utf-8')
-                        l_2 = next(fid).decode('utf-8')
-                        tle = l_1.strip() + "\n" + l_2.strip()
-                        break
-                    if(self._platform in SATELLITES and
-                       l_0.strip().startswith(designator)):
-                        l_1 = l_0
-                        l_2 = next(fid).decode('utf-8')
-                        tle = l_1.strip() + "\n" + l_2.strip()
-                        LOGGER.debug("Found platform %s, ID: %s",
-                                     self._platform,
-                                     SATELLITES[self._platform])
-                        break
-                fid.close()
-                if tle:
-                    break
+            uris, open_func = _get_uris_and_open_func(tle_file=self._tle_file)
+            tle = _get_first_tle(uris, open_func, platform=self._platform)
 
             if not tle:
                 raise KeyError("Found no TLE entry for '%s'" % self._platform)
@@ -288,6 +249,59 @@ class Tle(object):
                        list(self.__dict__.items()) if k[0] != '_']))
         pprint.pprint(d_var, s_var)
         return s_var.getvalue()[:-1]
+
+
+def _get_uris_and_open_func(tle_file=None):
+    def _open(filename):
+        return io.open(filename, 'rb')
+
+    if tle_file:
+        uris = (tle_file,)
+        open_func = _open
+    elif "TLES" in os.environ:
+        # TODO: get the TLE file closest in time to the actual satellite
+        # overpass, NOT the latest!
+        uris = (max(glob.glob(os.environ["TLES"]),
+                    key=os.path.getctime), )
+        LOGGER.debug("Reading TLE from %s", uris[0])
+        open_func = _open
+    else:
+        LOGGER.debug("Fetch TLE from the internet.")
+        uris = TLE_URLS
+        open_func = urlopen
+
+    return uris, open_func
+
+
+def _get_tles_from_uris(uris, open_func, platform=''):
+    tle = ""
+    designator = "1 " + platform
+    for url in uris:
+        fid = open_func(url)
+        for l_0 in fid:
+            l_0 = l_0.decode('utf-8')
+            if l_0.strip() == platform:
+                l_1 = next(fid).decode('utf-8')
+                l_2 = next(fid).decode('utf-8')
+                tle = l_1.strip() + "\n" + l_2.strip()
+                break
+            if(platform in SATELLITES and
+                l_0.strip().startswith(designator)):
+                l_1 = l_0
+                l_2 = next(fid).decode('utf-8')
+                tle = l_1.strip() + "\n" + l_2.strip()
+                LOGGER.debug("Found platform %s, ID: %s",
+                             platform,
+                             SATELLITES[platform])
+                break
+        fid.close()
+        if tle:
+            break
+    yield tle
+
+
+def _get_first_tle(uris, open_func, platform=''):
+    return list(_get_tles_from_uris(uris, open_func, platform=platform))[0]
 
 
 PLATFORM_NAMES_TABLE = "(satid text primary key, platform_name text)"

@@ -260,8 +260,8 @@ def _get_uris_and_open_func(tle_file=None):
             uris = (tle_file,)
             open_func = _dummy_open_stringio
         elif "ADMIN_MESSAGE" in tle_file:
-            uris = (read_tle_from_mmam_xml_file(tle_file),)
-            open_func = io.StringIO
+            uris = (io.StringIO(read_tle_from_mmam_xml_file(tle_file)),)
+            open_func = _dummy_open_stringio
         else:
             uris = (tle_file,)
             open_func = _open

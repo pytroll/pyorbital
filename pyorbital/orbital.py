@@ -126,14 +126,15 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     top_z = cos_lat * cos_theta * rx + \
         cos_lat * sin_theta * ry + sin_lat * rz
 
+    # Azimuth is undefined when elevation is 90 degrees, 180 (pi) will be returned.
     az_ = np.arctan2(-top_e, top_s) + np.pi
+    az_ = np.mod(az_, 2 * np.pi)  # Needed on some platforms
 
     rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
 
     top_z_divided_by_rg_ = top_z / rg_
 
     # Due to rounding top_z can be larger than rg_ (when el_ ~ 90).
-    # And azimuth undefined when elevation is 90 degrees
     top_z_divided_by_rg_ = top_z_divided_by_rg_.clip(max=1)
     el_ = np.arcsin(top_z_divided_by_rg_)
 

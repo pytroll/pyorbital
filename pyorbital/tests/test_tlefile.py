@@ -134,14 +134,14 @@ FETCH_PLAIN_TLE_CONFIG = {
     "fetch_plain_tle": {
         "source_1": ["mocked_url_1", "mocked_url_2", "mocked_url_3"],
         "source_2": ["mocked_url_4"]
-        }
     }
+}
 FETCH_SPACETRACK_CONFIG = {
     "fetch_spacetrack": {
         "user": "username",
         "password": "passw0rd"
-        }
     }
+}
 
 
 class TestDownloader(unittest.TestCase):

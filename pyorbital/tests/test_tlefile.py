@@ -97,6 +97,20 @@ class TLETest(unittest.TestCase):
             remove(filename)
 
 
+FETCH_PLAIN_TLE_CONFIG = {
+    "fetch_plain_tle": {
+        "source_1": ["mocked_url_1", "mocked_url_2", "mocked_url_3"],
+        "source_2": ["mocked_url_4"]
+        }
+    }
+FETCH_SPACETRACK_CONFIG = {
+    "fetch_spacetrack": {
+        "user": "username",
+        "password": "passw0rd"
+        }
+    }
+
+
 class TestDownloader(unittest.TestCase):
     """Test TLE downloader."""
 
@@ -111,14 +125,10 @@ class TestDownloader(unittest.TestCase):
         assert self.dl.config is self.config
 
     @mock.patch('pyorbital.tlefile.requests')
-    def test_fetch_plain_tle(self, requests):
+    def test_fetch_plain_tle_not_configured(self, requests):
         """Test downloading and a TLE file from internet."""
         requests.get = mock.MagicMock()
-        # The return value of requests.get()
-        req = mock.MagicMock()
-        req.status_code = 200
-        req.text = '\n'.join((line0, line1, line2))
-        requests.get.return_value = req
+        requests.get.return_value = _get_req_response(200)
 
         # Not configured
         self.dl.config["downloaders"] = {}
@@ -126,13 +136,15 @@ class TestDownloader(unittest.TestCase):
         self.assertTrue(res == {})
         requests.get.assert_not_called()
 
+    @mock.patch('pyorbital.tlefile.requests')
+    def test_fetch_plain_tle_two_sources(self, requests):
+        """Test downloading and a TLE file from internet."""
+        requests.get = mock.MagicMock()
+        requests.get.return_value = _get_req_response(200)
+
         # Two sources, one with multiple locations
-        self.dl.config["downloaders"] = {
-            "fetch_plain_tle": {
-                "source_1": ["mocked_url_1", "mocked_url_2", "mocked_url_3"],
-                "source_2": ["mocked_url_4"]
-            }
-        }
+        self.dl.config["downloaders"] = FETCH_PLAIN_TLE_CONFIG
+
         res = self.dl.fetch_plain_tle()
         self.assertTrue("source_1" in res)
         self.assertEqual(len(res["source_1"]), 3)
@@ -143,12 +155,16 @@ class TestDownloader(unittest.TestCase):
         self.assertTrue(mock.call("mocked_url_1") in requests.get.mock_calls)
         self.assertEqual(len(requests.get.mock_calls), 4)
 
-        # Reset mocks
-        requests.get.reset_mock()
-        req.reset_mock()
-
+    @mock.patch('pyorbital.tlefile.requests')
+    def test_fetch_plain_tle_server_is_a_teapot(self, requests):
+        """Test downloading and a TLE file from internet."""
+        requests.get = mock.MagicMock()
         # No data returned because the server is a teapot
-        req.status_code = 418
+        requests.get.return_value = _get_req_response(418)
+
+        # Two sources, one with multiple locations
+        self.dl.config["downloaders"] = FETCH_PLAIN_TLE_CONFIG
+
         res = self.dl.fetch_plain_tle()
         # The sources are in the dict ...
         self.assertEqual(len(res), 2)
@@ -159,7 +175,54 @@ class TestDownloader(unittest.TestCase):
         self.assertEqual(len(requests.get.mock_calls), 4)
 
     @mock.patch('pyorbital.tlefile.requests')
-    def test_fetch_spacetrack(self, requests):
+    def test_fetch_spacetrack_login_fails(self, requests):
+        """Test downloading and TLEs from space-track.org."""
+        mock_post = mock.MagicMock()
+        mock_session = mock.MagicMock()
+        mock_session.post = mock_post
+        requests.Session.return_value.__enter__.return_value = mock_session
+
+        self.dl.config["platforms"] = {
+            25544: 'ISS'
+        }
+        self.dl.config["downloaders"] = FETCH_SPACETRACK_CONFIG
+
+        # Login fails, because the server is a teapot
+        mock_post.return_value.status_code = 418
+        res = self.dl.fetch_spacetrack()
+        # Empty list of TLEs is returned
+        self.assertTrue(res == [])
+        # The login was anyway attempted
+        mock_post.assert_called_with(
+            'https://www.space-track.org/ajaxauth/login',
+            data={'identity': 'username', 'password': 'passw0rd'})
+
+    @mock.patch('pyorbital.tlefile.requests')
+    def test_fetch_spacetrack_get_fails(self, requests):
+        """Test downloading and TLEs from space-track.org."""
+        mock_post = mock.MagicMock()
+        mock_get = mock.MagicMock()
+        mock_session = mock.MagicMock()
+        mock_session.post = mock_post
+        mock_session.get = mock_get
+        requests.Session.return_value.__enter__.return_value = mock_session
+
+        self.dl.config["platforms"] = {
+            25544: 'ISS'
+        }
+        self.dl.config["downloaders"] = FETCH_SPACETRACK_CONFIG
+
+        # Login works, but something is wrong (teapot) when asking for data
+        mock_post.return_value.status_code = 200
+        mock_get.return_value.status_code = 418
+        res = self.dl.fetch_spacetrack()
+        self.assertTrue(res == [])
+        mock_get.assert_called_with("https://www.space-track.org/"
+                                    "basicspacedata/query/class/tle_latest/"
+                                    "ORDINAL/1/NORAD_CAT_ID/25544/format/tle")
+
+    @mock.patch('pyorbital.tlefile.requests')
+    def test_fetch_spacetrack_success(self, requests):
         """Test downloading and TLEs from space-track.org."""
         mock_post = mock.MagicMock()
         mock_get = mock.MagicMock()
@@ -172,33 +235,10 @@ class TestDownloader(unittest.TestCase):
         self.dl.config["platforms"] = {
             25544: 'ISS'
         }
-        self.dl.config["downloaders"] = {
-            "fetch_spacetrack": {
-                "user": "username",
-                "password": "passw0rd"
-            }
-        }
+        self.dl.config["downloaders"] = FETCH_SPACETRACK_CONFIG
 
-        # Login fails, because the server is a teapot
-        mock_post.return_value.status_code = 418
-        res = self.dl.fetch_spacetrack()
-        # Empty list of TLEs is returned
-        self.assertTrue(res == [])
-        # The login was anyway attempted
-        mock_post.assert_called_with(
-            'https://www.space-track.org/ajaxauth/login',
-            data={'identity': 'username', 'password': 'passw0rd'})
-
-        # Login works, but something is wrong (teapot) when asking for data
+        # Login works and data is received
         mock_post.return_value.status_code = 200
-        mock_get.return_value.status_code = 418
-        res = self.dl.fetch_spacetrack()
-        self.assertTrue(res == [])
-        mock_get.assert_called_with("https://www.space-track.org/"
-                                    "basicspacedata/query/class/tle_latest/"
-                                    "ORDINAL/1/NORAD_CAT_ID/25544/format/tle")
-
-        # Data is received
         mock_get.return_value.status_code = 200
         mock_get.return_value.text = tle_text
         res = self.dl.fetch_spacetrack()
@@ -279,6 +319,13 @@ class TestDownloader(unittest.TestCase):
         self.assertEqual(res[0].line2, line2)
         self.assertEqual(res[1].line1, line1_2)
         self.assertEqual(res[1].line2, line2_2)
+
+
+def _get_req_response(code):
+    req = mock.MagicMock()
+    req.status_code = code
+    req.text = '\n'.join((line0, line1, line2))
+    return req
 
 
 class TestSQLiteTLE(unittest.TestCase):

@@ -312,14 +312,15 @@ class TestGetObserverLookNadir(unittest.TestCase):
         2 error for xarray with numpy
         """
 
+        np.random.seed(125)
         self.t = datetime(2018, 1, 1, 0, 0, 0)
-        self.sat_lon = 360 * np.random.rand(1000) - 180
-        self.sat_lat = 180 * np.random.rand(1000) - 90
-        self.sat_alt = np.random.rand(1000) + 850
+        self.sat_lon = 360 * np.random.rand(100) - 180
+        self.sat_lat = 180 * np.random.rand(100) - 90
+        self.sat_alt = np.random.rand(100) + 850
         self.lon = self.sat_lon  # + 10E-17
         self.lat = self.sat_lat  # + 10E-17
-        self.alt = np.zeros((1000))
-        self.exp_elev = np.zeros((1000)) + 90
+        self.alt = np.zeros((100))
+        self.exp_elev = np.zeros((100)) + 90
 
     def test_basic_numpy(self):
         """Test with numpy array inputs"""

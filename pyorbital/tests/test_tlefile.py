@@ -38,6 +38,27 @@ line2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537"
 line1_2 = "1 38771U 12049A   21137.30264622  .00000000  00000+0 -49996-5 0 00017"
 line2_2 = "2 38771  98.7162 197.7716 0002383 106.1049 122.6344 14.21477797449453"
 
+tle_xml = '\n'.join(
+    ('<?xml version="1.0" encoding="UTF-8"?>',
+        '<multi-mission-administrative-message>',
+        '<message>',
+        '<two-line-elements>',
+        '<navigation>',
+        '<line-1>' + line1 + '</line-1>',
+        '<line-2>' + line2 + '</line-2>',
+        '</navigation>',
+        '</two-line-elements>',
+        '</message>',
+        '<message>',
+        '<two-line-elements>',
+        '<navigation>',
+        '<line-1>' + line1_2 + '</line-1>',
+        '<line-2>' + line2_2 + '</line-2>',
+        '</navigation>',
+        '</two-line-elements>',
+        '</message>',
+        '</multi-mission-administrative-message>'))
+
 
 class TLETest(unittest.TestCase):
     """Test TLE reading.
@@ -95,6 +116,18 @@ class TLETest(unittest.TestCase):
             self.check_example(tle)
         finally:
             remove(filename)
+
+    def test_from_mmam_xml(self):
+        """Test reading from an MMAM XML file."""
+        from tempfile import TemporaryDirectory
+
+        save_dir = TemporaryDirectory()
+        with save_dir:
+            fname = os.path.join(save_dir.name, '20210420_Metop-B_ADMIN_MESSAGE_NO_127.xml')
+            with open(fname, 'w') as fid:
+                fid.write(tle_xml)
+            tle = Tle("", tle_file=fname)
+        self.check_example(tle)
 
 
 FETCH_PLAIN_TLE_CONFIG = {
@@ -274,27 +307,6 @@ class TestDownloader(unittest.TestCase):
     def test_read_xml_admin_messages(self):
         """Test reading TLE files from a file system."""
         from tempfile import TemporaryDirectory
-
-        tle_xml = '\n'.join(
-            ('<?xml version="1.0" encoding="UTF-8"?>',
-             '<multi-mission-administrative-message>',
-             '<message>',
-             '<two-line-elements>',
-             '<navigation>',
-             '<line-1>' + line1 + '</line-1>',
-             '<line-2>' + line2 + '</line-2>',
-             '</navigation>',
-             '</two-line-elements>',
-             '</message>',
-             '<message>',
-             '<two-line-elements>',
-             '<navigation>',
-             '<line-1>' + line1_2 + '</line-1>',
-             '<line-2>' + line2_2 + '</line-2>',
-             '</navigation>',
-             '</two-line-elements>',
-             '</message>',
-             '</multi-mission-administrative-message>'))
 
         save_dir = TemporaryDirectory()
         with save_dir:

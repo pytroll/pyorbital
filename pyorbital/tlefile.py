@@ -397,7 +397,7 @@ class Downloader(object):
         paths = self.config["downloaders"]["read_tle_files"]["paths"]
 
         # Collect filenames
-        fnames = collect_fnames(paths)
+        fnames = collect_filenames(paths)
         tles = _parse_tles_for_downloader(fnames, open)
         logging.info("Loaded %d TLEs from local files", len(tles))
 
@@ -417,7 +417,7 @@ def _parse_tles_for_downloader(item, open_func):
             _get_tles_from_uris(item, open_func, platform='', only_first=False)]
 
 
-def collect_fnames(paths):
+def collect_filenames(paths):
     """Collect all filenames from *paths*."""
     fnames = []
     for path in paths:
@@ -433,7 +433,7 @@ def collect_fnames(paths):
 
 def read_tles_from_mmam_xml_files(paths):
     # Collect filenames
-    fnames = collect_fnames(paths)
+    fnames = collect_filenames(paths)
     tles = []
     for fname in fnames:
         data = read_tle_from_mmam_xml_file(fname).split('\n')

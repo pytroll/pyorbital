@@ -126,50 +126,18 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     top_z = cos_lat * cos_theta * rx + \
         cos_lat * sin_theta * ry + sin_lat * rz
 
-    az_ = np.arctan(-top_e / top_s)
-
-    if has_xarray and isinstance(az_, xr.DataArray):
-        az_data = az_.data
-    else:
-        az_data = az_
-
-    # When elevation is 90 degrees both top_s and top_e are close to zero
-    # and azimuth angle is undefined.
-    undet_azi = np.logical_and(top_s == 0, top_e == 0)
-    if has_dask and isinstance(az_data, da.Array):
-        az_data = da.where(undet_azi, 0, az_data)
-        az_data = da.where(top_s > 0, az_data + np.pi, az_data)
-        az_data = da.where(az_data < 0, az_data + 2 * np.pi, az_data)
-    else:
-        az_data[np.where(undet_azi)] = 0
-        az_data[np.where(top_s > 0)] += np.pi
-        az_data[np.where(az_data < 0)] += 2 * np.pi
+    az_ = np.arctan2(-top_e, top_s) + np.pi
 
     rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
 
     top_z_divided_by_rg_ = top_z / rg_
-    el_ = np.arcsin(top_z_divided_by_rg_)
-
-    if has_xarray and isinstance(az_, xr.DataArray):
-        el_data = el_.data
-    else:
-        el_data = el_
 
     # Due to rounding top_z can be larger than rg_ (when el_ ~ 90).
     # And azimuth undefined when elevation is 90 degrees
-    if has_dask and isinstance(az_data, da.Array):
-        el_data = da.where(top_z_divided_by_rg_ > 1.0, np.pi/2, el_data)
-        az_data = da.where(el_data == np.pi / 2, 0, az_data)
-    else:
-        el_data[np.where(top_z_divided_by_rg_ > 1.0)] = np.pi/2
-        az_data[np.where(el_data == np.pi/2)] = 0
+    top_z_divided_by_rg_ = top_z_divided_by_rg_.clip(max=1)
+    el_ = np.arcsin(top_z_divided_by_rg_)
 
-    if has_xarray and isinstance(az_, xr.DataArray):
-        az_.data = az_data
-        el_.data = el_data
-    else:
-        el_ = el_data
-        az_ = az_data
+    az_ -= np.pi * (top_z_divided_by_rg_ == 1)
     return np.rad2deg(az_), np.rad2deg(el_)
 
 

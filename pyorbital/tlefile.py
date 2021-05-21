@@ -437,7 +437,7 @@ def read_tles_from_mmam_xml_files(paths):
     tles = []
     for fname in fnames:
         data = read_tle_from_mmam_xml_file(fname).split('\n')
-        for two_lines in _grouper(2, data):
+        for two_lines in _group_iterable_to_chunks(2, data):
             tl_stream = io.StringIO('\n'.join(two_lines))
             tles.append(Tle('', tle_file=tl_stream))
     return tles
@@ -454,9 +454,9 @@ def read_tle_from_mmam_xml_file(fname):
     return "\n".join(data)
 
 
-def _grouper(n, iterable, fillvalue=None):
+def _group_iterable_to_chunks(n, iterable, fillvalue=None):
     "Collect data into fixed-length chunks or blocks"
-    # grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
+    # _group_iterable_to_chunks(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
     args = [iter(iterable)] * n
     return zip_longest(fillvalue=fillvalue, *args)
 

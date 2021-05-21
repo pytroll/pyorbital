@@ -137,7 +137,6 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     top_z_divided_by_rg_ = top_z_divided_by_rg_.clip(max=1)
     el_ = np.arcsin(top_z_divided_by_rg_)
 
-    az_ -= np.pi * (top_z_divided_by_rg_ == 1)
     return np.rad2deg(az_), np.rad2deg(el_)
 
 

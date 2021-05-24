@@ -315,7 +315,7 @@ class TestGetObserverLookNadir(unittest.TestCase):
         self.t = datetime(2018, 1, 1, 0, 0, 0)
         self.sat_lon = 360 * rng.rand(100) - 180
         self.sat_lat = 180 * rng.rand(100) - 90
-        self.sat_alt = np.random.rand(100) + 850
+        self.sat_alt = rng.rand(100) + 850
         self.lon = self.sat_lon  # + 10E-17
         self.lat = self.sat_lat  # + 10E-17
         self.alt = np.zeros((100))

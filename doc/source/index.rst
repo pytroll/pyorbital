@@ -31,6 +31,9 @@ If no path is given pyorbital tries to read the earth observation TLE-files from
 TLE download and database
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The historical TLE files can be requested from
+`celestrak <https://celestrak.com/NORAD/archives/request.php>`_.
+
 There is also a script, ``fetch_tles.py``, that can be used to collect
 TLE data from several locations.  Then currently supported locaions
 are:
@@ -42,7 +45,7 @@ are:
 The data are saved in a SQLite3 database, and can be written to a file
 after each run.  To see configuration options, see the example
 configuration in ``examples/tle.yaml``.
-    
+
 Computing satellite position
 ----------------------------
 The orbital module enables computation of satellite position and velocity at a specific time:
@@ -59,7 +62,7 @@ The orbital module enables computation of satellite position and velocity at a s
     >>> # Get longitude, latitude and altitude of the satellite:
     >>> orb.get_lonlatalt(now)
     (40.374855865574951, 78.849923885700363, 839.62504115338368)
- 
+
 
 Use actual TLEs to increase accuracy
 ------------------------------------

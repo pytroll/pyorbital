@@ -219,16 +219,20 @@ class TestGetObserverLook(unittest.TestCase):
 
     def setUp(self):
         self.t = datetime(2018, 1, 1, 0, 0, 0)
-        self.sat_lon = np.array([[-89.5, -89.4], [-89.3, -89.2]])
-        self.sat_lat = np.array([[45.5, 45.4], [45.3, 45.2]])
-        self.sat_alt = np.array([[35786, 35786], [35786, 35786]])
-        self.lon = np.array([[-85.5, -85.4], [-85.3, -85.2]])
-        self.lat = np.array([[40.5, 40.4], [40.3, 40.2]])
-        self.alt = np.zeros((2, 2))
-        self.exp_azi = np.array([[331.00275902, 330.95954165],
-                                 [330.91642994, 330.87342384]])
-        self.exp_elev = np.array([[83.18070976, 83.17788976],
-                                  [83.17507167, 83.1722555]])
+        self.sat_lon = np.array([[-89.5, -89.4, -89.5, -89.4],
+                                 [-89.3, -89.2, -89.3, -89.2]])
+        self.sat_lat = np.array([[45.5, 45.4, 45.5, 45.4],
+                                 [45.3, 40.2, 45.3, 40.2]])
+        self.sat_alt = 35786 * np.ones((2, 4))
+        self.lon = np.array([[-85.5, -85.4, -89.5, -99.4],
+                             [-85.3, -89.2, -89.3, -79.2]])
+        self.lat = np.array([[40.5, 40.4, 65.5, 45.4],
+                             [40.3, 40.2, 25.3, 40.2]])
+        self.alt = np.zeros((2, 4))
+        self.exp_azi = np.array([[331.00275902, 330.95954165, 180, 86.435411],
+                                 [330.91642994, 180, 0, 273.232073]])
+        self.exp_elev = np.array([[83.18070976, 83.17788976, 66.548467, 81.735221],
+                                  [83.17507167, 90, 66.559906, 81.010018]])
 
     def test_basic_numpy(self):
         """Test with numpy array inputs"""
@@ -295,6 +299,97 @@ class TestGetObserverLook(unittest.TestCase):
         np.testing.assert_allclose(elev.data.compute(), self.exp_elev)
 
 
+class TestGetObserverLookNadir(unittest.TestCase):
+    """Test the get_observer_look function when satellite is at nadir."""
+
+    def setUp(self):
+        """Setup for test observer at nadir.
+        Note that rounding error differs between array types.
+        With 1000 elements a test gives:
+        1 error for basic numpy
+        41 errors for basic dask
+        63 errors for xarray with dask
+        2 error for xarray with numpy
+        """
+        rng = np.random.RandomState(125)
+        self.t = datetime(2018, 1, 1, 0, 0, 0)
+        self.sat_lon = 360 * rng.rand(100) - 180
+        self.sat_lat = 180 * rng.rand(100) - 90
+        self.sat_alt = rng.rand(100) + 850
+        self.lon = self.sat_lon  # + 10E-17
+        self.lat = self.sat_lat  # + 10E-17
+        self.alt = np.zeros((100))
+        self.exp_elev = np.zeros((100)) + 90
+
+    def test_basic_numpy(self):
+        """Test with numpy array inputs"""
+        from pyorbital import orbital
+        azi, elev = orbital.get_observer_look(self.sat_lon, self.sat_lat,
+                                              self.sat_alt, self.t,
+                                              self.lon, self.lat, self.alt)
+        self.assertEqual(np.sum(np.isnan(azi)), 0)
+        self.assertFalse(np.isnan(azi).any())
+        np.testing.assert_allclose(elev, self.exp_elev)
+
+    def test_basic_dask(self):
+        """Test with dask array inputs"""
+        from pyorbital import orbital
+        import dask.array as da
+        sat_lon = da.from_array(self.sat_lon, chunks=2)
+        sat_lat = da.from_array(self.sat_lat, chunks=2)
+        sat_alt = da.from_array(self.sat_alt, chunks=2)
+        lon = da.from_array(self.lon, chunks=2)
+        lat = da.from_array(self.lat, chunks=2)
+        alt = da.from_array(self.alt, chunks=2)
+        azi, elev = orbital.get_observer_look(sat_lon, sat_lat,
+                                              sat_alt, self.t,
+                                              lon, lat, alt)
+        self.assertEqual(np.sum(np.isnan(azi)), 0)
+        self.assertFalse(np.isnan(azi).any())
+        np.testing.assert_allclose(elev.compute(), self.exp_elev)
+
+    def test_xarray_with_numpy(self):
+        """Test with xarray DataArray with numpy array as inputs"""
+        from pyorbital import orbital
+        import xarray as xr
+
+        def _xarr_conv(input):
+            return xr.DataArray(input)
+        sat_lon = _xarr_conv(self.sat_lon)
+        sat_lat = _xarr_conv(self.sat_lat)
+        sat_alt = _xarr_conv(self.sat_alt)
+        lon = _xarr_conv(self.lon)
+        lat = _xarr_conv(self.lat)
+        alt = _xarr_conv(self.alt)
+        azi, elev = orbital.get_observer_look(sat_lon, sat_lat,
+                                              sat_alt, self.t,
+                                              lon, lat, alt)
+        self.assertEqual(np.sum(np.isnan(azi)), 0)
+        self.assertFalse(np.isnan(azi).any())
+        np.testing.assert_allclose(elev.data, self.exp_elev)
+
+    def test_xarray_with_dask(self):
+        """Test with xarray DataArray with dask array as inputs"""
+        from pyorbital import orbital
+        import dask.array as da
+        import xarray as xr
+
+        def _xarr_conv(input):
+            return xr.DataArray(da.from_array(input, chunks=2))
+        sat_lon = _xarr_conv(self.sat_lon)
+        sat_lat = _xarr_conv(self.sat_lat)
+        sat_alt = _xarr_conv(self.sat_alt)
+        lon = _xarr_conv(self.lon)
+        lat = _xarr_conv(self.lat)
+        alt = _xarr_conv(self.alt)
+        azi, elev = orbital.get_observer_look(sat_lon, sat_lat,
+                                              sat_alt, self.t,
+                                              lon, lat, alt)
+        self.assertEqual(np.sum(np.isnan(azi)), 0)
+        self.assertFalse(np.isnan(azi).any())
+        np.testing.assert_allclose(elev.data.compute(), self.exp_elev)
+
+
 class TestRegressions(unittest.TestCase):
     """Test regressions."""
 
@@ -318,6 +413,7 @@ def suite():
     mysuite = unittest.TestSuite()
     mysuite.addTest(loader.loadTestsFromTestCase(Test))
     mysuite.addTest(loader.loadTestsFromTestCase(TestGetObserverLook))
+    mysuite.addTest(loader.loadTestsFromTestCase(TestGetObserverLookNadir))
     mysuite.addTest(loader.loadTestsFromTestCase(TestRegressions))
 
     return mysuite

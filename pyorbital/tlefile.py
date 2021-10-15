@@ -106,6 +106,44 @@ def read(platform, tle_file=None, line1=None, line2=None):
     return Tle(platform, tle_file=tle_file, line1=line1, line2=line2)
 
 
+def get_all_platforms(tle_file=None):
+    """Read all *platform* name from tle file
+    tle_file - list path files
+    """
+    platforms = list()
+    fid = io.open(tle_file, 'rb')
+    for line in fid:
+        line = line.decode('utf-8')
+        line = line.strip()
+        if not line.startswith('1') and not line.startswith('2') and len(line) > 0:
+            platforms.append(line)
+            l_1 = next(fid).decode('utf-8')
+            l_2 = next(fid).decode('utf-8')
+    fid.close()
+
+    return platforms
+
+
+def get_platform(tle_file=None):
+    """Read *platform* name from tle file
+    tle_file - path to tle file
+    """
+    try:
+        fid = io.open(tle_file, 'rb')
+        for line in fid:
+            line = line.decode('utf-8')
+            line = line.strip()
+            if not line.startswith('1') and not line.startswith('2') and len(line) > 0:
+                yield line
+                l_1 = next(fid).decode('utf-8')
+                l_2 = next(fid).decode('utf-8')
+    except IOError:
+        LOGGER.error("TLE file %s not found.", tle_file)
+    finally:
+        if fid:
+            fid.close()
+
+
 def fetch(destination):
     """Fetch TLE from internet and save it to `destination`."""
     with io.open(destination, mode="w", encoding="utf-8") as dest:
@@ -213,6 +251,7 @@ class Tle(object):
                 for l_0 in fid:
                     l_0 = l_0.decode('utf-8')
                     if l_0.strip() == self._platform:
+                    if l_0.strip().upper() == self._platform:
                         l_1 = next(fid).decode('utf-8')
                         l_2 = next(fid).decode('utf-8')
                         tle = l_1.strip() + "\n" + l_2.strip()

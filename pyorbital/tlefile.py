@@ -105,6 +105,7 @@ def read(platform, tle_file=None, line1=None, line2=None):
     """
     return Tle(platform, tle_file=tle_file, line1=line1, line2=line2)
 
+
 def get_all_platforms(tle_file=None):
     """Read all *platform* name from tle file
     tle_file - list path files
@@ -121,6 +122,7 @@ def get_all_platforms(tle_file=None):
     fid.close()
 
     return platforms
+
 
 def get_platform(tle_file=None):
     """Read *platform* name from tle file

@@ -1,8 +1,8 @@
 Pyorbital
 =========
 
-[![Build status](https://github.com/pytroll/pyorbital/workflows/CI/badge.svg?branch=master)](https://github.com/pytroll/pyorbital/workflows/CI/badge.svg?branch=master)
-[![Coverage Status](https://coveralls.io/repos/github/pytroll/pyorbital/badge.svg?branch=master)](https://coveralls.io/github/pytroll/pyorbital?branch=master)
+[![Build status](https://github.com/pytroll/pyorbital/workflows/CI/badge.svg?branch=main)](https://github.com/pytroll/pyorbital/workflows/CI/badge.svg?branch=main)
+[![Coverage Status](https://coveralls.io/repos/github/pytroll/pyorbital/badge.svg?branch=main)](https://coveralls.io/github/pytroll/pyorbital?branch=main)
 [![PyPI version](https://badge.fury.io/py/pyorbital.svg)](https://badge.fury.io/py/pyorbital)
 
 

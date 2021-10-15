@@ -69,6 +69,7 @@ RadarSat-2 32382
 Sentinel-1A 39634
 Sentinel-3A 41335
 Sentinel-3B 43437
+Sentinel-5P 42969
 SMOS 36036
 SPOT-5 27421
 SPOT-6 38755

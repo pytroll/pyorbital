@@ -78,10 +78,9 @@ class Test(unittest.TestCase):
         az, el = sat.get_observer_look(d, -84.39733, 33.775867, 0)
         expected_az = 122.45169655331965
         expected_el = 1.9800219611255456
-        self.assertTrue(np.abs(az - expected_az) < eps_deg,
-                        'Calculation of azimut failed')
-        self.assertTrue(np.abs(el - expected_el) < eps_deg,
-                        'Calculation of elevation failed')
+
+        np.testing.assert_allclose(az, expected_az, atol=eps_deg, err_msg='Calculation of azimut failed')
+        np.testing.assert_allclose(el, expected_el, atol=eps_deg, err_msg='Calculation of elevation failed')
 
     def test_orbit_num_an(self):
         sat = orbital.Orbital("METOP-A",

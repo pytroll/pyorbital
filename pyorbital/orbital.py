@@ -103,42 +103,39 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = astronomy.observer_position(
         utc_time, sat_lon, sat_lat, sat_alt)
 
+    az_, el_ = get_observer_look_from_cartesian_position(utc_time, lon, lat, alt, pos_x, pos_y, pos_z)
+
+    return az_, el_
+
+
+def get_observer_look_from_cartesian_position(utc_time, lon, lat, alt, pos_x, pos_y, pos_z):
     (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \
         astronomy.observer_position(utc_time, lon, lat, alt)
-
     lon = np.deg2rad(lon)
     lat = np.deg2rad(lat)
-
     theta = (astronomy.gmst(utc_time) + lon) % (2 * np.pi)
-
     rx = pos_x - opos_x
     ry = pos_y - opos_y
     rz = pos_z - opos_z
-
     sin_lat = np.sin(lat)
     cos_lat = np.cos(lat)
     sin_theta = np.sin(theta)
     cos_theta = np.cos(theta)
-
     top_s = sin_lat * cos_theta * rx + \
-        sin_lat * sin_theta * ry - cos_lat * rz
+            sin_lat * sin_theta * ry - cos_lat * rz
     top_e = -sin_theta * rx + cos_theta * ry
     top_z = cos_lat * cos_theta * rx + \
-        cos_lat * sin_theta * ry + sin_lat * rz
-
+            cos_lat * sin_theta * ry + sin_lat * rz
     # Azimuth is undefined when elevation is 90 degrees, 180 (pi) will be returned.
     az_ = np.arctan2(-top_e, top_s) + np.pi
     az_ = np.mod(az_, 2 * np.pi)  # Needed on some platforms
-
     rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
-
     top_z_divided_by_rg_ = top_z / rg_
-
     # Due to rounding top_z can be larger than rg_ (when el_ ~ 90).
     top_z_divided_by_rg_ = top_z_divided_by_rg_.clip(max=1)
     el_ = np.arcsin(top_z_divided_by_rg_)
-
-    return np.rad2deg(az_), np.rad2deg(el_)
+    az_, el_ = np.rad2deg(az_), np.rad2deg(el_)
+    return az_, el_
 
 
 class Orbital(object):
@@ -254,40 +251,9 @@ class Orbital(object):
         """
 
         utc_time = dt2np(utc_time)
-        (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(
-            utc_time, normalize=False)
-        (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \
-            astronomy.observer_position(utc_time, lon, lat, alt)
+        (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(utc_time, normalize=False)
 
-        lon = np.deg2rad(lon)
-        lat = np.deg2rad(lat)
-
-        theta = (astronomy.gmst(utc_time) + lon) % (2 * np.pi)
-
-        rx = pos_x - opos_x
-        ry = pos_y - opos_y
-        rz = pos_z - opos_z
-
-        sin_lat = np.sin(lat)
-        cos_lat = np.cos(lat)
-        sin_theta = np.sin(theta)
-        cos_theta = np.cos(theta)
-
-        top_s = sin_lat * cos_theta * rx + \
-            sin_lat * sin_theta * ry - cos_lat * rz
-        top_e = -sin_theta * rx + cos_theta * ry
-        top_z = cos_lat * cos_theta * rx + \
-            cos_lat * sin_theta * ry + sin_lat * rz
-
-        az_ = np.arctan(-top_e / top_s)
-
-        az_ = np.where(top_s > 0, az_ + np.pi, az_)
-        az_ = np.where(az_ < 0, az_ + 2 * np.pi, az_)
-
-        rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
-        el_ = np.arcsin(top_z / rg_)
-
-        return np.rad2deg(az_), np.rad2deg(el_)
+        return get_observer_look_from_cartesian_position(utc_time, lon, lat, alt, pos_x, pos_y, pos_z)
 
     def get_orbit_number(self, utc_time, tbus_style=False, as_float=False):
         """Calculate orbit number at specified time.

@@ -122,10 +122,10 @@ def get_observer_look_from_cartesian_position(utc_time, lon, lat, alt, pos_x, po
     sin_theta = np.sin(theta)
     cos_theta = np.cos(theta)
     top_s = sin_lat * cos_theta * rx + \
-            sin_lat * sin_theta * ry - cos_lat * rz
+        sin_lat * sin_theta * ry - cos_lat * rz
     top_e = -sin_theta * rx + cos_theta * ry
     top_z = cos_lat * cos_theta * rx + \
-            cos_lat * sin_theta * ry + sin_lat * rz
+        cos_lat * sin_theta * ry + sin_lat * rz
     # Azimuth is undefined when elevation is 90 degrees, 180 (pi) will be returned.
     az_ = np.arctan2(-top_e, top_s) + np.pi
     az_ = np.mod(az_, 2 * np.pi)  # Needed on some platforms

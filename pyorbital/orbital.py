@@ -122,10 +122,10 @@ def get_observer_look_from_cartesian_position(pos_x, pos_y, pos_z, lon, lat, alt
     sin_theta = np.sin(theta)
     cos_theta = np.cos(theta)
     top_s = sin_lat * cos_theta * rx + \
-            sin_lat * sin_theta * ry - cos_lat * rz
+        sin_lat * sin_theta * ry - cos_lat * rz
     top_e = -sin_theta * rx + cos_theta * ry
     top_z = cos_lat * cos_theta * rx + \
-            cos_lat * sin_theta * ry + sin_lat * rz
+        cos_lat * sin_theta * ry + sin_lat * rz
     az_ = np.arctan(-top_e / top_s)
 
     if has_xarray and isinstance(az_, xr.DataArray):

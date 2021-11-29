@@ -28,15 +28,15 @@
 import io
 import logging
 import datetime as dt
-try:
-    from urllib2 import urlopen
-except ImportError:
-    from urllib.request import urlopen
+from urllib.request import urlopen
 import os
 import glob
 import numpy as np
 import requests
 import sqlite3
+from xml.etree import ElementTree as ET
+from itertools import zip_longest
+
 
 TLE_URLS = ('http://www.celestrak.com/NORAD/elements/active.txt',
             'http://celestrak.com/NORAD/elements/weather.txt',
@@ -74,11 +74,14 @@ def read_platform_numbers(in_upper=False, num_as_int=False):
             parts = row.split()
             if len(parts) < 2:
                 continue
+            # The satellite name might have whitespace
+            platform = ' '.join(parts[:-1])
+            num = parts[-1]
             if in_upper:
-                parts[0] = parts[0].upper()
+                platform = platform.upper()
             if num_as_int:
-                parts[1] = int(parts[1])
-            out_dict[parts[0]] = parts[1]
+                num = int(num)
+            out_dict[platform] = num
     fid.close()
 
     return out_dict
@@ -93,6 +96,10 @@ in the following format:
   :language: text
   :lines: 4-
 """
+
+
+def _dummy_open_stringio(stream):
+    return stream
 
 
 def read(platform, tle_file=None, line1=None, line2=None):
@@ -116,8 +123,6 @@ def fetch(destination):
 
 class ChecksumError(Exception):
     """ChecksumError."""
-
-    pass
 
 
 class Tle(object):
@@ -188,47 +193,8 @@ class Tle(object):
         if self._line1 is not None and self._line2 is not None:
             tle = self._line1.strip() + "\n" + self._line2.strip()
         else:
-            def _open(filename):
-                return io.open(filename, 'rb')
-
-            if self._tle_file:
-                urls = (self._tle_file,)
-                open_func = _open
-            elif "TLES" in os.environ:
-                # TODO: get the TLE file closest in time to the actual satellite
-                # overpass, NOT the latest!
-                urls = (max(glob.glob(os.environ["TLES"]),
-                            key=os.path.getctime), )
-                LOGGER.debug("Reading TLE from %s", urls[0])
-                open_func = _open
-            else:
-                LOGGER.debug("Fetch TLE from the internet.")
-                urls = TLE_URLS
-                open_func = urlopen
-
-            tle = ""
-            designator = "1 " + SATELLITES.get(self._platform, '')
-            for url in urls:
-                fid = open_func(url)
-                for l_0 in fid:
-                    l_0 = l_0.decode('utf-8')
-                    if l_0.strip() == self._platform:
-                        l_1 = next(fid).decode('utf-8')
-                        l_2 = next(fid).decode('utf-8')
-                        tle = l_1.strip() + "\n" + l_2.strip()
-                        break
-                    if(self._platform in SATELLITES and
-                       l_0.strip().startswith(designator)):
-                        l_1 = l_0
-                        l_2 = next(fid).decode('utf-8')
-                        tle = l_1.strip() + "\n" + l_2.strip()
-                        LOGGER.debug("Found platform %s, ID: %s",
-                                     self._platform,
-                                     SATELLITES[self._platform])
-                        break
-                fid.close()
-                if tle:
-                    break
+            uris, open_func = _get_uris_and_open_func(tle_file=self._tle_file)
+            tle = _get_first_tle(uris, open_func, platform=self._platform)
 
             if not tle:
                 raise KeyError("Found no TLE entry for '%s'" % self._platform)
@@ -278,16 +244,81 @@ class Tle(object):
     def __str__(self):
         """Format the class data for printing."""
         import pprint
-        import sys
-        if sys.version_info < (3, 0):
-            from StringIO import StringIO
-        else:
-            from io import StringIO
-        s_var = StringIO()
+        s_var = io.StringIO()
         d_var = dict(([(k, v) for k, v in
                        list(self.__dict__.items()) if k[0] != '_']))
         pprint.pprint(d_var, s_var)
         return s_var.getvalue()[:-1]
+
+
+def _get_uris_and_open_func(tle_file=None):
+    def _open(filename):
+        return io.open(filename, 'rb')
+
+    if tle_file:
+        if isinstance(tle_file, io.StringIO):
+            uris = (tle_file,)
+            open_func = _dummy_open_stringio
+        elif "ADMIN_MESSAGE" in tle_file:
+            uris = (io.StringIO(read_tle_from_mmam_xml_file(tle_file)),)
+            open_func = _dummy_open_stringio
+        else:
+            uris = (tle_file,)
+            open_func = _open
+    elif "TLES" in os.environ:
+        # TODO: get the TLE file closest in time to the actual satellite
+        # overpass, NOT the latest!
+        uris = (max(glob.glob(os.environ["TLES"]),
+                    key=os.path.getctime), )
+        LOGGER.debug("Reading TLE from %s", uris[0])
+        open_func = _open
+    else:
+        LOGGER.debug("Fetch TLE from the internet.")
+        uris = TLE_URLS
+        open_func = urlopen
+
+    return uris, open_func
+
+
+def _get_first_tle(uris, open_func, platform=''):
+    return _get_tles_from_uris(uris, open_func, platform=platform, only_first=True)
+
+
+def _get_tles_from_uris(uris, open_func, platform='', only_first=True):
+    tles = []
+    designator = "1 " + platform
+    for url in uris:
+        fid = open_func(url)
+        for l_0 in fid:
+            tle = ""
+            l_0 = _decode(l_0)
+            if l_0.strip() == platform:
+                l_1 = _decode(next(fid))
+                l_2 = _decode(next(fid))
+                tle = l_1.strip() + "\n" + l_2.strip()
+            elif((platform in SATELLITES or not only_first) and l_0.strip().startswith(designator)):
+                l_1 = l_0
+                l_2 = _decode(next(fid))
+                tle = l_1.strip() + "\n" + l_2.strip()
+                if platform:
+                    LOGGER.debug("Found platform %s, ID: %s", platform, SATELLITES[platform])
+            elif open_func == _dummy_open_stringio and l_0.startswith(designator):
+                l_1 = l_0
+                l_2 = _decode(next(fid))
+                tle = l_1.strip() + "\n" + l_2.strip()
+            if tle:
+                if only_first:
+                    return tle
+                tles.append(tle)
+    if only_first:
+        return ""
+    return tles
+
+
+def _decode(itm):
+    if isinstance(itm, str):
+        return itm
+    return itm.decode('utf-8')
 
 
 PLATFORM_NAMES_TABLE = "(satid text primary key, platform_name text)"
@@ -316,7 +347,7 @@ class Downloader(object):
                 for uri in sources[source]:
                     req = requests.get(uri)
                     if req.status_code == 200:
-                        tles[source] += self.parse_tles(req.text)
+                        tles[source] += _parse_tles_for_downloader((req.text,), io.StringIO)
                     else:
                         failures.append(uri)
                 if len(failures) > 0:
@@ -353,7 +384,7 @@ class Downloader(object):
             req = session.get(download_url)
 
             if req.status_code == 200:
-                tles += self.parse_tles(req.text)
+                tles = _parse_tles_for_downloader((req.text,), io.StringIO)
             else:
                 logging.error("Could not retrieve TLEs from Space-Track")
 
@@ -366,49 +397,68 @@ class Downloader(object):
         paths = self.config["downloaders"]["read_tle_files"]["paths"]
 
         # Collect filenames
-        fnames = []
-        for path in paths:
-            if '*' in path:
-                fnames += glob.glob(path)
-            else:
-                if not os.path.exists(path):
-                    logging.error("File %s doesn't exist.", path)
-                    continue
-                fnames += [path]
-
-        tles = []
-        for fname in fnames:
-            with open(fname, 'r') as fid:
-                data = fid.read()
-            tles += self.parse_tles(data)
-
+        fnames = collect_filenames(paths)
+        tles = _parse_tles_for_downloader(fnames, open)
         logging.info("Loaded %d TLEs from local files", len(tles))
 
         return tles
 
-    def parse_tles(self, raw_data):
-        """Parse all the TLEs in the given raw text data."""
-        tles = []
-        line1, line2 = None, None
-        raw_data = raw_data.split('\n')
-        for row in raw_data:
-            if row.startswith('1 '):
-                line1 = row
-            elif row.startswith('2 '):
-                line2 = row
-            else:
-                continue
-            if line1 is not None and line2 is not None:
-                try:
-                    tle = Tle('', line1=line1, line2=line2)
-                except ValueError:
-                    logging.warning(
-                        "Invalid data found - line1: %s, line2: %s",
-                        line1, line2)
-                else:
-                    tles.append(tle)
-                line1, line2 = None, None
+    def read_xml_admin_messages(self):
+        """Read Eumetsat admin messages in XML format."""
+        paths = self.config["downloaders"]["read_xml_admin_messages"]["paths"]
+        tles = read_tles_from_mmam_xml_files(paths)
+        logging.info("Loaded %d TLEs from admin message XML files", len(tles))
+
         return tles
+
+
+def _parse_tles_for_downloader(item, open_func):
+    return [Tle('', tle_file=io.StringIO(tle)) for tle in
+            _get_tles_from_uris(item, open_func, platform='', only_first=False)]
+
+
+def collect_filenames(paths):
+    """Collect all filenames from *paths*."""
+    fnames = []
+    for path in paths:
+        if '*' in path:
+            fnames += glob.glob(path)
+        else:
+            if not os.path.exists(path):
+                logging.error("File %s doesn't exist.", path)
+                continue
+            fnames += [path]
+    return fnames
+
+
+def read_tles_from_mmam_xml_files(paths):
+    # Collect filenames
+    fnames = collect_filenames(paths)
+    tles = []
+    for fname in fnames:
+        data = read_tle_from_mmam_xml_file(fname).split('\n')
+        for two_lines in _group_iterable_to_chunks(2, data):
+            tl_stream = io.StringIO('\n'.join(two_lines))
+            tles.append(Tle('', tle_file=tl_stream))
+    return tles
+
+
+def read_tle_from_mmam_xml_file(fname):
+    tree = ET.parse(fname)
+    root = tree.getroot()
+    data = []
+    for nav in root.findall(".//navigation"):
+        data.append(nav.find(".//line-1").text)
+        data.append(nav.find(".//line-2").text)
+
+    return "\n".join(data)
+
+
+def _group_iterable_to_chunks(n, iterable, fillvalue=None):
+    "Collect data into fixed-length chunks or blocks"
+    # _group_iterable_to_chunks(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
+    args = [iter(iterable)] * n
+    return zip_longest(fillvalue=fillvalue, *args)
 
 
 class SQLiteTLE(object):

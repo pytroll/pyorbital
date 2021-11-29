@@ -35,6 +35,30 @@ line0 = "ISS (ZARYA)"
 line1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
 line2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537"
 
+line1_2 = "1 38771U 12049A   21137.30264622  .00000000  00000+0 -49996-5 0 00017"
+line2_2 = "2 38771  98.7162 197.7716 0002383 106.1049 122.6344 14.21477797449453"
+
+tle_xml = '\n'.join(
+    ('<?xml version="1.0" encoding="UTF-8"?>',
+        '<multi-mission-administrative-message>',
+        '<message>',
+        '<two-line-elements>',
+        '<navigation>',
+        '<line-1>' + line1 + '</line-1>',
+        '<line-2>' + line2 + '</line-2>',
+        '</navigation>',
+        '</two-line-elements>',
+        '</message>',
+        '<message>',
+        '<two-line-elements>',
+        '<navigation>',
+        '<line-1>' + line1_2 + '</line-1>',
+        '<line-2>' + line2_2 + '</line-2>',
+        '</navigation>',
+        '</two-line-elements>',
+        '</message>',
+        '</multi-mission-administrative-message>'))
+
 
 class TLETest(unittest.TestCase):
     """Test TLE reading.
@@ -93,6 +117,32 @@ class TLETest(unittest.TestCase):
         finally:
             remove(filename)
 
+    def test_from_mmam_xml(self):
+        """Test reading from an MMAM XML file."""
+        from tempfile import TemporaryDirectory
+
+        save_dir = TemporaryDirectory()
+        with save_dir:
+            fname = os.path.join(save_dir.name, '20210420_Metop-B_ADMIN_MESSAGE_NO_127.xml')
+            with open(fname, 'w') as fid:
+                fid.write(tle_xml)
+            tle = Tle("", tle_file=fname)
+        self.check_example(tle)
+
+
+FETCH_PLAIN_TLE_CONFIG = {
+    "fetch_plain_tle": {
+        "source_1": ["mocked_url_1", "mocked_url_2", "mocked_url_3"],
+        "source_2": ["mocked_url_4"]
+    }
+}
+FETCH_SPACETRACK_CONFIG = {
+    "fetch_spacetrack": {
+        "user": "username",
+        "password": "passw0rd"
+    }
+}
+
 
 class TestDownloader(unittest.TestCase):
     """Test TLE downloader."""
@@ -108,14 +158,10 @@ class TestDownloader(unittest.TestCase):
         assert self.dl.config is self.config
 
     @mock.patch('pyorbital.tlefile.requests')
-    def test_fetch_plain_tle(self, requests):
+    def test_fetch_plain_tle_not_configured(self, requests):
         """Test downloading and a TLE file from internet."""
         requests.get = mock.MagicMock()
-        # The return value of requests.get()
-        req = mock.MagicMock()
-        req.status_code = 200
-        req.text = '\n'.join((line0, line1, line2))
-        requests.get.return_value = req
+        requests.get.return_value = _get_req_response(200)
 
         # Not configured
         self.dl.config["downloaders"] = {}
@@ -123,13 +169,15 @@ class TestDownloader(unittest.TestCase):
         self.assertTrue(res == {})
         requests.get.assert_not_called()
 
+    @mock.patch('pyorbital.tlefile.requests')
+    def test_fetch_plain_tle_two_sources(self, requests):
+        """Test downloading and a TLE file from internet."""
+        requests.get = mock.MagicMock()
+        requests.get.return_value = _get_req_response(200)
+
         # Two sources, one with multiple locations
-        self.dl.config["downloaders"] = {
-            "fetch_plain_tle": {
-                "source_1": ["mocked_url_1", "mocked_url_2", "mocked_url_3"],
-                "source_2": ["mocked_url_4"]
-            }
-        }
+        self.dl.config["downloaders"] = FETCH_PLAIN_TLE_CONFIG
+
         res = self.dl.fetch_plain_tle()
         self.assertTrue("source_1" in res)
         self.assertEqual(len(res["source_1"]), 3)
@@ -140,12 +188,16 @@ class TestDownloader(unittest.TestCase):
         self.assertTrue(mock.call("mocked_url_1") in requests.get.mock_calls)
         self.assertEqual(len(requests.get.mock_calls), 4)
 
-        # Reset mocks
-        requests.get.reset_mock()
-        req.reset_mock()
-
+    @mock.patch('pyorbital.tlefile.requests')
+    def test_fetch_plain_tle_server_is_a_teapot(self, requests):
+        """Test downloading and a TLE file from internet."""
+        requests.get = mock.MagicMock()
         # No data returned because the server is a teapot
-        req.status_code = 418
+        requests.get.return_value = _get_req_response(418)
+
+        # Two sources, one with multiple locations
+        self.dl.config["downloaders"] = FETCH_PLAIN_TLE_CONFIG
+
         res = self.dl.fetch_plain_tle()
         # The sources are in the dict ...
         self.assertEqual(len(res), 2)
@@ -156,7 +208,54 @@ class TestDownloader(unittest.TestCase):
         self.assertEqual(len(requests.get.mock_calls), 4)
 
     @mock.patch('pyorbital.tlefile.requests')
-    def test_fetch_spacetrack(self, requests):
+    def test_fetch_spacetrack_login_fails(self, requests):
+        """Test downloading and TLEs from space-track.org."""
+        mock_post = mock.MagicMock()
+        mock_session = mock.MagicMock()
+        mock_session.post = mock_post
+        requests.Session.return_value.__enter__.return_value = mock_session
+
+        self.dl.config["platforms"] = {
+            25544: 'ISS'
+        }
+        self.dl.config["downloaders"] = FETCH_SPACETRACK_CONFIG
+
+        # Login fails, because the server is a teapot
+        mock_post.return_value.status_code = 418
+        res = self.dl.fetch_spacetrack()
+        # Empty list of TLEs is returned
+        self.assertTrue(res == [])
+        # The login was anyway attempted
+        mock_post.assert_called_with(
+            'https://www.space-track.org/ajaxauth/login',
+            data={'identity': 'username', 'password': 'passw0rd'})
+
+    @mock.patch('pyorbital.tlefile.requests')
+    def test_fetch_spacetrack_get_fails(self, requests):
+        """Test downloading and TLEs from space-track.org."""
+        mock_post = mock.MagicMock()
+        mock_get = mock.MagicMock()
+        mock_session = mock.MagicMock()
+        mock_session.post = mock_post
+        mock_session.get = mock_get
+        requests.Session.return_value.__enter__.return_value = mock_session
+
+        self.dl.config["platforms"] = {
+            25544: 'ISS'
+        }
+        self.dl.config["downloaders"] = FETCH_SPACETRACK_CONFIG
+
+        # Login works, but something is wrong (teapot) when asking for data
+        mock_post.return_value.status_code = 200
+        mock_get.return_value.status_code = 418
+        res = self.dl.fetch_spacetrack()
+        self.assertTrue(res == [])
+        mock_get.assert_called_with("https://www.space-track.org/"
+                                    "basicspacedata/query/class/tle_latest/"
+                                    "ORDINAL/1/NORAD_CAT_ID/25544/format/tle")
+
+    @mock.patch('pyorbital.tlefile.requests')
+    def test_fetch_spacetrack_success(self, requests):
         """Test downloading and TLEs from space-track.org."""
         mock_post = mock.MagicMock()
         mock_get = mock.MagicMock()
@@ -169,33 +268,10 @@ class TestDownloader(unittest.TestCase):
         self.dl.config["platforms"] = {
             25544: 'ISS'
         }
-        self.dl.config["downloaders"] = {
-            "fetch_spacetrack": {
-                "user": "username",
-                "password": "passw0rd"
-            }
-        }
+        self.dl.config["downloaders"] = FETCH_SPACETRACK_CONFIG
 
-        # Login fails, because the server is a teapot
-        mock_post.return_value.status_code = 418
-        res = self.dl.fetch_spacetrack()
-        # Empty list of TLEs is returned
-        self.assertTrue(res == [])
-        # The login was anyway attempted
-        mock_post.assert_called_with(
-            'https://www.space-track.org/ajaxauth/login',
-            data={'identity': 'username', 'password': 'passw0rd'})
-
-        # Login works, but something is wrong (teapot) when asking for data
+        # Login works and data is received
         mock_post.return_value.status_code = 200
-        mock_get.return_value.status_code = 418
-        res = self.dl.fetch_spacetrack()
-        self.assertTrue(res == [])
-        mock_get.assert_called_with("https://www.space-track.org/"
-                                    "basicspacedata/query/class/tle_latest/"
-                                    "ORDINAL/1/NORAD_CAT_ID/25544/format/tle")
-
-        # Data is received
         mock_get.return_value.status_code = 200
         mock_get.return_value.text = tle_text
         res = self.dl.fetch_spacetrack()
@@ -206,7 +282,6 @@ class TestDownloader(unittest.TestCase):
     def test_read_tle_files(self):
         """Test reading TLE files from a file system."""
         from tempfile import TemporaryDirectory
-        import os
 
         tle_text = '\n'.join((line0, line1, line2))
 
@@ -229,28 +304,40 @@ class TestDownloader(unittest.TestCase):
         self.assertEqual(res[0].line1, line1)
         self.assertEqual(res[0].line2, line2)
 
-    def test_parse_tles(self):
-        """Test TLE parsing."""
-        tle_text = '\n'.join((line0, line1, line2))
+    def test_read_xml_admin_messages(self):
+        """Test reading TLE files from a file system."""
+        from tempfile import TemporaryDirectory
 
-        # Valid data
-        res = self.dl.parse_tles(tle_text)
-        self.assertEqual(len(res), 1)
+        save_dir = TemporaryDirectory()
+        with save_dir:
+            fname = os.path.join(save_dir.name, '20210420_Metop-B_ADMIN_MESSAGE_NO_127.xml')
+            with open(fname, 'w') as fid:
+                fid.write(tle_xml)
+            # Add a non-existent file, it shouldn't cause a crash
+            nonexistent = os.path.join(save_dir.name, 'not_here.txt')
+            # Use a wildcard to collect files (passed to glob)
+            starred_fname = os.path.join(save_dir.name, '*.xml')
+            self.dl.config["downloaders"] = {
+                "read_xml_admin_messages": {
+                    "paths": [fname, nonexistent, starred_fname]
+                }
+            }
+            res = self.dl.read_xml_admin_messages()
+
+        # There are two sets of TLEs in the file.  And as the same file is
+        # parsed twice, 4 TLE objects are returned
+        self.assertEqual(len(res), 4)
         self.assertEqual(res[0].line1, line1)
         self.assertEqual(res[0].line2, line2)
+        self.assertEqual(res[1].line1, line1_2)
+        self.assertEqual(res[1].line2, line2_2)
 
-        # Only one valid line
-        res = self.dl.parse_tles(line1 + '\nbar')
-        self.assertTrue(res == [])
 
-        # Valid start of the lines, but bad data
-        res = self.dl.parse_tles('1 foo\n2 bar')
-        self.assertTrue(res == [])
-
-        # Something wrong in the data
-        bad_line2 = '2 ' + 'x' * (len(line2)-2)
-        res = self.dl.parse_tles('\n'.join((line1, bad_line2)))
-        self.assertTrue(res == [])
+def _get_req_response(code):
+    req = mock.MagicMock()
+    req.status_code = code
+    req.text = '\n'.join((line0, line1, line2))
+    return req
 
 
 class TestSQLiteTLE(unittest.TestCase):

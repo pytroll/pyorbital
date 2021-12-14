@@ -299,6 +299,13 @@ class TestGetObserverLook(unittest.TestCase):
         np.testing.assert_allclose(elev.data.compute(), self.exp_elev)
 
 
+    def test_scalar(self):
+        """Test with scalar inputs."""
+        from pyorbital.orbital import get_observer_look
+        (azi, elev) = get_observer_look(0, 0, 30_000_000, self.t, 0, 0, 0)
+        np.testing.assert_allclose(elev, 90)
+
+
 class TestGetObserverLookNadir(unittest.TestCase):
     """Test the get_observer_look function when satellite is at nadir."""
 

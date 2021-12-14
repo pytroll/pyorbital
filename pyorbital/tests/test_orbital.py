@@ -298,7 +298,6 @@ class TestGetObserverLook(unittest.TestCase):
         np.testing.assert_allclose(azi.data.compute(), self.exp_azi)
         np.testing.assert_allclose(elev.data.compute(), self.exp_elev)
 
-
     def test_scalar(self):
         """Test with scalar inputs."""
         from pyorbital.orbital import get_observer_look

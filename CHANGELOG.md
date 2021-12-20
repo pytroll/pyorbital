@@ -1,3 +1,31 @@
+## Version 1.7.0 (2021/12/20)
+
+### Issues Closed
+
+* [Issue 90](https://github.com/pytroll/pyorbital/issues/90) - get_observer_look raises IndexError on numpy 1.21.4
+* [Issue 85](https://github.com/pytroll/pyorbital/issues/85) - Azimuth/elevation output not changing with 1-second increments
+* [Issue 79](https://github.com/pytroll/pyorbital/issues/79) - ModuleNotFoundError: 'pyorbital' is not a package
+* [Issue 72](https://github.com/pytroll/pyorbital/issues/72) - Unexpected Nans in get_observer_look_no_tle
+* [Issue 38](https://github.com/pytroll/pyorbital/issues/38) - Issue with pyorbital.planets
+
+In this release 5 issues were closed.
+
+### Pull Requests Merged
+
+#### Features added
+
+* [PR 91](https://github.com/pytroll/pyorbital/pull/91) - Add get_observer_look test for scalar case and update stickler config ([91](https://github.com/pytroll/pyorbital/issues/91))
+* [PR 89](https://github.com/pytroll/pyorbital/pull/89) - Change tested Python versions to 3.8, 3.9 and 3.10
+* [PR 83](https://github.com/pytroll/pyorbital/pull/83) - Add Sentinel-5P to platform_names
+* [PR 78](https://github.com/pytroll/pyorbital/pull/78) - Add parser to read TLEs from Multi Mission Administrative Messages
+
+#### Documentation changes
+
+* [PR 82](https://github.com/pytroll/pyorbital/pull/82) - Add historical TLE files link
+
+In this release 5 pull requests were closed.
+
+
 ## Version 1.6.1 (2021/04/12)
 
 ### Issues Closed

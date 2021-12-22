@@ -129,19 +129,6 @@ class TLETest(unittest.TestCase):
         from os import write, close, remove
         filehandle, filename = mkstemp()
         try:
-            write(filehandle, NOAA19_LINES.encode('utf-8'))
-            close(filehandle)
-            tle = Tle("NOAA-19", filename)
-            assert tle.satnumber == "33591"
-        finally:
-            remove(filename)
-
-    def test_from_file_with_hyphenated_platform_name(self):
-        """Test reading and parsing from a file with a slightly different name."""
-        from tempfile import mkstemp
-        from os import write, close, remove
-        filehandle, filename = mkstemp()
-        try:
             write(filehandle, NOAA19_3LINES.encode('utf-8'))
             close(filehandle)
             tle = Tle("NOAA-19", filename)

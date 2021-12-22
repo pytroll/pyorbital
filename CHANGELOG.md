@@ -1,3 +1,15 @@
+## Version 1.7.1 (2021/12/22)
+
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 92](https://github.com/pytroll/pyorbital/pull/92) - Fix bogus designator assignment
+
+In this release 1 pull request was closed.
+
+
 ## Version 1.7.0 (2021/12/20)
 
 ### Issues Closed

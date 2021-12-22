@@ -286,7 +286,7 @@ def _get_first_tle(uris, open_func, platform=''):
 
 def _get_tles_from_uris(uris, open_func, platform='', only_first=True):
     tles = []
-    designator = "1 " + platform
+    designator = "1 " + SATELLITES.get(platform, '')
     for url in uris:
         fid = open_func(url)
         for l_0 in fid:
@@ -296,7 +296,7 @@ def _get_tles_from_uris(uris, open_func, platform='', only_first=True):
                 l_1 = _decode(next(fid))
                 l_2 = _decode(next(fid))
                 tle = l_1.strip() + "\n" + l_2.strip()
-            elif((platform in SATELLITES or not only_first) and l_0.strip().startswith(designator)):
+            elif (platform in SATELLITES or not only_first) and l_0.strip().startswith(designator):
                 l_1 = l_0
                 l_2 = _decode(next(fid))
                 tle = l_1.strip() + "\n" + l_2.strip()

@@ -38,10 +38,11 @@ line2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537"
 line1_2 = "1 38771U 12049A   21137.30264622  .00000000  00000+0 -49996-5 0 00017"
 line2_2 = "2 38771  98.7162 197.7716 0002383 106.1049 122.6344 14.21477797449453"
 
-NOAA19_LINES = """NOAA 19
-1 33591U 09005A   21355.91138073  .00000074  00000+0  65091-4 0  9998
+
+NOAA19_2LINES = """1 33591U 09005A   21355.91138073  .00000074  00000+0  65091-4 0  9998
 2 33591  99.1688  21.1338 0013414 329.8936  30.1462 14.12516400663123
 """
+NOAA19_3LINES = "NOAA 19\n" + NOAA19_2LINES
 
 tle_xml = '\n'.join(
     ('<?xml version="1.0" encoding="UTF-8"?>',
@@ -129,6 +130,32 @@ class TLETest(unittest.TestCase):
         filehandle, filename = mkstemp()
         try:
             write(filehandle, NOAA19_LINES.encode('utf-8'))
+            close(filehandle)
+            tle = Tle("NOAA-19", filename)
+            assert tle.satnumber == "33591"
+        finally:
+            remove(filename)
+
+    def test_from_file_with_hyphenated_platform_name(self):
+        """Test reading and parsing from a file with a slightly different name."""
+        from tempfile import mkstemp
+        from os import write, close, remove
+        filehandle, filename = mkstemp()
+        try:
+            write(filehandle, NOAA19_3LINES.encode('utf-8'))
+            close(filehandle)
+            tle = Tle("NOAA-19", filename)
+            assert tle.satnumber == "33591"
+        finally:
+            remove(filename)
+
+    def test_from_file_with_no_platform_name(self):
+        """Test reading and parsing from a file with a slightly different name."""
+        from tempfile import mkstemp
+        from os import write, close, remove
+        filehandle, filename = mkstemp()
+        try:
+            write(filehandle, NOAA19_2LINES.encode('utf-8'))
             close(filehandle)
             tle = Tle("NOAA-19", filename)
             assert tle.satnumber == "33591"

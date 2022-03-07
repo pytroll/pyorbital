@@ -204,7 +204,7 @@ class Orbital(object):
 
             if delta_days > 3:
                 logging.warning("Found TLE data for %s that is %f days apart",
-                                 sdate, delta_days)
+                                sdate, delta_days)
             else:
                 logging.debug("Found TLE data for %s that is %f days apart",
                               sdate, delta_days)

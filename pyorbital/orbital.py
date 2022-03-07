@@ -161,9 +161,12 @@ class Orbital(object):
         satellite = satellite.upper()
         self.satellite_name = satellite
         self.tle_file = tle_file
-        self.utctime = None
         self.tle = tlefile.read(satellite, tle_file=tle_file,
                                 line1=line1, line2=line2)
+        if self.tle_file:
+            self.utctime = None
+        else:
+            self.utctime = self.tle2datetime64(float(self._tle.line1[18:32]))
         self.orbit_elements = OrbitElements(self.tle)
         self.sgdp4 = _SGDP4(self.orbit_elements)
 
@@ -203,11 +206,16 @@ class Orbital(object):
                     (self.satellite_name, tle_thresh, sdate))
 
             if delta_days > 3:
+<<<<<<< HEAD
+                warnings.warn("Found TLE data for %s that is %f days apart" %
+                              (sdate, int(delta_days)))
+=======
                 logging.warning("Found TLE data for %s that is %f days apart",
                                 sdate, delta_days)
             else:
                 logging.debug("Found TLE data for %s that is %f days apart",
                               sdate, delta_days)
+>>>>>>> 4f6ace6cfb3b6668adc90ecfd70da102f1860d8e
 
             # Select TLE data
             tle1 = tle_data[iindex * 2]
@@ -223,9 +231,20 @@ class Orbital(object):
             # Object just created
             if not self.utctime:
                 self.utctime = datetime.now()
+            #if not np.isclose(sat_time.astype(int), 
+            #                  np.datetime64(datetime.now(), 'ms'),
+            #                  atol=720*7*60*1000):
+            #    self.utctime = datetime.now()
+            #else:
+            #    self.utctime = sat_time.astype(datetime)
             mismatch = sat_time.astype(datetime) - self.utctime
-            if abs(mismatch.days) > 7:
+            if abs(mismatch.days) > 30:
                 raise IndexError("""
+                    Current TLE from celestrek is %d days newer than
+                    requested orbital parameter. Please use TLE archive
+                    for accurate results""" % (mismatch.days))
+            if abs(mismatch.days) > 7:
+                warnings.warn("""
                     Current TLE from celestrek is %d days newer than
                     requested orbital parameter. Please use TLE archive
                     for accurate results""" % (mismatch.days))
@@ -263,7 +282,7 @@ class Orbital(object):
             if times.max() - times.min() > np.timedelta64(3, 'D'):
                 raise ValueError(
                     "Dates must not exceed 3 days")
-            utctime = np.array(times.astype(float).median(),
+            utctime = np.array(times.astype(float).mean(),
                                dtype='datetime64[m]').astype(datetime)
             self._utctime = utctime.tolist()
         else:

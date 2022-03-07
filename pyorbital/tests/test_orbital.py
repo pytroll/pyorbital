@@ -135,9 +135,6 @@ class Test(unittest.TestCase):
 
     def test_no_error_two_day_interpolation(self):
         """Tests for list of times, when list is under three days"""
-
-
-<< << << < HEAD
         sat = orbital.Orbital("EOS-TERRA",
                 os.path.join(_DATAPATH, "./TERRA.TLE"))
         search = 720*2
@@ -151,21 +148,6 @@ class Test(unittest.TestCase):
         sat = orbital.Orbital("EOS-TERRA",
                 os.path.join(_DATAPATH, "./TERRA.TLE"))
         date = datetime(2015,1,26,12)
-=======
-        sat=orbital.Orbital("EOS-TERRA",
-                os.path.join(_DATAPATH, "./TERRA.TLE")
-        search=720*2
-        date=datetime(2015, 1, 25, 12)
-        time=np.array(date, dtype='datetime64[m]')
-        window=(time - search) + np.arange(search*2)
-        self.assertEqual(sat.get_lonlatalt(window)[0], 2880)
-
-    def test_warn_four_day_projection(self):
-        """Tests for warning when TLE's are stale but still usable"""
-        sat=orbital.Orbital("EOS-TERRA",
-                os.path.join(_DATAPATH, "./TERRA.TLE")
-        date=datetime(2015, 1, 25, 12)
->>>>>>> 4f6ace6cfb3b6668adc90ecfd70da102f1860d8e
         with self.assertWarns(Warning):
             sat.get_lonlatalt(date)
 

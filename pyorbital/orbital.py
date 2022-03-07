@@ -206,18 +206,8 @@ class Orbital(object):
                     (self.satellite_name, tle_thresh, sdate))
 
             if delta_days > 3:
-
-
-<< << << < HEAD
                 warnings.warn("Found TLE data for %s that is %f days apart" %
                               (sdate, int(delta_days)))
-== == == =
-                logging.warning("Found TLE data for %s that is %f days apart",
-                                sdate, delta_days)
-            else:
-                logging.debug("Found TLE data for %s that is %f days apart",
-                              sdate, delta_days)
->>>>>>> 4f6ace6cfb3b6668adc90ecfd70da102f1860d8e
 
             # Select TLE data
             tle1 = tle_data[iindex * 2]
@@ -233,12 +223,6 @@ class Orbital(object):
             # Object just created
             if not self.utctime:
                 self.utctime = datetime.now()
-            # if not np.isclose(sat_time.astype(int), 
-            #                  np.datetime64(datetime.now(), 'ms'),
-            #                  atol=720*7*60*1000):
-            #    self.utctime = datetime.now()
-            # else:
-            #    self.utctime = sat_time.astype(datetime)
             mismatch = sat_time.astype(datetime) - self.utctime
             if abs(mismatch.days) > 30:
                 raise IndexError("""

@@ -124,7 +124,7 @@ class Test(unittest.TestCase):
     def test_error_four_day_interpolation(self):
         """Tests for error when time range exceeds three days"""
         sat = orbital.Orbital("EOS-TERRA",
-                os.path.join(_DATAPATH, "./TERRA.TLE"))
+                              os.path.join(_DATAPATH, "./TERRA.TLE"))
         # 720 minutes / 12 hours, times 5 to give 4.5 day search window
         search = 720*5
         date = datetime(2015, 1, 25, 12)
@@ -136,7 +136,7 @@ class Test(unittest.TestCase):
     def test_no_error_two_day_interpolation(self):
         """Tests for list of times, when list is under three days"""
         sat = orbital.Orbital("EOS-TERRA",
-                os.path.join(_DATAPATH, "./TERRA.TLE"))
+                              os.path.join(_DATAPATH, "./TERRA.TLE"))
         search = 720*2
         date = datetime(2015, 1, 25, 12)
         time = np.array(date, dtype='datetime64[m]')
@@ -146,54 +146,54 @@ class Test(unittest.TestCase):
     def test_warn_four_day_projection(self):
         """Tests for warning when TLE's are stale but still usable"""
         sat = orbital.Orbital("EOS-TERRA",
-                os.path.join(_DATAPATH, "./TERRA.TLE"))
-        date = datetime(2015,1,26,12)
+                              os.path.join(_DATAPATH, "./TERRA.TLE"))
+        date = datetime(2015, 1, 26, 12)
         with self.assertWarns(Warning):
             sat.get_lonlatalt(date)
 
     def test_error_ten_day_projection(self):
         """Tests for error on large TLE gap with no TLE file"""
-        sat=orbital.Orbital("EOS-TERRA")
+        sat = orbital.Orbital("EOS-TERRA")
         # default behavior is to grab current TLE from celestrek
-        date=datetime(2011, 5, 1, 12)
+        date = datetime(2011, 5, 1, 12)
         with self.assertRaises(Exception):
             sat.get_lonlatalt(date)
 
     def test_error_ten_day_projection_file(self):
         """Tests for error on large TLE gap with TLE file"""
-        sat=orbital.Orbital("EOS-TERRA",
+        sat = orbital.Orbital("EOS-TERRA",
                               os.path.join(_DATAPATH, "./TERRA.TLE"))
         # same as above, but with a local file
-        date=datetime(2011, 5, 1, 12)
+        date = datetime(2011, 5, 1, 12)
         with self.assertRaises(Exception):
             sat.get_lonlatalt(date)
 
     def test_get_next_passes_apogee(self):
         """Regression test #22."""
-        line1="1 24793U 97020B   18065.48735489  " \
-                ".00000075  00000-0  19863-4 0  9994"
-        line2="2 24793  86.3994 209.3241 0002020  " \
-                "89.8714 270.2713 14.34246429 90794"
+        line1 = "1 24793U 97020B   18065.48735489  " \
+            ".00000075  00000-0  19863-4 0  9994"
+        line2 = "2 24793  86.3994 209.3241 0002020  " \
+            "89.8714 270.2713 14.34246429 90794"
 
-        orb=orbital.Orbital('IRIDIUM 7 [+]', line1=line1, line2=line2)
-        d=datetime(2018, 3, 7, 3, 30, 15)
-        res=orb.get_next_passes(d, 1, 170.556, -43.368, 0.5, horizon=40)
+        orb = orbital.Orbital('IRIDIUM 7 [+]', line1=line1, line2=line2)
+        d = datetime(2018, 3, 7, 3, 30, 15)
+        res = orb.get_next_passes(d, 1, 170.556, -43.368, 0.5, horizon=40)
         self.assertTrue(abs(
             res[0][2] - datetime(2018, 3, 7, 3, 48, 13, 178439)) <
             timedelta(seconds=0.01))
 
     def test_get_next_passes_tricky(self):
         """ Check issue #34 for reference """
-        line1="1 43125U 18004Q   18251.42128650 " \
+        line1 = "1 43125U 18004Q   18251.42128650 " \
             "+.00001666 +00000-0 +73564-4 0  9991"
 
-        line2="2 43125 097.5269 314.3317 0010735 "\
+        line2 = "2 43125 097.5269 314.3317 0010735 "\
             "157.6344 202.5362 15.23132245036381"
 
-        orb=orbital.Orbital('LEMUR-2-BROWNCOW', line1=line1, line2=line2)
-        d=datetime(2018, 9, 8)
+        orb = orbital.Orbital('LEMUR-2-BROWNCOW', line1=line1, line2=line2)
+        d = datetime(2018, 9, 8)
 
-        res=orb.get_next_passes(d, 72, -8.174163, 51.953319, 0.05, horizon=5)
+        res = orb.get_next_passes(d, 72, -8.174163, 51.953319, 0.05, horizon=5)
 
         self.assertTrue(abs(
             res[0][2] - datetime(2018, 9, 8, 9, 5, 46, 375248)) <

@@ -126,20 +126,22 @@ class Test(unittest.TestCase):
         sat = orbital.Orbital("EOS-TERRA",
                 os.path.join(_DATAPATH, "./TERRA.TLE"))
         # 720 minutes / 12 hours, times 5 to give 4.5 day search window
-        search=720*5
-        date=datetime(2015, 1, 25, 12)
-        time=np.array(date, dtype='datetime64[m]')
-        window=(time - search) + np.arange(search*2)
+        search = 720*5
+        date = datetime(2015, 1, 25, 12)
+        time = np.array(date, dtype='datetime64[m]')
+        window = (time - search) + np.arange(search*2)
         with self.assertRaises(Exception):
             sat.get_lonlatalt(window)
 
     def test_no_error_two_day_interpolation(self):
         """Tests for list of times, when list is under three days"""
-<<<<<<< HEAD
+
+
+<< << << < HEAD
         sat = orbital.Orbital("EOS-TERRA",
                 os.path.join(_DATAPATH, "./TERRA.TLE"))
-        search=720*2
-        date = datetime(2015,1,25,12)
+        search = 720*2
+        date = datetime(2015, 1, 25, 12)
         time = np.array(date, dtype='datetime64[m]')
         window = (time - search) + np.arange(search*2)
         self.assertEqual(len(sat.get_lonlatalt(window)[0]), 2880)

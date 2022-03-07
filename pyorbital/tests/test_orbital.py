@@ -31,10 +31,12 @@ except ImportError:
 from datetime import datetime, timedelta
 
 import numpy as np
+import os
 
 from pyorbital import orbital
 
 eps_deg = 10e-3
+_DATAPATH = os.path.dirname(os.path.abspath(__file__))
 
 
 class Test(unittest.TestCase):
@@ -118,6 +120,53 @@ class Test(unittest.TestCase):
         del vel1, vel2
         self.assertTrue(pos1[2] < 0)
         self.assertTrue(pos2[2] > 0)
+
+    def test_error_four_day_interpolation(self):
+        """Tests for error when time range exceeds three days"""
+        sat = orbital.Orbital("EOS-TERRA",
+                os.path.join(_DATAPATH, "./TERRA.TLE")
+        # 720 minutes / 12 hours, times 5 to give 4.5 day search window
+        search=720*5
+        date = datetime(2015,1,25,12)
+        time = np.array(date, dtype='datetime64[m]')
+        window = (time - search) + np.arange(search*2)
+        with self.assertRaises(Exception):
+            sat.get_lonlatalt(window)
+
+    def test_no_error_two_day_interpolation(self):
+        """Tests for list of times, when list is under three days"""
+        sat = orbital.Orbital("EOS-TERRA",
+                os.path.join(_DATAPATH, "./TERRA.TLE")
+        search=720*2
+        date = datetime(2015,1,25,12)
+        time = np.array(date, dtype='datetime64[m]')
+        window = (time - search) + np.arange(search*2)
+        self.assertEqual(sat.get_lonlatalt(window)[0], 2880)
+
+    def test_warn_four_day_projection(self):
+        """Tests for warning when TLE's are stale but still usable"""
+        sat = orbital.Orbital("EOS-TERRA",
+                os.path.join(_DATAPATH, "./TERRA.TLE")
+        date = datetime(2015,1,25,12)
+        with self.assertWarns(Warning):
+            sat.get_lonlatalt(date)
+
+    def test_error_ten_day_projection(self):
+        """Tests for error on large TLE gap with no TLE file"""
+        sat = orbital.Orbital("EOS-TERRA")
+        # default behavior is to grab current TLE from celestrek
+        date = datetime(2011,5,1,12)
+        with self.assertRaises(Exception):
+            sat.get_lonlatalt(date)
+
+    def test_error_ten_day_projection_file(self):
+        """Tests for error on large TLE gap with TLE file"""
+        sat = orbital.Orbital("EOS-TERRA",
+                              os.path.join(_DATAPATH, "./TERRA.TLE"))
+        # same as above, but with a local file
+        date = datetime(2011,5,1,12)
+        with self.assertRaises(Exception):
+            sat.get_lonlatalt(date)
 
     def test_get_next_passes_apogee(self):
         """Regression test #22."""

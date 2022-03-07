@@ -202,12 +202,12 @@ class Orbital(object):
                     "Can't find tle data for %s within +/- %d days around %s" %
                     (self.satellite_name, tle_thresh, sdate))
 
-            # if delta_days > 3:
-            #     LOG.warning("Found TLE data for %s that is %f days appart",
-            #                 sdate, delta_days)
-            # else:
-            #     LOG.debug("Found TLE data for %s that is %f days appart",
-            #               sdate, delta_days)
+            if delta_days > 3:
+                logging.warning("Found TLE data for %s that is %f days apart",
+                                 sdate, delta_days)
+            else:
+                logging.debug("Found TLE data for %s that is %f days apart",
+                              sdate, delta_days)
 
             # Select TLE data
             tle1 = tle_data[iindex * 2]
@@ -258,12 +258,12 @@ class Orbital(object):
 
     @utctime.setter
     def utctime(self, utc_time):
-        if type(utc_time) is not datetime:
+        if not isinstance(utc_time, datetime):
             times = np.array(utc_time, dtype='datetime64[m]')
             if times.max() - times.min() > np.timedelta64(3, 'D'):
                 raise ValueError(
                     "Dates must not exceed 3 days")
-            utctime = np.array(times.astype(float).mean(),
+            utctime = np.array(times.astype(float).median(),
                                dtype='datetime64[m]').astype(datetime)
             self._utctime = utctime.tolist()
         else:

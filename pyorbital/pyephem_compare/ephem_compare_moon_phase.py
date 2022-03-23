@@ -22,6 +22,7 @@
 
 """Compare accuracy of the moon_phase function with the ephem library"""
 
+import matplotlib.pyplot as plt
 import ephem
 import datetime
 from pyorbital.moon_phase import moon_phase
@@ -62,7 +63,6 @@ pha = np.array(pha) * 100
 ephem_pha = np.array(ephem_pha)
 
 # Plot the moon phases to compare:
-import matplotlib.pyplot as plt
 
 fig = plt.figure()
 

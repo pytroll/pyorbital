@@ -291,7 +291,7 @@ class TestGeolocDefs(unittest.TestCase):
         """Test the definition of the slstr instrument flying on Sentinel-3
         """
         geom = slstr(1, [0, 1])
-        
+
         expected_fovs = np.array([
             np.tile(np.array([[0.8115781, -0.38571776]]), [1, 1]),
             np.tile(np.array([[0., 0.]]), [1, 1])], dtype=np.float64)

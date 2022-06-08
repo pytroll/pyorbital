@@ -581,5 +581,5 @@ def slstr(scans_nb, scan_points=None, is_nadir=True):
     inst = np.tile(inst[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
 
     times = np.tile(np.zeros_like(scanline_angles), [np.int32(scans_nb), 1])
- 
+
     return ScanGeometry(inst, times)

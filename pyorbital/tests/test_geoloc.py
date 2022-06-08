@@ -28,7 +28,7 @@ from datetime import datetime
 import numpy as np
 
 from pyorbital.geoloc import ScanGeometry, geodetic_lat, qrotate, subpoint
-from pyorbital.geoloc_instrument_definitions import avhrr, viirs, amsua, mhs, hirs4, atms, ascat
+from pyorbital.geoloc_instrument_definitions import avhrr, viirs, amsua, mhs, hirs4, atms, ascat, slstr
 
 
 class TestQuaternion(unittest.TestCase):
@@ -287,6 +287,19 @@ class TestGeolocDefs(unittest.TestCase):
         self.assertTrue(np.allclose(
             geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
 
+    def test_slstr(self):
+        """Test the definition of the slstr instrument flying on Sentinel-3
+        """
+        geom = slstr(1, [0, 1])
+        
+        expected_fovs = np.array([
+            np.tile(np.array([[0.8115781, -0.38571776]]), [1, 1]),
+            np.tile(np.array([[0., 0.]]), [1, 1])], dtype=np.float64)
+        self.assertTrue(np.allclose(geom.fovs,
+                                    expected_fovs, rtol=1e-2, atol=1e-2))
+
+        with self.assertRaises(NotImplementedError):
+            slstr(1, [0, 1], is_nadir=False)
 
 def suite():
     """The suite for test_geoloc

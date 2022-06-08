@@ -563,8 +563,8 @@ def slstr(scans_nb, scan_points=None):
     """
 
     if scan_points is None:
-        scan_len = 3000  # samples per scan
-        scan_points = np.arange(3000)
+        scan_len = 2800  # samples per scan
+        scan_points = np.arange(scan_len)
     else:
         scan_len = len(scan_points)
     scan_angle_west = 46.5  # swath, degrees
@@ -573,6 +573,7 @@ def slstr(scans_nb, scan_points=None):
     # build the slstr instrument scan line angles
     scanline_angles = np.linspace(np.deg2rad(scan_angle_west),
                                   np.deg2rad(scan_angle_east), scan_len)
+    print(scanline_angles)
     inst = np.vstack((scanline_angles, np.zeros(scan_len,)))
 
     inst = np.tile(inst[:, np.newaxis, :], [1, np.int32(scans_nb), 1])

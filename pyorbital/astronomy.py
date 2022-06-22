@@ -169,7 +169,7 @@ def sun_earth_distance_correction(utc_time):
     # Formula:
     #  theta = (jdays2000(utc_time) - p) * (2 * np.pi) / year
     #  r = a * (1 - e * e) / (1 + e * np.cos(theta))
-    #  corr := r/AU 
+    #  corr := r/AU
     #        =  a * (1 - e * e) / AU / (1 + e * np.cos(theta))
     #       "=" a * (1 - e * e) / AU * (1 - e * np.cos(theta))
     #       "=" 1 - 0.0167 * np.cos(theta)

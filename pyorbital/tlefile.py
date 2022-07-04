@@ -38,15 +38,15 @@ from xml.etree import ElementTree as ET
 from itertools import zip_longest
 
 
-TLE_URLS = ('http://www.celestrak.com/NORAD/elements/active.txt',
-            'http://celestrak.com/NORAD/elements/weather.txt',
-            'http://celestrak.com/NORAD/elements/resource.txt',
-            'https://www.celestrak.com/NORAD/elements/cubesat.txt',
-            'http://celestrak.com/NORAD/elements/stations.txt',
-            'https://www.celestrak.com/NORAD/elements/sarsat.txt',
-            'https://www.celestrak.com/NORAD/elements/noaa.txt',
-            'https://www.celestrak.com/NORAD/elements/amateur.txt',
-            'https://www.celestrak.com/NORAD/elements/engineering.txt')
+TLE_URLS = ('https://www.celestrak.org/NORAD/elements/active.txt',
+            'https://celestrak.org/NORAD/elements/weather.txt',
+            'https://celestrak.org/NORAD/elements/resource.txt',
+            'https://www.celestrak.org/NORAD/elements/cubesat.txt',
+            'https://celestrak.org/NORAD/elements/stations.txt',
+            'https://www.celestrak.org/NORAD/elements/sarsat.txt',
+            'https://www.celestrak.org/NORAD/elements/noaa.txt',
+            'https://www.celestrak.org/NORAD/elements/amateur.txt',
+            'https://www.celestrak.org/NORAD/elements/engineering.txt')
 
 
 LOGGER = logging.getLogger(__name__)

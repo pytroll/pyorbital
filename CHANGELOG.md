@@ -1,5 +1,23 @@
-## Version 1.7.1 (2021/12/22)
+## Version 1.7.2 (2022/07/07)
 
+### Issues Closed
+
+* [Issue 100](https://github.com/pytroll/pyorbital/issues/100) - TLE URIs land at redirect page ([PR 101](https://github.com/pytroll/pyorbital/pull/101) by [@gerritholl](https://github.com/gerritholl))
+* [Issue 97](https://github.com/pytroll/pyorbital/issues/97) - sun_earth_distance_correction returns the square of the sun-earth distance relativ to 1 AU ([PR 99](https://github.com/pytroll/pyorbital/pull/99) by [@depion](https://github.com/depion))
+
+In this release 2 issues were closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 101](https://github.com/pytroll/pyorbital/pull/101) - Update celestrak URIs ([100](https://github.com/pytroll/pyorbital/issues/100))
+* [PR 99](https://github.com/pytroll/pyorbital/pull/99) - Fixed earth sun distance ([97](https://github.com/pytroll/pyorbital/issues/97))
+
+In this release 2 pull requests were closed.
+
+
+## Version 1.7.1 (2021/12/22)
 
 ### Pull Requests Merged
 

@@ -155,18 +155,26 @@ def sun_zenith_angle(utc_time, lon, lat):
 def sun_earth_distance_correction(utc_time):
     """Calculate the sun earth distance correction, relative to 1 AU.
     """
-    year = 365.256363004
-    # This is computed from
-    # http://curious.astro.cornell.edu/question.php?number=582
-    # AU = 149597870700.0
-    # a = 149598261000.0
-    # theta = (jdays2000(utc_time) - 2) * (2 * np.pi) / year
-    # e = 0.01671123
-    # r = a*(1-e*e)/(1+e * np.cos(theta))
-    # corr_me = (r / AU) ** 2
 
-    # from known software.
-    corr = 1 - 0.0334 * np.cos(2 * np.pi * (jdays2000(utc_time) - 2) / year)
+    # Computation according to
+    #  https://web.archive.org/web/20150117190838/http://curious.astro.cornell.edu/question.php?number=582
+    # with
+    #  Astronomical unit: AU = 149597870700.0 meter (https://ssd.jpl.nasa.gov/glossary/au.html)
+    #  Semi-major axis:    a = 1.00000261 AU = 1495979097450 m (https://ssd.jpl.nasa.gov/planets/approx_pos.html)
+    #  Eccentricity:       e = 0.01671123 (https://ssd.jpl.nasa.gov/planets/approx_pos.html)
+    #  Length of year:  year = 365.25636 days (https://ssd.jpl.nasa.gov/astro_par.html)
+    #  Perihelion:         p = 3 (day of year with Earth in perihelion, varies between Jan 2 and Jan 5,
+    #                             http://www.astropixels.com/ephemeris/perap2001.html
+    #                             https://web.archive.org/web/20080328044924/http://aa.usno.navy.mil/data/docs/EarthSeasons)
+    # Formula:
+    #  theta = (jdays2000(utc_time) - p) * (2 * np.pi) / year
+    #  r = a * (1 - e * e) / (1 + e * np.cos(theta))
+    #  corr := r/AU
+    #        =  a * (1 - e * e) / AU / (1 + e * np.cos(theta))
+    #       "=" a * (1 - e * e) / AU * (1 - e * np.cos(theta))
+    #       "=" 1 - 0.0167 * np.cos(theta)
+
+    corr = 1 - 0.0167 * np.cos(2 * np.pi * (jdays2000(utc_time) - 3) / 365.25636)
 
     return corr
 

@@ -50,6 +50,13 @@ class TestAstronomy(unittest.TestCase):
         sun_theta = astr.sun_zenith_angle(time_slot, 0., 0.)
         self.assertAlmostEqual(sun_theta, 1.8751916863323426, places=8)
 
+    def test_sun_earth_distance_correction(self):
+        """Test the sun-earth distance correction."""
+        utc_time = datetime(2022, 6, 15, 12, 0, 0)
+        corr = astr.sun_earth_distance_correction(utc_time)
+        corr_exp = 1.0156952156742332
+        self.assertAlmostEqual(corr, corr_exp, places=8)
+
 
 def suite():
     """The suite for test_astronomy."""

@@ -6,7 +6,11 @@
 
 * [PR 103](https://github.com/pytroll/pyorbital/pull/103) - www.celestrak.org → celestrak.org ([101](https://github.com/pytroll/pyorbital/issues/101))
 
-In this release 1 pull request was closed.
+#### Documentation changes
+
+* [PR 104](https://github.com/pytroll/pyorbital/pull/104) - Fixed comment in sun_earth_distance_correction
+
+In this release 2 pull requests was closed.
 
 
 ## Version 1.7.2 (2022/07/07)

@@ -1,3 +1,14 @@
+## Version 1.7.3 (2022/07/11)
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 103](https://github.com/pytroll/pyorbital/pull/103) - www.celestrak.org → celestrak.org ([101](https://github.com/pytroll/pyorbital/issues/101))
+
+In this release 1 pull request was closed.
+
+
 ## Version 1.7.2 (2022/07/07)
 
 ### Issues Closed

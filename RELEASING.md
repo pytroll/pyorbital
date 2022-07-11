@@ -6,9 +6,13 @@
 4. run `loghub` and update the `CHANGELOG.md` file:
 
 ```
-loghub pytroll/pysorbital --token <personal access token (see https://github.com/settings/tokens)>  -st v<previous version> -plg bug "Bugs fixed" -plg enhancement "Features added" -plg documentation "Documentation changes"
-
+loghub pytroll/pyorbital --token $LOGHUB_GITHUB_TOKEN -st $(git tag --sort=-version:refname --list 'v*' | head -n 1) -plg bug "Bugs fixed" -plg enhancement "Features added" -plg documentation "Documentation changes"
 ```
+
+This uses a `LOGHUB_GITHUB_TOKEN` environment variable. This must be created
+on GitHub and it is recommended that you add it to your `.bashrc` or
+`.bash_profile` or equivalent. See https://github.com/settings/tokens for
+details on GitHub tokens.
 
 Don't forget to commit!
 

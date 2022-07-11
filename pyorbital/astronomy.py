@@ -160,7 +160,7 @@ def sun_earth_distance_correction(utc_time):
     #  https://web.archive.org/web/20150117190838/http://curious.astro.cornell.edu/question.php?number=582
     # with
     #  Astronomical unit: AU = 149597870700.0 meter (https://ssd.jpl.nasa.gov/glossary/au.html)
-    #  Semi-major axis:    a = 1.00000261 AU = 1495979097450 m (https://ssd.jpl.nasa.gov/planets/approx_pos.html)
+    #  Semi-major axis:    a = 1.00000261 AU = 149598261150.0 m (https://ssd.jpl.nasa.gov/planets/approx_pos.html)
     #  Eccentricity:       e = 0.01671123 (https://ssd.jpl.nasa.gov/planets/approx_pos.html)
     #  Length of year:  year = 365.25636 days (https://ssd.jpl.nasa.gov/astro_par.html)
     #  Perihelion:         p = 3 (day of year with Earth in perihelion, varies between Jan 2 and Jan 5,

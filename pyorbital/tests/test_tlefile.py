@@ -30,6 +30,7 @@ import unittest
 from unittest import mock
 import os
 from contextlib import suppress
+import time
 
 line0 = "ISS (ZARYA)"
 line1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
@@ -516,6 +517,8 @@ class TestSQLiteTLE(unittest.TestCase):
         # Do not write the satellite name
         self.db.writer_config["write_always"] = True
         self.db.writer_config["write_name"] = False
+        # Wait a bit to ensure different filename
+        time.sleep(2)
         self.db.write_tle_txt()
         files = sorted(glob.glob(os.path.join(tle_dir, 'tle_*txt')))
         self.assertEqual(len(files), 2)

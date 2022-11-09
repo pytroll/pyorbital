@@ -41,7 +41,7 @@ jobs:
           pytest --cov=pyorbital pyorbital/tests --cov-report=xml
 
       - name: Upload unittest coverage to Codecov
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3
         with:
           flags: unittests
           file: ./coverage.xml

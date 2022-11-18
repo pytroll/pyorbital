@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2014 Martin Raspaud
+# Copyright (c) 2014-2022 Pytroll Community
 #
 # Author(s):
 #
@@ -25,8 +25,14 @@
 
 
 from pyorbital.tlefile import Tle
+from pyorbital.tlefile import (_get_config_path,
+                               read_platform_numbers,
+                               PKG_CONFIG_DIR)
+
+import logging
 import datetime
 import unittest
+import pytest
 from unittest import mock
 import os
 from contextlib import suppress
@@ -65,6 +71,74 @@ tle_xml = '\n'.join(
         '</two-line-elements>',
         '</message>',
         '</multi-mission-administrative-message>'))
+
+
+@pytest.fixture
+def fake_platforms_file(tmp_path):
+    """Return file path to a fake platforms.txt file."""
+    file_path = tmp_path / 'platforms.txt'
+    lines = ['# Some header lines - line 1\n',
+             '# Some header lines - line 2\n',
+             'NOAA-21 11111\n',
+             'NOAA-20 22222\n',
+             'UNKNOWN SATELLITE 99999\n'
+             ]
+    with open(file_path, 'w') as fpt:
+        fpt.writelines(lines)
+
+    yield file_path
+
+
+@pytest.fixture
+def mock_env_ppp_config_dir(monkeypatch):
+    monkeypatch.setenv('PPP_CONFIG_DIR', '/path/to/old/mpop/config/dir')
+
+
+@pytest.fixture
+def mock_env_ppp_config_dir_missing(monkeypatch):
+    monkeypatch.delenv('PPP_CONFIG_DIR', raising=False)
+
+
+def test_get_config_path_no_env_defined(caplog, mock_env_ppp_config_dir_missing):
+    """Test getting the config path."""
+    with caplog.at_level(logging.WARNING):
+        res = _get_config_path()
+
+    assert res == PKG_CONFIG_DIR
+    assert caplog.text == ''
+
+
+def test_get_config_path_ppp_config_set_but_not_pyorbital(caplog, monkeypatch):
+    """Test getting the config path."""
+    monkeypatch.setenv('SATPY_CONFIG_PATH', '/path/to/satpy/etc')
+    monkeypatch.setenv('PPP_CONFIG_DIR', '/path/to/old/mpop/config/dir')
+
+    with caplog.at_level(logging.WARNING):
+        res = _get_config_path()
+
+    assert res == PKG_CONFIG_DIR
+    log_output = ("The use of PPP_CONFIG_DIR is not supported anymore, please use " +
+                  "PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
+    assert log_output in caplog.text
+
+
+def test_get_config_path_ppp_config_set_and_pyorbital(caplog, monkeypatch):
+    """Test getting the config path."""
+    pyorbital_config_dir = '/path/to/pyorbital/config/dir'
+    monkeypatch.setenv('PYORBITAL_CONFIG_PATH', pyorbital_config_dir)
+    monkeypatch.setenv('PPP_CONFIG_DIR', '/path/to/old/mpop/config/dir')
+
+    with caplog.at_level(logging.WARNING):
+        res = _get_config_path()
+
+    assert res == pyorbital_config_dir
+    assert caplog.text == ''
+
+
+def test_read_platform_numbers(fake_platforms_file):
+    """Test reading the platform names and associated catalougue numbers."""
+    res = read_platform_numbers(str(fake_platforms_file))
+    assert res == {'NOAA-21': '11111', 'NOAA-20': '22222', 'UNKNOWN SATELLITE': '99999'}
 
 
 class TLETest(unittest.TestCase):
@@ -527,14 +601,3 @@ class TestSQLiteTLE(unittest.TestCase):
         self.assertEqual(len(data), 2)
         self.assertEqual(data[0], line1)
         self.assertEqual(data[1], line2)
-
-
-def suite():
-    """Create the test suite for test_tlefile."""
-    loader = unittest.TestLoader()
-    mysuite = unittest.TestSuite()
-    mysuite.addTest(loader.loadTestsFromTestCase(TLETest))
-    mysuite.addTest(loader.loadTestsFromTestCase(TestDownloader))
-    mysuite.addTest(loader.loadTestsFromTestCase(TestSQLiteTLE))
-
-    return mysuite

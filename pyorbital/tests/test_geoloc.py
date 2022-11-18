@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2014, 2017, 2018, 2021 Martin Raspaud
+# Copyright (c) 2014-2022 Pytroll Community
 
 # Author(s):
 
@@ -286,15 +286,3 @@ class TestGeolocDefs(unittest.TestCase):
         geom = ascat(1, np.array([0, -1]))
         self.assertTrue(np.allclose(
             geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
-
-
-def suite():
-    """The suite for test_geoloc
-    """
-    loader = unittest.TestLoader()
-    mysuite = unittest.TestSuite()
-    mysuite.addTest(loader.loadTestsFromTestCase(TestQuaternion))
-    mysuite.addTest(loader.loadTestsFromTestCase(TestGeoloc))
-    mysuite.addTest(loader.loadTestsFromTestCase(TestGeolocDefs))
-
-    return mysuite

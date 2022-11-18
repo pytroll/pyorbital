@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013, 2014 Martin Raspaud
+# Copyright (c) 2013, 2014, 2022 Pytroll Community
 
 # Author(s):
 
@@ -56,12 +56,3 @@ class TestAstronomy(unittest.TestCase):
         corr = astr.sun_earth_distance_correction(utc_time)
         corr_exp = 1.0156952156742332
         self.assertAlmostEqual(corr, corr_exp, places=8)
-
-
-def suite():
-    """The suite for test_astronomy."""
-    loader = unittest.TestLoader()
-    mysuite = unittest.TestSuite()
-    mysuite.addTest(loader.loadTestsFromTestCase(TestAstronomy))
-
-    return mysuite

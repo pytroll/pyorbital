@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2011 - 2018
+# Copyright (c) 2011-2022 Pytroll Community
 #
 # Author(s):
 #
@@ -53,41 +53,58 @@ LOGGER = logging.getLogger(__name__)
 PKG_CONFIG_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'etc')
 
 
-def read_platform_numbers(in_upper=False, num_as_int=False):
+def _get_config_path():
+    """Get the config path for Pyorbital."""
+    if 'PPP_CONFIG_DIR' in os.environ and not os.getenv('PYORBITAL_CONFIG_PATH'):
+        LOGGER.warning(
+            'The use of PPP_CONFIG_DIR is not supported anymore, ' +
+            'please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!')
+        LOGGER.info('Using the package default for configuration: %s', PKG_CONFIG_DIR)
+        return PKG_CONFIG_DIR
+
+    return os.getenv('PYORBITAL_CONFIG_PATH', PKG_CONFIG_DIR)
+
+
+def get_platforms_filepath():
+    """Get the platforms.txt file path.
+
+    Check that the file exists or raise an error.
+    """
+    config_path = _get_config_path()
+    platform_file = os.path.join(config_path, 'platforms.txt')
+    if not os.path.isfile(platform_file):
+        platform_file = os.join.path(PKG_CONFIG_DIR, 'platforms.txt')
+        if not os.path.isfile(platform_file):
+            raise OSError("Platform file {filepath} does not exist!".format(filepath=platform_file))
+
+    return platform_file
+
+
+def read_platform_numbers(filename, in_upper=False, num_as_int=False):
     """Read platform numbers from $PPP_CONFIG_DIR/platforms.txt."""
     out_dict = {}
-    os.getenv('PPP_CONFIG_DIR', PKG_CONFIG_DIR)
-    platform_file = None
-    if 'PPP_CONFIG_DIR' in os.environ:
-        platform_file = os.path.join(os.environ['PPP_CONFIG_DIR'], 'platforms.txt')
-    if not platform_file or not os.path.isfile(platform_file):
-        platform_file = os.path.join(PKG_CONFIG_DIR, 'platforms.txt')
 
-    try:
-        fid = open(platform_file, 'r')
-    except IOError:
-        LOGGER.error("Platform file %s not found.", platform_file)
-        return out_dict
-    for row in fid:
-        # skip comment lines
-        if not row.startswith('#'):
-            parts = row.split()
-            if len(parts) < 2:
-                continue
-            # The satellite name might have whitespace
-            platform = ' '.join(parts[:-1])
-            num = parts[-1]
-            if in_upper:
-                platform = platform.upper()
-            if num_as_int:
-                num = int(num)
-            out_dict[platform] = num
-    fid.close()
+    with open(filename, 'r') as fid:
+        for row in fid:
+            # skip comment lines
+            if not row.startswith('#'):
+                parts = row.split()
+                if len(parts) < 2:
+                    continue
+                # The satellite name might have whitespace
+                platform = ' '.join(parts[:-1])
+                num = parts[-1]
+                if in_upper:
+                    platform = platform.upper()
+                if num_as_int:
+                    num = int(num)
+                out_dict[platform] = num
 
     return out_dict
 
 
-SATELLITES = read_platform_numbers(in_upper=True, num_as_int=False)
+SATELLITES = read_platform_numbers(get_platforms_filepath(),
+                                   in_upper=True, num_as_int=False)
 """
 The platform numbers are given in a file $PPP_CONFIG/platforms.txt
 in the following format:

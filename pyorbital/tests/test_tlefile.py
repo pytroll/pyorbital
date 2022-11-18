@@ -34,8 +34,9 @@ from pyorbital.tlefile import (_get_config_path,
 import logging
 import datetime
 import unittest
-import pytest
+from unittest.mock import patch
 from unittest import mock
+import pytest
 import os
 from contextlib import suppress
 import time
@@ -141,6 +142,24 @@ def test_get_config_path_no_env_defined(caplog, mock_env_ppp_config_dir_missing)
     assert caplog.text == ''
 
 
+@patch(
+    'pyorbital.tlefile._check_support_limit_ppp_config_dir',
+    return_value={'mocked_future': True},
+)
+def test_get_config_path_ppp_config_set_but_not_pyorbital_future(mock, caplog, monkeypatch):
+    """Test getting the config path."""
+    monkeypatch.setenv('SATPY_CONFIG_PATH', '/path/to/satpy/etc')
+    monkeypatch.setenv('PPP_CONFIG_DIR', '/path/to/old/mpop/config/dir')
+
+    with caplog.at_level(logging.WARNING):
+        res = _get_config_path()
+
+    log_output = ("The use of PPP_CONFIG_DIR is no longer supported! " +
+                  "Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
+    assert log_output in caplog.text
+    assert res == PKG_CONFIG_DIR
+
+
 def test_get_config_path_ppp_config_set_but_not_pyorbital(caplog, monkeypatch):
     """Test getting the config path."""
     monkeypatch.setenv('SATPY_CONFIG_PATH', '/path/to/satpy/etc')
@@ -149,9 +168,10 @@ def test_get_config_path_ppp_config_set_but_not_pyorbital(caplog, monkeypatch):
     with caplog.at_level(logging.WARNING):
         res = _get_config_path()
 
-    assert res == PKG_CONFIG_DIR
-    log_output = ("The use of PPP_CONFIG_DIR is not supported anymore, please use " +
-                  "PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
+    assert res == '/path/to/old/mpop/config/dir'
+    log_output = ('The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.7!' +
+                  ' Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!')
+
     assert log_output in caplog.text
 
 
@@ -166,6 +186,23 @@ def test_get_config_path_ppp_config_set_and_pyorbital(caplog, monkeypatch):
 
     assert res == pyorbital_config_dir
     assert caplog.text == ''
+
+
+def test_get_config_path_pyorbital_ppp_missing(caplog, monkeypatch, mock_env_ppp_config_dir_missing):
+    """Test getting the config path.
+
+    The old mpop PPP_CONFIG_PATH is not set but the PYORBITAL one is.
+    """
+    pyorbital_config_dir = '/path/to/pyorbital/config/dir'
+    monkeypatch.setenv('PYORBITAL_CONFIG_PATH', pyorbital_config_dir)
+
+    with caplog.at_level(logging.INFO):
+        res = _get_config_path()
+
+    assert res == pyorbital_config_dir
+    log_output = ("Path to the Pyorbital configuration (where e.g. " +
+                  "platforms.txt is found): {path}".format(path=pyorbital_config_dir))
+    assert log_output in caplog.text
 
 
 def test_read_platform_numbers(fake_platforms_file):

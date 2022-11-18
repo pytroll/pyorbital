@@ -53,16 +53,32 @@ LOGGER = logging.getLogger(__name__)
 PKG_CONFIG_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'etc')
 
 
+def _check_support_limit_ppp_config_dir():
+    """Check if the version where PPP_CONFIG_DIR will no be supported."""
+    from pyorbital import version
+    return version.get_versions()['version'] >= '1.7'
+
+
 def _get_config_path():
     """Get the config path for Pyorbital."""
     if 'PPP_CONFIG_DIR' in os.environ and not os.getenv('PYORBITAL_CONFIG_PATH'):
-        LOGGER.warning(
-            'The use of PPP_CONFIG_DIR is not supported anymore, ' +
-            'please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!')
-        LOGGER.info('Using the package default for configuration: %s', PKG_CONFIG_DIR)
-        return PKG_CONFIG_DIR
+        if _check_support_limit_ppp_config_dir():
+            LOGGER.warning(
+                'The use of PPP_CONFIG_DIR is no longer supported!' +
+                ' Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!')
+            LOGGER.info('Using the package default for configuration: %s', PKG_CONFIG_DIR)
+            return PKG_CONFIG_DIR
+        else:
+            LOGGER.warning(
+                'The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.7!' +
+                ' Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!')
+            pyorbital_config_path = os.getenv('PPP_CONFIG_DIR', PKG_CONFIG_DIR)
+    else:
+        pyorbital_config_path = os.getenv('PYORBITAL_CONFIG_PATH', PKG_CONFIG_DIR)
 
-    return os.getenv('PYORBITAL_CONFIG_PATH', PKG_CONFIG_DIR)
+    LOGGER.info("Path to the Pyorbital configuration (where e.g. platforms.txt is found): %s",
+                str(pyorbital_config_path))
+    return pyorbital_config_path
 
 
 def get_platforms_filepath():
@@ -73,7 +89,7 @@ def get_platforms_filepath():
     config_path = _get_config_path()
     platform_file = os.path.join(config_path, 'platforms.txt')
     if not os.path.isfile(platform_file):
-        platform_file = os.join.path(PKG_CONFIG_DIR, 'platforms.txt')
+        platform_file = os.path.join(PKG_CONFIG_DIR, 'platforms.txt')
         if not os.path.isfile(platform_file):
             raise OSError("Platform file {filepath} does not exist!".format(filepath=platform_file))
 

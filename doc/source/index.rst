@@ -12,8 +12,8 @@ Currently pyorbital only supports low earth orbit satellites.
 
 Installation
 ------------
-Pyorbital comes with a file platforms.txt that maps satellite name to NORAD identifier.
-This file needs to be copied to the appropriate satpy etc directory ($PPP_CONFIG_DIR).
+Pyorbital comes with a file platforms.txt that maps a satellite name to the NORAD identifier.
+This file needs to be copied to the appropriate config directory ($PYORBITAL_CONFIG_PATH).
 It is wise to check it contains your satellites of interest. The NORAD identifier can
 be found as the first number of each line in the Two-Line Elements (eg. from celestrak).
 
@@ -26,7 +26,13 @@ Pyorbital has a module for parsing NORAD TLE-files
     >>> tle.inclination
     99.043499999999995
 
-If no path is given pyorbital tries to read the earth observation TLE-files from celestrak.com
+If no path is provided pyorbital first tries to read any local tle files in the
+directory given by the environment variable TLES. If this environment is not
+set Pyorbital will try get the earth observation TLE-files over the internet
+from celestrak.com. Please observe, that it is only in the sace that no
+specific tle file is provided or if the TLES environment variable is not set
+that TLE fetch over the internet is attempted.
+
 
 TLE download and database
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -134,4 +140,3 @@ Astronomical computations
    * :ref:`genindex`
    * :ref:`modindex`
    * :ref:`search`
-

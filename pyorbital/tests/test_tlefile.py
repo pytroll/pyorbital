@@ -27,6 +27,8 @@
 from pyorbital.tlefile import Tle
 from pyorbital.tlefile import (_get_config_path,
                                read_platform_numbers,
+                               _get_local_tle_path_from_env,
+                               _get_uris_and_open_func,
                                PKG_CONFIG_DIR)
 
 import logging
@@ -90,13 +92,44 @@ def fake_platforms_file(tmp_path):
 
 
 @pytest.fixture
+def fake_local_tles_dir(tmp_path, monkeypatch):
+    """Make a list of fake tle files in a directory."""
+    file_path = tmp_path / 'tle-202211180230.txt'
+    file_path.touch()
+    file_path = tmp_path / 'tle-202211180430.txt'
+    file_path.touch()
+    file_path = tmp_path / 'tle-202211180630.txt'
+    file_path.touch()
+    file_path = tmp_path / 'tle-202211180830.txt'
+    file_path.touch()
+
+    monkeypatch.setenv('TLES', file_path.parent)
+
+    yield file_path.parent
+
+
+@pytest.fixture
 def mock_env_ppp_config_dir(monkeypatch):
+    """Mock environment variable PPP_CONFIG_DIR."""
     monkeypatch.setenv('PPP_CONFIG_DIR', '/path/to/old/mpop/config/dir')
 
 
 @pytest.fixture
 def mock_env_ppp_config_dir_missing(monkeypatch):
+    """Mock that the environment variable PPP_CONFIG_DIR is missing."""
     monkeypatch.delenv('PPP_CONFIG_DIR', raising=False)
+
+
+@pytest.fixture
+def mock_env_tles_missing(monkeypatch):
+    """Mock that the environment variable TLES is missing."""
+    monkeypatch.delenv('TLES', raising=False)
+
+
+@pytest.fixture
+def mock_env_tles(monkeypatch):
+    """Mock environment variable TLES."""
+    monkeypatch.setenv('TLES', '/path/to/local/tles')
 
 
 def test_get_config_path_no_env_defined(caplog, mock_env_ppp_config_dir_missing):
@@ -139,6 +172,31 @@ def test_read_platform_numbers(fake_platforms_file):
     """Test reading the platform names and associated catalougue numbers."""
     res = read_platform_numbers(str(fake_platforms_file))
     assert res == {'NOAA-21': '11111', 'NOAA-20': '22222', 'UNKNOWN SATELLITE': '99999'}
+
+
+def test_get_local_tle_path_tle_env_missing(mock_env_tles_missing):
+    """Test getting the path to local TLE files - env TLES missing."""
+    res = _get_local_tle_path_from_env()
+    assert res is None
+
+
+def test_get_local_tle_path(mock_env_tles):
+    """Test getting the path to local TLE files."""
+    res = _get_local_tle_path_from_env()
+    assert res == '/path/to/local/tles'
+
+
+def test_get_uris_and_open_func_using_tles_env(caplog, fake_local_tles_dir):
+    """Test getting the uris and associated open-function for reading tles.
+
+    Test providing no tle file but using the TLES env to find local tle files.
+    """
+    with caplog.at_level(logging.DEBUG):
+        uris, _ = _get_uris_and_open_func()
+
+    assert uris[0] == str(fake_local_tles_dir)
+    log_message = "Reading TLE from {msg}".format(msg=str(fake_local_tles_dir))
+    assert log_message in caplog.text
 
 
 class TLETest(unittest.TestCase):

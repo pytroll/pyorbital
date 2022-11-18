@@ -268,9 +268,17 @@ class Tle(object):
         return s_var.getvalue()[:-1]
 
 
+def _get_local_tle_path_from_env():
+    """Get the path to possible local TLE files using the environment variable."""
+    return os.environ.get('TLES')
+
+
 def _get_uris_and_open_func(tle_file=None):
+    """Get the uri's and the adequate file open call for the TLE files."""
     def _open(filename):
         return io.open(filename, 'rb')
+
+    local_tle_path = _get_local_tle_path_from_env()
 
     if tle_file:
         if isinstance(tle_file, io.StringIO):
@@ -282,10 +290,10 @@ def _get_uris_and_open_func(tle_file=None):
         else:
             uris = (tle_file,)
             open_func = _open
-    elif "TLES" in os.environ:
+    elif local_tle_path:
         # TODO: get the TLE file closest in time to the actual satellite
         # overpass, NOT the latest!
-        uris = (max(glob.glob(os.environ["TLES"]),
+        uris = (max(glob.glob(local_tle_path),
                     key=os.path.getctime), )
         LOGGER.debug("Reading TLE from %s", uris[0])
         open_func = _open
@@ -449,6 +457,7 @@ def collect_filenames(paths):
 
 
 def read_tles_from_mmam_xml_files(paths):
+    """Read TLEs from EUMETSAT MMAM XML files."""
     # Collect filenames
     fnames = collect_filenames(paths)
     tles = []
@@ -461,6 +470,7 @@ def read_tles_from_mmam_xml_files(paths):
 
 
 def read_tle_from_mmam_xml_file(fname):
+    """Read TLEs from a EUMETSAT MMAM XML file."""
     tree = ET.parse(fname)
     root = tree.getroot()
     data = []
@@ -472,7 +482,7 @@ def read_tle_from_mmam_xml_file(fname):
 
 
 def _group_iterable_to_chunks(n, iterable, fillvalue=None):
-    "Collect data into fixed-length chunks or blocks"
+    """Collect data into fixed-length chunks or blocks."""
     # _group_iterable_to_chunks(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
     args = [iter(iterable)] * n
     return zip_longest(fillvalue=fillvalue, *args)

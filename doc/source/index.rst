@@ -28,10 +28,9 @@ Pyorbital has a module for parsing NORAD TLE-files
 
 If no path is provided pyorbital first tries to read any local tle files in the
 directory given by the environment variable TLES. If this environment is not
-set Pyorbital will try get the earth observation TLE-files over the internet
-from celestrak.com. Please observe, that it is only in the sace that no
-specific tle file is provided or if the TLES environment variable is not set
-that TLE fetch over the internet is attempted.
+set Pyorbital will try get the earth observation TLE files over the internet
+from celestrak.com. Note this downloading if no
+specific tle file is provided or if the TLES environment variable is not set.
 
 
 TLE download and database

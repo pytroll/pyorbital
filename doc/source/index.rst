@@ -13,7 +13,7 @@ Currently pyorbital only supports low earth orbit satellites.
 Installation
 ------------
 Pyorbital comes with a file platforms.txt that maps a satellite name to the NORAD identifier.
-This file needs to be copied to the appropriate config directory ($PYORBITAL_CONFIG_PATH).
+This file needs to be copied to the appropriate config directory pointed to by :envvar:`PYORBITAL_CONFIG_PATH`.
 It is wise to check it contains your satellites of interest. The NORAD identifier can
 be found as the first number of each line in the Two-Line Elements (eg. from celestrak).
 

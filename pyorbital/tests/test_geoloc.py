@@ -115,13 +115,15 @@ class TestGeoloc:
 
     def test_geodetic_lat(self):
         """Test the determination of the geodetic latitude."""
-        point = np.array([7000, 0, 7000])
-        assert geodetic_lat(point) == 0.78755832699854733
+        point = np.array([[7000, 0, 7000]]).T
+        np.testing.assert_allclose(geodetic_lat(point),
+                                   np.array([0.78755832699854733]), rtol=1e-8, atol=1e-8)
+
         points = np.array([[7000, 0, 7000],
                            [7000, 0, 7000]]).T
         result = geodetic_lat(points)
         expected = np.array([0.78755832699854733, 0.78755832699854733])
-        np.testing.assert_allclose(result, expected)
+        np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
 
     def test_subpoint(self):
         """Test nadir determination."""
@@ -136,18 +138,18 @@ class TestGeoloc:
         np.testing.assert_allclose(nadir,
                                    np.array([4507.85431429,
                                              0,
-                                             4497.06396339]))
+                                             4497.06396339]), rtol=1e-8, atol=1e-8)
         points = np.array([[7000, 0, 7000],
                            [7000, 0, 7000]]).T
         nadir = subpoint(points, a, b)
         np.testing.assert_allclose(nadir[:, 0],
                                    np.array([4507.85431429,
                                              0,
-                                             4497.06396339]))
+                                             4497.06396339]), rtol=1e-8, atol=1e-8)
         np.testing.assert_allclose(nadir[:, 1],
                                    np.array([4507.85431429,
                                              0,
-                                             4497.06396339]))
+                                             4497.06396339]), rtol=1e-8, atol=1e-8)
 
 
 class TestGeolocDefs:

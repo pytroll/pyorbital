@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2011-2022 Pytroll Community
+# Copyright (c) 2011-2023 Pytroll Community
 #
 # Author(s):
 #
@@ -56,12 +56,12 @@ PKG_CONFIG_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'etc'
 def _check_support_limit_ppp_config_dir():
     """Check if the version where PPP_CONFIG_DIR will no be supported."""
     from pyorbital import version
-    return version.get_versions()['version'] >= '1.7'
+    return version.get_versions()['version'] >= '1.9'
 
 
 def _get_config_path():
     """Get the config path for Pyorbital."""
-    if 'PPP_CONFIG_DIR' in os.environ and not os.getenv('PYORBITAL_CONFIG_PATH'):
+    if 'PPP_CONFIG_DIR' in os.environ and 'PYORBITAL_CONFIG_PATH' not in os.environ:
         if _check_support_limit_ppp_config_dir():
             LOGGER.warning(
                 'The use of PPP_CONFIG_DIR is no longer supported!' +
@@ -70,7 +70,7 @@ def _get_config_path():
             return PKG_CONFIG_DIR
         else:
             LOGGER.warning(
-                'The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.7!' +
+                'The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.9!' +
                 ' Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!')
             pyorbital_config_path = os.getenv('PPP_CONFIG_DIR', PKG_CONFIG_DIR)
     else:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2014-2022 Pytroll Community
+# Copyright (c) 2014-2023 Pytroll Community
 #
 # Author(s):
 #
@@ -143,8 +143,13 @@ def test_get_config_path_no_env_defined(caplog, mock_env_ppp_config_dir_missing)
 
 
 @patch(
-    'pyorbital.tlefile._check_support_limit_ppp_config_dir',
-    return_value={'mocked_future': True},
+    'pyorbital.version.get_versions',
+    return_value=dict([('version', '1.9.1+1.some-futur.dirty'),
+                       ('full-revisionid', 'some-future-git-version-hash'),
+                       ('dirty', True),
+                       ('error', None),
+                       ('date', '2023-01-20T09:37:30+0100')
+                       ])
 )
 def test_get_config_path_ppp_config_set_but_not_pyorbital_future(mock, caplog, monkeypatch):
     """Test getting the config path."""
@@ -160,8 +165,13 @@ def test_get_config_path_ppp_config_set_but_not_pyorbital_future(mock, caplog, m
     assert res == PKG_CONFIG_DIR
 
 
-def test_get_config_path_ppp_config_set_but_not_pyorbital(caplog, monkeypatch):
-    """Test getting the config path."""
+def test_get_config_path_ppp_config_set_but_not_pyorbital_is_deprecated(caplog, monkeypatch):
+    """Test getting the config path.
+
+    Here the case is tested when the new Pyorbital environment variable is not
+    set but the deprecated (old) Satpy/MPOP one is set.
+
+    """
     monkeypatch.setenv('SATPY_CONFIG_PATH', '/path/to/satpy/etc')
     monkeypatch.setenv('PPP_CONFIG_DIR', '/path/to/old/mpop/config/dir')
 
@@ -169,7 +179,8 @@ def test_get_config_path_ppp_config_set_but_not_pyorbital(caplog, monkeypatch):
         res = _get_config_path()
 
     assert res == '/path/to/old/mpop/config/dir'
-    log_output = ('The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.7!' +
+
+    log_output = ('The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.9!' +
                   ' Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!')
 
     assert log_output in caplog.text

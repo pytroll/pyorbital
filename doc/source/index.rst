@@ -83,13 +83,13 @@ But since we are interested in knowing the position of the Suomi-NPP more than
 two and half years from now (September 26, 2017) we can not rely on the current
 TLEs, but rather need a TLE closer to the time of interest:
 
-    >>> snpp = Orbital('Suomi NPP', tle_file='/data/lang/satellit/polar/orbital_elements/TLE/201502/tle-20150207.txt')
+    >>> snpp = Orbital('Suomi NPP', tle_file='/path/to/tle/files/tle-20150207.txt')
     >>> snpp.get_lonlatalt(dtobj)
     (105.37373804512762, 79.160752404540133, 838.94605490133154)
 
 If we take a TLE from one week earlier we get a slightly different result:
 
-    >>> snpp = Orbital('Suomi NPP', tle_file='/data/lang/satellit/polar/orbital_elements/TLE/201501/tle-20150131.txt')
+    >>> snpp = Orbital('Suomi NPP', tle_file='/path/to/tle/files/tle-20150131.txt')
     >>> snpp.get_lonlatalt(dtobj)
     (104.1539184988462, 79.328272480878141, 838.81555967963391)
 
@@ -105,6 +105,35 @@ The astronomy module enables computation of certain parameters of interest for s
     >>> lon, lat = 12, 56
     >>> astronomy.sun_zenith_angle(utc_time, lon, lat)
     62.685986438071602
+
+
+.. envvar:: PYORBITAL_CONFIG_PATH
+
+   It is possible (but not mandatory) to define this environment variable to
+   have full control of certain static data used by Pyorbital:
+
+   Pyorbital comes with a file platforms.txt that maps a satellite name to the
+   NORAD identifier. This internal file is accessed by Pyorbital without the
+   user having to do anything.  But if you need to change or update this file
+   you can make your own copy and place in the directory pointed to by this
+   environment variable.
+
+.. envvar:: TLES
+
+   Two Line Element (TLE) files are accessed automatically over the internet
+   without the user having to do anything. When doing that Pyorbital will fetch
+   the most recent TLE data which may not be the most optimal for historic data
+   for instance. Also, it may not be sustainable in a production environment.
+
+   However, it is possible to let Pyorbital look for the necessary and more
+   optimal TLE data locally, by specifying the directory where such local TLE
+   files are located. If the TLES environment variable is set to point at an
+   existing local directory Pyorbital will first search for the needed TLEs
+   there. This can both be useful in an operational setup where access to the
+   internet is restricted, and when processing old/historic satellite data.
+
+   It is possible (but not mandatory) to define this environment variable.
+
 
 API
 ---

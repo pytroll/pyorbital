@@ -54,7 +54,7 @@ PKG_CONFIG_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'etc'
 
 
 def _check_support_limit_ppp_config_dir():
-    """Check if the version where PPP_CONFIG_DIR will no be supported."""
+    """Check the version where PPP_CONFIG_DIR will no longer be supported."""
     from pyorbital import version
     return version.get_versions()['version'] >= '1.9'
 
@@ -97,7 +97,7 @@ def get_platforms_filepath():
 
 
 def read_platform_numbers(filename, in_upper=False, num_as_int=False):
-    """Read platform numbers from $PPP_CONFIG_DIR/platforms.txt."""
+    """Read platform numbers from $PYORBITAL_CONFIG_PATH/platforms.txt."""
     out_dict = {}
 
     with open(filename, 'r') as fid:
@@ -122,13 +122,27 @@ def read_platform_numbers(filename, in_upper=False, num_as_int=False):
 SATELLITES = read_platform_numbers(get_platforms_filepath(),
                                    in_upper=True, num_as_int=False)
 """
-The platform numbers are given in a file $PPP_CONFIG/platforms.txt
+The platform numbers are given in a file $PYORBITAL_CONFIG_PATH/platforms.txt
 in the following format:
 
-.. literalinclude:: ../../etc/platforms.txt
+.. literalinclude:: ../../pyorbital/etc/platforms.txt
   :language: text
-  :lines: 4-
+  :lines: 5-
 """
+
+
+def check_is_platform_supported(satname):
+    """Check if satellite is supported and print info."""
+    if satname in SATELLITES:
+        LOGGER.info("Satellite {name} is supported. NORAD number: {norad}".format(
+            name=satname, norad=SATELLITES[satname]))
+    else:
+        LOGGER.info("Satellite {name} is NOT supported.".format(name=satname))
+        LOGGER.info("Please add it to a local copy of the platforms.txt file and put in " +
+                    "the directory pointed to by the environment variable PYORBITAL_CONFIG_PATH")
+
+    LOGGER.info("Satellite names and NORAD numbers are defined in {filepath}".format(
+        filepath=get_platforms_filepath()))
 
 
 def _dummy_open_stringio(stream):

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2011-2022 Pytroll Community
+# Copyright (c) 2011-2023 Pytroll Community
 #
 # Author(s):
 #
@@ -54,7 +54,7 @@ setup(name='pyorbital',
       long_description_content_type='text/markdown',
       packages=find_packages(),
       package_data={'pyorbital': [os.path.join('etc', 'platforms.txt')]},
-      scripts=['bin/fetch_tles.py', ],
+      scripts=['bin/fetch_tles.py', 'bin/check_platform.py'],
       install_requires=['numpy>=1.19.0', 'scipy', 'requests'],
       python_requires='>=3.8',
       zip_safe=False,

@@ -1,5 +1,6 @@
-# The platform numbers are given in a file $PPP_CONFIG_DIR/platforms.txt
-# in the following format.  Copy this file to $PPP_CONFIG_DIR
+# The satellite platform names and international designators are given in a
+# file $PYORBITAL_CONFIG_PATH/platforms.txt in the following format. Copy this
+# file to $PYORBITAL_CONFIG_PATH
 #
 # Mappings between satellite catalogue numbers and corresponding
 # platform names from OSCAR.
@@ -65,6 +66,7 @@ NOAA-17 27453
 NOAA-18 28654
 NOAA-19 33591
 NOAA-20 43013
+NOAA-21 54234
 RadarSat-2 32382
 Sentinel-1A 39634
 Sentinel-3A 41335

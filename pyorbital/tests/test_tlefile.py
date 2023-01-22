@@ -152,10 +152,10 @@ def test_check_is_platform_supported_existing(caplog, mock_env_ppp_config_dir_mi
     logoutput_lines = caplog.text.split('\n')
 
     expected1 = "Satellite NOAA-21 is supported. NORAD number: 54234"
-    expected3 = "Satellite names and NORAD numbers are defined in {path}".format(path=PKG_CONFIG_DIR)
+    expected2 = "Satellite names and NORAD numbers are defined in {path}".format(path=PKG_CONFIG_DIR)
 
     assert expected1 in logoutput_lines[0]
-    assert expected3 in logoutput_lines[2]
+    assert expected2 in logoutput_lines[1]
 
 
 def test_check_is_platform_supported_unknown(caplog, mock_env_ppp_config_dir_missing):
@@ -173,7 +173,7 @@ def test_check_is_platform_supported_unknown(caplog, mock_env_ppp_config_dir_mis
 
     assert expected1 in logoutput_lines[0]
     assert expected2 in logoutput_lines[1]
-    assert expected3 in logoutput_lines[3]
+    assert expected3 in logoutput_lines[2]
 
 
 @patch(

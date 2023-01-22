@@ -66,7 +66,7 @@ def _get_config_path():
             LOGGER.warning(
                 'The use of PPP_CONFIG_DIR is no longer supported!' +
                 ' Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!')
-            LOGGER.info('Using the package default for configuration: %s', PKG_CONFIG_DIR)
+            LOGGER.debug('Using the package default for configuration: %s', PKG_CONFIG_DIR)
             return PKG_CONFIG_DIR
         else:
             LOGGER.warning(
@@ -76,8 +76,8 @@ def _get_config_path():
     else:
         pyorbital_config_path = os.getenv('PYORBITAL_CONFIG_PATH', PKG_CONFIG_DIR)
 
-    LOGGER.info("Path to the Pyorbital configuration (where e.g. platforms.txt is found): %s",
-                str(pyorbital_config_path))
+    LOGGER.debug("Path to the Pyorbital configuration (where e.g. platforms.txt is found): %s",
+                 str(pyorbital_config_path))
     return pyorbital_config_path
 
 

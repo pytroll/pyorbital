@@ -241,7 +241,7 @@ def test_get_config_path_pyorbital_ppp_missing(caplog, monkeypatch, mock_env_ppp
     pyorbital_config_dir = '/path/to/pyorbital/config/dir'
     monkeypatch.setenv('PYORBITAL_CONFIG_PATH', pyorbital_config_dir)
 
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.DEBUG):
         res = _get_config_path()
 
     assert res == pyorbital_config_dir

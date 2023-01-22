@@ -8,14 +8,33 @@ Pyorbital
 
 Pyorbital is a python package to compute orbital parameters for satellites from
 TLE files as well as astronomical parameters of interest for satellite remote sensing.
-Currently pyorbital only supports low earth orbit satellites.
+Currently Pyorbital only supports low earth orbit satellites.
+
 
 Installation
 ------------
-Pyorbital comes with a file platforms.txt that maps a satellite name to the NORAD identifier.
-This file needs to be copied to the appropriate config directory pointed to by :envvar:`PYORBITAL_CONFIG_PATH`.
-It is wise to check it contains your satellites of interest. The NORAD identifier can
-be found as the first number of each line in the Two-Line Elements (eg. from celestrak).
+Pyorbital comes with a file *platforms.txt* that maps a satellite name to the NORAD identifier.
+
+This file already contain many low earth orbiting environmental or
+meteorological satellites and thus likely be sufficient for your purpose.
+
+But should it not contain your satellites of interest make a copy of the
+*platforms.txt* file and add the missing satellites and their NORAD identifiers and place
+the file in the directory pointed to by :envvar:`PYORBITAL_CONFIG_PATH`.
+
+The NORAD identifier can be found as the first number of each line in the
+Two-Line Elements files (eg. from `celestrak`_).
+
+Pyorbital comes with a small script ``check_platform.py`` to check whether a
+satellite is already supported.
+
+.. code::
+
+   python check_platform.py NOAA-21
+
+   Satellite NOAA-21 is supported. NORAD number: 54234
+   Satellite names and NORAD numbers are defined in /path/to/pyorbital/etc/directory/platforms.txt
+
 
 TLE files
 ---------
@@ -29,7 +48,7 @@ Pyorbital has a module for parsing NORAD TLE-files
 If no path is provided pyorbital first tries to read any local TLE files in the
 directory given by the environment variable :envvar:`TLES`. If this variable is not
 set Pyorbital will try get the earth observation TLE files over the internet
-from celestrak.com. Note this downloading only happens if no
+from `celestrak`_. Note this downloading only happens if no
 specific TLE file is provided or if the :envvar:`TLES` environment variable is not set.
 
 
@@ -40,7 +59,7 @@ The historical TLE files can be requested from
 `celestrak <https://celestrak.com/NORAD/archives/request.php>`_.
 
 There is also a script, ``fetch_tles.py``, that can be used to collect
-TLE data from several locations.  Then currently supported locaions
+TLE data from several locations. The currently supported locations
 are:
 
 * generic network locations without login
@@ -112,9 +131,9 @@ The astronomy module enables computation of certain parameters of interest for s
    It is possible (but not mandatory) to define this environment variable to
    have full control of certain static data used by Pyorbital:
 
-   Pyorbital comes with a file platforms.txt that maps a satellite name to the
+   Pyorbital comes with a file *platforms.txt* that maps a satellite name to the
    NORAD identifier. This internal file is accessed by Pyorbital without the
-   user having to do anything.  But if you need to change or update this file
+   user having to do anything. But if you need to change or update this file
    you can make your own copy and place in the directory pointed to by this
    environment variable.
 
@@ -168,3 +187,7 @@ Astronomical computations
    * :ref:`genindex`
    * :ref:`modindex`
    * :ref:`search`
+
+
+
+.. _celestrak: Celestrak <https://celestrak.com>

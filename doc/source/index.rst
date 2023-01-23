@@ -30,7 +30,7 @@ satellite is already supported.
 
 .. code::
 
-   python check_platform.py NOAA-21
+   python check_platform.py -s NOAA-21
 
    [INFO: 2023-01-22 21:20:25 : pyorbital.tlefile] Satellite NOAA-21 is supported. NORAD number: 54234
    [INFO: 2023-01-22 21:20:25 : pyorbital.tlefile] Satellite names and NORAD numbers are defined in /path/to/pyorbital/etc/directory/platforms.txt

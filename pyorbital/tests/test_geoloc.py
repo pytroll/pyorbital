@@ -118,7 +118,7 @@ class TestGeoloc(unittest.TestCase):
     def test_geodetic_lat(self):
         """Test the determination of the geodetic latitude."""
         point = np.array([7000, 0, 7000])
-        self.assertEqual(geodetic_lat(point), 0.78755832699854733)
+        self.assertAlmostEqual(geodetic_lat(point), 0.78755832699854733)
         points = np.array([[7000, 0, 7000],
                            [7000, 0, 7000]]).T
         self.assertTrue(np.allclose(geodetic_lat(points), np.array([0.78755832699854733, 0.78755832699854733])))

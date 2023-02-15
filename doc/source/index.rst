@@ -13,6 +13,36 @@ Currently Pyorbital only supports low earth orbit satellites.
 
 Installation
 ------------
+
+Pyorbtal is available from conda-forge and the Python Package Index (PyPI),
+and may thus be installed using conda or mamba, or using pip.
+
+Pyorbital is also available at Github. Should you want to get access to the
+full source code history including the most recent main branch please download
+directly from github_::
+
+.. code-block:: bash
+
+   $ git clone git://github.com/pytroll/pyorbital.git
+
+and then run::
+
+.. code-block:: bash
+
+   $ cd pyorbital
+   $ pip install .
+
+This will install the most recent working version from the main branch. If you
+want to hack the package::
+
+.. code-block:: bash
+
+   $ pip install -e .
+
+
+Add platform missing information
+--------------------------------
+
 Pyorbital comes with a file *platforms.txt* that maps a satellite name to the NORAD identifier.
 
 This file already contain many low earth orbiting environmental or
@@ -191,3 +221,4 @@ Astronomical computations
 
 
 .. _celestrak: Celestrak <https://celestrak.com>
+.. _github: http://github.com/pytroll/pyorbital

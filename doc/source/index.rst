@@ -49,8 +49,12 @@ This file already contain many low earth orbiting environmental or
 meteorological satellites and thus likely be sufficient for your purpose.
 
 But should it not contain your satellites of interest make a copy of the
-*platforms.txt* file and add the missing satellites and their NORAD identifiers and place
+`platforms.txt <https://github.com/pytroll/pyorbital/blob/main/pyorbital/etc/platforms.txt>`_
+file and add the missing satellites and their NORAD identifiers and place
 the file in the directory pointed to by :envvar:`PYORBITAL_CONFIG_PATH`.
+
+
+
 
 The NORAD identifier can be found as the first number of each line in the
 Two-Line Elements files (eg. from `celestrak`_).
@@ -60,7 +64,7 @@ satellite is already supported.
 
 .. code::
 
-   python check_platform.py -s NOAA-21
+   python -m pyorbital.check_platform -s NOAA-21
 
    [INFO: 2023-01-22 21:20:25 : pyorbital.tlefile] Satellite NOAA-21 is supported. NORAD number: 54234
    [INFO: 2023-01-22 21:20:25 : pyorbital.tlefile] Satellite names and NORAD numbers are defined in /path/to/pyorbital/etc/directory/platforms.txt

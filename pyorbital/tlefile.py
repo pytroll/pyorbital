@@ -1,14 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2011 - 2018
+# Copyright (c) 2011-2023 Pytroll developers
 #
-# Author(s):
-#
-#   Esben S. Nielsen <esn@dmi.dk>
-#   Martin Raspaud <martin.raspaud@smhi.se>
-#   Panu Lahtinen <panu.lahtinen@fmi.fi>
-#   Will Evonosky <william.evonosky@gmail.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -89,7 +83,7 @@ def read_platform_numbers(in_upper=False, num_as_int=False):
 
 SATELLITES = read_platform_numbers(in_upper=True, num_as_int=False)
 """
-The platform numbers are given in a file $PPP_CONFIG/platforms.txt
+The platform numbers are given in a file $PPP_CONFIG_DIR/platforms.txt
 in the following format:
 
 .. literalinclude:: ../../etc/platforms.txt
@@ -286,22 +280,27 @@ def _get_first_tle(uris, open_func, platform=''):
 
 def _get_tles_from_uris(uris, open_func, platform='', only_first=True):
     tles = []
-    designator = "1 " + SATELLITES.get(platform, '')
+    _satellites = read_platform_numbers(in_upper=True, num_as_int=False)
+
+    designator = "1 " + _satellites.get(platform, '')
     for url in uris:
         fid = open_func(url)
         for l_0 in fid:
             tle = ""
             l_0 = _decode(l_0)
+            # This will make the all the tests pass, but not prety!
+            # So, should the new test case that fails added in a draft PR, Feb 15, 2023, be removed?
+            # if l_0.strip() == platform or l_0.startswith(platform) and 'NOAA' in platform:
             if l_0.strip() == platform:
                 l_1 = _decode(next(fid))
                 l_2 = _decode(next(fid))
                 tle = l_1.strip() + "\n" + l_2.strip()
-            elif (platform in SATELLITES or not only_first) and l_0.strip().startswith(designator):
+            elif (platform in _satellites or not only_first) and l_0.strip().startswith(designator):
                 l_1 = l_0
                 l_2 = _decode(next(fid))
                 tle = l_1.strip() + "\n" + l_2.strip()
                 if platform:
-                    LOGGER.debug("Found platform %s, ID: %s", platform, SATELLITES[platform])
+                    LOGGER.debug("Found platform %s, ID: %s", platform, _satellites[platform])
             elif open_func == _dummy_open_stringio and l_0.startswith(designator):
                 l_1 = l_0
                 l_2 = _decode(next(fid))
@@ -432,7 +431,10 @@ def collect_filenames(paths):
 
 
 def read_tles_from_mmam_xml_files(paths):
-    # Collect filenames
+    """Read TLE data from a list of MMAM XMl file (EUMETSAT).
+
+    MMAM = Multi-Mission Administration Message
+    """
     fnames = collect_filenames(paths)
     tles = []
     for fname in fnames:
@@ -444,6 +446,7 @@ def read_tles_from_mmam_xml_files(paths):
 
 
 def read_tle_from_mmam_xml_file(fname):
+    """Read TLE data from MMAM XMl file (EUMETSAT)."""
     tree = ET.parse(fname)
     root = tree.getroot()
     data = []
@@ -455,7 +458,7 @@ def read_tle_from_mmam_xml_file(fname):
 
 
 def _group_iterable_to_chunks(n, iterable, fillvalue=None):
-    "Collect data into fixed-length chunks or blocks"
+    """Collect data into fixed-length chunks or blocks."""
     # _group_iterable_to_chunks(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
     args = [iter(iterable)] * n
     return zip_longest(fillvalue=fillvalue, *args)

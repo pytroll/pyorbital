@@ -1,12 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2014 Martin Raspaud
+# Copyright (c) 2014-2023 Pyorbital developers
 #
-# Author(s):
-#
-#   Martin Raspaud <martin.raspaud@smhi.se>
-#   Panu Lahtinen <panu.lahtinen@fmi.fi>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,16 +21,66 @@
 
 
 from pyorbital.tlefile import Tle
+from pyorbital import tlefile
+
 import datetime
+import pytest
 import unittest
 from unittest import mock
 import os
 from contextlib import suppress
 import time
+from pathlib import Path
+
 
 line0 = "ISS (ZARYA)"
 line1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
 line2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537"
+
+
+def _write_fake_platforms_txt_file(platforms_filename) -> None:
+    with open(platforms_filename, 'w') as platforms_file:
+        platforms_file.write("""NOAA-18 28654
+NOAA-19 33591
+NOAA-20 43013
+NOAA-21 54234
+# ISS 25544
+""")
+
+
+# NOAA 18
+# 1 28654U 05018A   23045.48509621  .00000446  00000+0  26330-3 0  9998
+# 2 28654  98.9223 120.4228 0014233  11.3574 348.7916 14.12862494914152
+
+def _write_fake_tle_file(tlefilename: Path) -> None:
+    with open(tlefilename, "w") as tle_file:
+        tle_file.write("""NOAA 20
+1 43013U 17073A   23045.54907786  .00000253  00000+0  14081-3 0  9995
+2 43013  98.7419 345.5839 0001610  80.3742 279.7616 14.19558274271576
+NOAA 21 (JPSS-2)
+1 54234U 22150A   23045.56664999  .00000332  00000+0  17829-3 0  9993
+2 54234  98.7059 345.5113 0001226  81.6523 278.4792 14.19543871 13653
+ISS (ZARYA)
+1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927
+2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537
+""")
+
+
+@pytest.fixture
+def fake_platforms_txt_file(tmp_path: Path) -> Path:
+    """Make fake platforms.txt file."""
+    filename = tmp_path / 'platforms.txt'
+    _write_fake_platforms_txt_file(filename)
+    yield filename
+
+
+@pytest.fixture
+def fake_tlefile(tmp_path: Path) -> Path:
+    """Make fake tle file."""
+    filename = tmp_path / 'sometlefile.txt'
+    _write_fake_tle_file(filename)
+    yield filename
+
 
 line1_2 = "1 38771U 12049A   21137.30264622  .00000000  00000+0 -49996-5 0 00017"
 line2_2 = "2 38771  98.7162 197.7716 0002383 106.1049 122.6344 14.21477797449453"
@@ -65,6 +111,48 @@ tle_xml = '\n'.join(
         '</two-line-elements>',
         '</message>',
         '</multi-mission-administrative-message>'))
+
+
+def test_read_tlefile_standard_platform_name(monkeypatch, fake_platforms_txt_file, fake_tlefile):
+    """Test create a tle-object by reading tle data from file.
+
+    Use Oscar naming matching name in platforms.txt.
+    """
+    path_to_platforms_txt_file = fake_platforms_txt_file.parent
+    monkeypatch.setenv('PPP_CONFIG_DIR', str(path_to_platforms_txt_file))
+
+    tle_n21 = tlefile.read('NOAA-21', str(fake_tlefile))
+    assert tle_n21.line1 == '1 54234U 22150A   23045.56664999  .00000332  00000+0  17829-3 0  9993'
+    assert tle_n21.line2 == '2 54234  98.7059 345.5113 0001226  81.6523 278.4792 14.19543871 13653'
+
+
+def test_read_tlefile_non_standard_platform_name(monkeypatch, fake_platforms_txt_file, fake_tlefile):
+    """Test create a tle-object by reading tle data from file.
+
+    Use naming matching what is in the TLE files, but non-standard (non Oscar) naming.
+    """
+    path_to_platforms_txt_file = fake_platforms_txt_file.parent
+    monkeypatch.setenv('PPP_CONFIG_DIR', path_to_platforms_txt_file)
+
+    tle_n20 = tlefile.read('NOAA 20', str(fake_tlefile))
+
+    assert tle_n20.line1 == '1 43013U 17073A   23045.54907786  .00000253  00000+0  14081-3 0  9995'
+    assert tle_n20.line2 == '2 43013  98.7419 345.5839 0001610  80.3742 279.7616 14.19558274271576'
+
+
+def test_read_tlefile_non_standard_platform_name_matching_start_of_name_in_tlefile(monkeypatch,
+                                                                                   fake_platforms_txt_file,
+                                                                                   fake_tlefile):
+    """Test create a tle-object by reading tle data from file.
+
+    Use non-standard naming matching only the beginning of what is in the TLE files.
+    """
+    path_to_platforms_txt_file = fake_platforms_txt_file.parent
+    monkeypatch.setenv('PPP_CONFIG_DIR', path_to_platforms_txt_file)
+    tle_n21 = tlefile.read('NOAA 21', str(fake_tlefile))
+
+    assert tle_n21.line1 == '1 54234U 22150A   23045.56664999  .00000332  00000+0  17829-3 0  9993'
+    assert tle_n21.line2 == '2 54234  98.7059 345.5113 0001226  81.6523 278.4792 14.19543871 13653'
 
 
 class TLETest(unittest.TestCase):
@@ -323,6 +411,7 @@ class TestDownloader(unittest.TestCase):
             fname = os.path.join(save_dir.name, 'tle_20200129_1600.txt')
             with open(fname, 'w') as fid:
                 fid.write(tle_text)
+
             # Add a non-existent file, it shouldn't cause a crash
             nonexistent = os.path.join(save_dir.name, 'not_here.txt')
             # Use a wildcard to collect files (passed to glob)

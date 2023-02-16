@@ -25,7 +25,7 @@ Or in an existing conda-based environment:
 
 .. code-block:: bash
 
-    conda install -c conda-forge pyorbital
+   conda install -c conda-forge pyorbital
 
 From Source
 ^^^^^^^^^^^
@@ -35,7 +35,7 @@ from the latest in-development version on GitHub you can run:
 
 .. code-block:: bash
 
-    pip install git+https://github.com/pytroll/pyorbital.git
+   pip install git+https://github.com/pytroll/pyorbital.git
     
 However, if you instead want to edit the source code and see the changes reflected
 when you run the code you can clone the git repository and install it in

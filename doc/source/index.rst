@@ -14,30 +14,38 @@ Currently Pyorbital only supports low earth orbit satellites.
 Installation
 ------------
 
-Pyorbtal is available from conda-forge and the Python Package Index (PyPI),
-and may thus be installed using conda or mamba, or using pip.
-
-Pyorbital is also available at Github. Should you want to get access to the
-full source code history including the most recent main branch please download
-directly from github_::
+Pyorbital is available from the Python Package Index (PyPI) via pip or from
+the conda-forge conda channel. To install from PyPI in an existing environment:
 
 .. code-block:: bash
 
-   $ git clone git://github.com/pytroll/pyorbital.git
-
-and then run::
-
-.. code-block:: bash
-
-   $ cd pyorbital
-   $ pip install .
-
-This will install the most recent working version from the main branch. If you
-want to hack the package::
+   pip install pyorbital
+   
+Or in an existing conda-based environment:
 
 .. code-block:: bash
 
-   $ pip install -e .
+    conda install -c conda-forge pyorbital
+
+From Source
+^^^^^^^^^^^
+
+Pyorbital can also be installed from source. If you want to install pyorbital
+from the latest in-development version on GitHub you can run:
+
+.. code-block:: bash
+
+    pip install git+https://github.com/pytroll/pyorbital.git
+    
+However, if you instead want to edit the source code and see the changes reflected
+when you run the code you can clone the git repository and install it in
+"editable" mode:
+
+.. code-block:: bash
+
+   git clone git://github.com/pytroll/pyorbital.git
+   cd pyorbital
+   pip install -e .
 
 
 Add platform missing information
@@ -52,9 +60,6 @@ But should it not contain your satellites of interest make a copy of the
 `platforms.txt <https://github.com/pytroll/pyorbital/blob/main/pyorbital/etc/platforms.txt>`_
 file and add the missing satellites and their NORAD identifiers and place
 the file in the directory pointed to by :envvar:`PYORBITAL_CONFIG_PATH`.
-
-
-
 
 The NORAD identifier can be found as the first number of each line in the
 Two-Line Elements files (eg. from `celestrak`_).

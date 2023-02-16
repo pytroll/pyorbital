@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2011 - 2018
+# Copyright (c) 2011-2023 Pytroll Community
 #
 # Author(s):
 #
@@ -53,49 +53,96 @@ LOGGER = logging.getLogger(__name__)
 PKG_CONFIG_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'etc')
 
 
-def read_platform_numbers(in_upper=False, num_as_int=False):
-    """Read platform numbers from $PPP_CONFIG_DIR/platforms.txt."""
-    out_dict = {}
-    os.getenv('PPP_CONFIG_DIR', PKG_CONFIG_DIR)
-    platform_file = None
-    if 'PPP_CONFIG_DIR' in os.environ:
-        platform_file = os.path.join(os.environ['PPP_CONFIG_DIR'], 'platforms.txt')
-    if not platform_file or not os.path.isfile(platform_file):
-        platform_file = os.path.join(PKG_CONFIG_DIR, 'platforms.txt')
+def _check_support_limit_ppp_config_dir():
+    """Check the version where PPP_CONFIG_DIR will no longer be supported."""
+    from pyorbital import version
+    return version.get_versions()['version'] >= '1.9'
 
-    try:
-        fid = open(platform_file, 'r')
-    except IOError:
-        LOGGER.error("Platform file %s not found.", platform_file)
-        return out_dict
-    for row in fid:
-        # skip comment lines
-        if not row.startswith('#'):
-            parts = row.split()
-            if len(parts) < 2:
-                continue
-            # The satellite name might have whitespace
-            platform = ' '.join(parts[:-1])
-            num = parts[-1]
-            if in_upper:
-                platform = platform.upper()
-            if num_as_int:
-                num = int(num)
-            out_dict[platform] = num
-    fid.close()
+
+def _get_config_path():
+    """Get the config path for Pyorbital."""
+    if 'PPP_CONFIG_DIR' in os.environ and 'PYORBITAL_CONFIG_PATH' not in os.environ:
+        if _check_support_limit_ppp_config_dir():
+            LOGGER.warning(
+                'The use of PPP_CONFIG_DIR is no longer supported!' +
+                ' Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!')
+            LOGGER.debug('Using the package default for configuration: %s', PKG_CONFIG_DIR)
+            return PKG_CONFIG_DIR
+        else:
+            LOGGER.warning(
+                'The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.9!' +
+                ' Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!')
+            pyorbital_config_path = os.getenv('PPP_CONFIG_DIR', PKG_CONFIG_DIR)
+    else:
+        pyorbital_config_path = os.getenv('PYORBITAL_CONFIG_PATH', PKG_CONFIG_DIR)
+
+    LOGGER.debug("Path to the Pyorbital configuration (where e.g. platforms.txt is found): %s",
+                 str(pyorbital_config_path))
+    return pyorbital_config_path
+
+
+def get_platforms_filepath():
+    """Get the platforms.txt file path.
+
+    Check that the file exists or raise an error.
+    """
+    config_path = _get_config_path()
+    platform_file = os.path.join(config_path, 'platforms.txt')
+    if not os.path.isfile(platform_file):
+        platform_file = os.path.join(PKG_CONFIG_DIR, 'platforms.txt')
+        if not os.path.isfile(platform_file):
+            raise OSError("Platform file {filepath} does not exist!".format(filepath=platform_file))
+
+    return platform_file
+
+
+def read_platform_numbers(filename, in_upper=False, num_as_int=False):
+    """Read platform numbers from $PYORBITAL_CONFIG_PATH/platforms.txt."""
+    out_dict = {}
+
+    with open(filename, 'r') as fid:
+        for row in fid:
+            # skip comment lines
+            if not row.startswith('#'):
+                parts = row.split()
+                if len(parts) < 2:
+                    continue
+                # The satellite name might have whitespace
+                platform = ' '.join(parts[:-1])
+                num = parts[-1]
+                if in_upper:
+                    platform = platform.upper()
+                if num_as_int:
+                    num = int(num)
+                out_dict[platform] = num
 
     return out_dict
 
 
-SATELLITES = read_platform_numbers(in_upper=True, num_as_int=False)
+SATELLITES = read_platform_numbers(get_platforms_filepath(),
+                                   in_upper=True, num_as_int=False)
 """
-The platform numbers are given in a file $PPP_CONFIG/platforms.txt
+The platform numbers are given in a file $PYORBITAL_CONFIG_PATH/platforms.txt
 in the following format:
 
-.. literalinclude:: ../../etc/platforms.txt
+.. literalinclude:: ../../pyorbital/etc/platforms.txt
   :language: text
-  :lines: 4-
+  :lines: 5-
 """
+
+
+def check_is_platform_supported(satname):
+    """Check if satellite is supported and print info."""
+    if satname in SATELLITES:
+        LOGGER.info("Satellite {name} is supported. NORAD number: {norad}".format(
+            name=satname, norad=SATELLITES[satname]))
+    else:
+        LOGGER.info("Satellite {name} is NOT supported.".format(name=satname))
+        LOGGER.info("Please add it to a local copy of the platforms.txt file and put in " +
+                    "the directory pointed to by the environment variable PYORBITAL_CONFIG_PATH")
+
+    LOGGER.info("Satellite names and NORAD numbers are defined in {filepath}".format(
+        filepath=get_platforms_filepath()))
 
 
 def _dummy_open_stringio(stream):
@@ -251,9 +298,17 @@ class Tle(object):
         return s_var.getvalue()[:-1]
 
 
+def _get_local_tle_path_from_env():
+    """Get the path to possible local TLE files using the environment variable."""
+    return os.environ.get('TLES')
+
+
 def _get_uris_and_open_func(tle_file=None):
+    """Get the uri's and the adequate file open call for the TLE files."""
     def _open(filename):
         return io.open(filename, 'rb')
+
+    local_tle_path = _get_local_tle_path_from_env()
 
     if tle_file:
         if isinstance(tle_file, io.StringIO):
@@ -265,10 +320,10 @@ def _get_uris_and_open_func(tle_file=None):
         else:
             uris = (tle_file,)
             open_func = _open
-    elif "TLES" in os.environ:
+    elif local_tle_path:
         # TODO: get the TLE file closest in time to the actual satellite
         # overpass, NOT the latest!
-        uris = (max(glob.glob(os.environ["TLES"]),
+        uris = (max(glob.glob(local_tle_path),
                     key=os.path.getctime), )
         LOGGER.debug("Reading TLE from %s", uris[0])
         open_func = _open
@@ -432,6 +487,7 @@ def collect_filenames(paths):
 
 
 def read_tles_from_mmam_xml_files(paths):
+    """Read TLEs from EUMETSAT MMAM XML files."""
     # Collect filenames
     fnames = collect_filenames(paths)
     tles = []
@@ -444,6 +500,7 @@ def read_tles_from_mmam_xml_files(paths):
 
 
 def read_tle_from_mmam_xml_file(fname):
+    """Read TLEs from a EUMETSAT MMAM XML file."""
     tree = ET.parse(fname)
     root = tree.getroot()
     data = []
@@ -455,7 +512,7 @@ def read_tle_from_mmam_xml_file(fname):
 
 
 def _group_iterable_to_chunks(n, iterable, fillvalue=None):
-    "Collect data into fixed-length chunks or blocks"
+    """Collect data into fixed-length chunks or blocks."""
     # _group_iterable_to_chunks(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
     args = [iter(iterable)] * n
     return zip_longest(fillvalue=fillvalue, *args)

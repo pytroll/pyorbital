@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2014 Martin Raspaud
+# Copyright (c) 2014-2023 Pytroll Community
 #
 # Author(s):
 #
@@ -25,9 +25,19 @@
 
 
 from pyorbital.tlefile import Tle
+from pyorbital.tlefile import (_get_config_path,
+                               read_platform_numbers,
+                               _get_local_tle_path_from_env,
+                               _get_uris_and_open_func,
+                               check_is_platform_supported,
+                               PKG_CONFIG_DIR)
+
+import logging
 import datetime
 import unittest
+from unittest.mock import patch
 from unittest import mock
+import pytest
 import os
 from contextlib import suppress
 import time
@@ -44,6 +54,7 @@ NOAA19_2LINES = """1 33591U 09005A   21355.91138073  .00000074  00000+0  65091-4
 2 33591  99.1688  21.1338 0013414 329.8936  30.1462 14.12516400663123
 """
 NOAA19_3LINES = "NOAA 19\n" + NOAA19_2LINES
+
 
 tle_xml = '\n'.join(
     ('<?xml version="1.0" encoding="UTF-8"?>',
@@ -65,6 +76,209 @@ tle_xml = '\n'.join(
         '</two-line-elements>',
         '</message>',
         '</multi-mission-administrative-message>'))
+
+
+@pytest.fixture
+def fake_platforms_file(tmp_path):
+    """Return file path to a fake platforms.txt file."""
+    file_path = tmp_path / 'platforms.txt'
+    lines = ['# Some header lines - line 1\n',
+             '# Some header lines - line 2\n',
+             'NOAA-21 54234\n',
+             'NOAA-20 43013\n',
+             'UNKNOWN SATELLITE 99999\n'
+             ]
+    with open(file_path, 'w') as fpt:
+        fpt.writelines(lines)
+
+    yield file_path
+
+
+@pytest.fixture
+def fake_local_tles_dir(tmp_path, monkeypatch):
+    """Make a list of fake tle files in a directory."""
+    file_path = tmp_path / 'tle-202211180230.txt'
+    file_path.touch()
+    file_path = tmp_path / 'tle-202211180430.txt'
+    file_path.touch()
+    file_path = tmp_path / 'tle-202211180630.txt'
+    file_path.touch()
+    file_path = tmp_path / 'tle-202211180830.txt'
+    file_path.touch()
+
+    monkeypatch.setenv('TLES', str(file_path.parent))
+
+    yield file_path.parent
+
+
+@pytest.fixture
+def mock_env_ppp_config_dir(monkeypatch):
+    """Mock environment variable PPP_CONFIG_DIR."""
+    monkeypatch.setenv('PPP_CONFIG_DIR', '/path/to/old/mpop/config/dir')
+
+
+@pytest.fixture
+def mock_env_ppp_config_dir_missing(monkeypatch):
+    """Mock that the environment variable PPP_CONFIG_DIR is missing."""
+    monkeypatch.delenv('PPP_CONFIG_DIR', raising=False)
+
+
+@pytest.fixture
+def mock_env_tles_missing(monkeypatch):
+    """Mock that the environment variable TLES is missing."""
+    monkeypatch.delenv('TLES', raising=False)
+
+
+@pytest.fixture
+def mock_env_tles(monkeypatch):
+    """Mock environment variable TLES."""
+    monkeypatch.setenv('TLES', '/path/to/local/tles')
+
+
+def test_get_config_path_no_env_defined(caplog, mock_env_ppp_config_dir_missing):
+    """Test getting the config path."""
+    with caplog.at_level(logging.WARNING):
+        res = _get_config_path()
+
+    assert res == PKG_CONFIG_DIR
+    assert caplog.text == ''
+
+
+def test_check_is_platform_supported_existing(caplog, mock_env_ppp_config_dir_missing):
+    """Test the function to check if an existing platform is supported on default."""
+    with caplog.at_level(logging.INFO):
+        check_is_platform_supported('NOAA-21')
+
+    logoutput_lines = caplog.text.split('\n')
+
+    expected1 = "Satellite NOAA-21 is supported. NORAD number: 54234"
+    expected2 = "Satellite names and NORAD numbers are defined in {path}".format(path=PKG_CONFIG_DIR)
+
+    assert expected1 in logoutput_lines[0]
+    assert expected2 in logoutput_lines[1]
+
+
+def test_check_is_platform_supported_unknown(caplog, mock_env_ppp_config_dir_missing):
+    """Test the function to check if an unknown  platform is supported on default."""
+    sat = 'UNKNOWN'
+    with caplog.at_level(logging.INFO):
+        check_is_platform_supported(sat)
+
+    logoutput_lines = caplog.text.split('\n')
+
+    expected1 = "Satellite {satellite} is NOT supported.".format(satellite=sat)
+    expected2 = ("Please add it to a local copy of the platforms.txt file and put in " +
+                 "the directory pointed to by the environment variable PYORBITAL_CONFIG_PATH")
+    expected3 = "Satellite names and NORAD numbers are defined in {path}".format(path=PKG_CONFIG_DIR)
+
+    assert expected1 in logoutput_lines[0]
+    assert expected2 in logoutput_lines[1]
+    assert expected3 in logoutput_lines[2]
+
+
+@patch(
+    'pyorbital.version.get_versions',
+    return_value=dict([('version', '1.9.1+1.some-futur.dirty'),
+                       ('full-revisionid', 'some-future-git-version-hash'),
+                       ('dirty', True),
+                       ('error', None),
+                       ('date', '2023-01-20T09:37:30+0100')
+                       ])
+)
+def test_get_config_path_ppp_config_set_but_not_pyorbital_future(mock, caplog, monkeypatch):
+    """Test getting the config path."""
+    monkeypatch.setenv('SATPY_CONFIG_PATH', '/path/to/satpy/etc')
+    monkeypatch.setenv('PPP_CONFIG_DIR', '/path/to/old/mpop/config/dir')
+
+    with caplog.at_level(logging.WARNING):
+        res = _get_config_path()
+
+    log_output = ("The use of PPP_CONFIG_DIR is no longer supported! " +
+                  "Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
+    assert log_output in caplog.text
+    assert res == PKG_CONFIG_DIR
+
+
+def test_get_config_path_ppp_config_set_but_not_pyorbital_is_deprecated(caplog, monkeypatch):
+    """Test getting the config path.
+
+    Here the case is tested when the new Pyorbital environment variable is not
+    set but the deprecated (old) Satpy/MPOP one is set.
+
+    """
+    monkeypatch.setenv('SATPY_CONFIG_PATH', '/path/to/satpy/etc')
+    monkeypatch.setenv('PPP_CONFIG_DIR', '/path/to/old/mpop/config/dir')
+
+    with caplog.at_level(logging.WARNING):
+        res = _get_config_path()
+
+    assert res == '/path/to/old/mpop/config/dir'
+
+    log_output = ('The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.9!' +
+                  ' Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!')
+
+    assert log_output in caplog.text
+
+
+def test_get_config_path_ppp_config_set_and_pyorbital(caplog, monkeypatch):
+    """Test getting the config path."""
+    pyorbital_config_dir = '/path/to/pyorbital/config/dir'
+    monkeypatch.setenv('PYORBITAL_CONFIG_PATH', pyorbital_config_dir)
+    monkeypatch.setenv('PPP_CONFIG_DIR', '/path/to/old/mpop/config/dir')
+
+    with caplog.at_level(logging.WARNING):
+        res = _get_config_path()
+
+    assert res == pyorbital_config_dir
+    assert caplog.text == ''
+
+
+def test_get_config_path_pyorbital_ppp_missing(caplog, monkeypatch, mock_env_ppp_config_dir_missing):
+    """Test getting the config path.
+
+    The old mpop PPP_CONFIG_PATH is not set but the PYORBITAL one is.
+    """
+    pyorbital_config_dir = '/path/to/pyorbital/config/dir'
+    monkeypatch.setenv('PYORBITAL_CONFIG_PATH', pyorbital_config_dir)
+
+    with caplog.at_level(logging.DEBUG):
+        res = _get_config_path()
+
+    assert res == pyorbital_config_dir
+    log_output = ("Path to the Pyorbital configuration (where e.g. " +
+                  "platforms.txt is found): {path}".format(path=pyorbital_config_dir))
+    assert log_output in caplog.text
+
+
+def test_read_platform_numbers(fake_platforms_file):
+    """Test reading the platform names and associated catalougue numbers."""
+    res = read_platform_numbers(str(fake_platforms_file))
+    assert res == {'NOAA-21': '54234', 'NOAA-20': '43013', 'UNKNOWN SATELLITE': '99999'}
+
+
+def test_get_local_tle_path_tle_env_missing(mock_env_tles_missing):
+    """Test getting the path to local TLE files - env TLES missing."""
+    res = _get_local_tle_path_from_env()
+    assert res is None
+
+
+def test_get_local_tle_path(mock_env_tles):
+    """Test getting the path to local TLE files."""
+    res = _get_local_tle_path_from_env()
+    assert res == '/path/to/local/tles'
+
+
+def test_get_uris_and_open_func_using_tles_env(caplog, fake_local_tles_dir):
+    """Test getting the uris and associated open-function for reading tles.
+
+    Test providing no tle file but using the TLES env to find local tle files.
+    """
+    with caplog.at_level(logging.DEBUG):
+        uris, _ = _get_uris_and_open_func()
+
+    assert uris[0] == str(fake_local_tles_dir)
+    log_message = "Reading TLE from {msg}".format(msg=str(fake_local_tles_dir))
+    assert log_message in caplog.text
 
 
 class TLETest(unittest.TestCase):
@@ -223,7 +437,7 @@ class TestDownloader(unittest.TestCase):
 
     @mock.patch('pyorbital.tlefile.requests')
     def test_fetch_plain_tle_server_is_a_teapot(self, requests):
-        """Test downloading and a TLE file from internet."""
+        """Test downloading a TLE file from internet."""
         requests.get = mock.MagicMock()
         # No data returned because the server is a teapot
         requests.get.return_value = _get_req_response(418)
@@ -242,7 +456,7 @@ class TestDownloader(unittest.TestCase):
 
     @mock.patch('pyorbital.tlefile.requests')
     def test_fetch_spacetrack_login_fails(self, requests):
-        """Test downloading and TLEs from space-track.org."""
+        """Test downloading TLEs from space-track.org."""
         mock_post = mock.MagicMock()
         mock_session = mock.MagicMock()
         mock_session.post = mock_post
@@ -265,7 +479,7 @@ class TestDownloader(unittest.TestCase):
 
     @mock.patch('pyorbital.tlefile.requests')
     def test_fetch_spacetrack_get_fails(self, requests):
-        """Test downloading and TLEs from space-track.org."""
+        """Test downloading TLEs from space-track.org."""
         mock_post = mock.MagicMock()
         mock_get = mock.MagicMock()
         mock_session = mock.MagicMock()
@@ -289,7 +503,7 @@ class TestDownloader(unittest.TestCase):
 
     @mock.patch('pyorbital.tlefile.requests')
     def test_fetch_spacetrack_success(self, requests):
-        """Test downloading and TLEs from space-track.org."""
+        """Test downloading TLEs from space-track.org."""
         mock_post = mock.MagicMock()
         mock_get = mock.MagicMock()
         mock_session = mock.MagicMock()
@@ -527,14 +741,3 @@ class TestSQLiteTLE(unittest.TestCase):
         self.assertEqual(len(data), 2)
         self.assertEqual(data[0], line1)
         self.assertEqual(data[1], line2)
-
-
-def suite():
-    """Create the test suite for test_tlefile."""
-    loader = unittest.TestLoader()
-    mysuite = unittest.TestSuite()
-    mysuite.addTest(loader.loadTestsFromTestCase(TLETest))
-    mysuite.addTest(loader.loadTestsFromTestCase(TestDownloader))
-    mysuite.addTest(loader.loadTestsFromTestCase(TestSQLiteTLE))
-
-    return mysuite

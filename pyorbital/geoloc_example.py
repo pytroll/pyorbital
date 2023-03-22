@@ -51,11 +51,11 @@ int_t = 0.000025
 avhrr = np.vstack(((scan_points / 1023.5-1) * np.deg2rad(-scan_angle),
                    np.zeros((len(scan_points),))))
 avhrr = np.tile(
-        avhrr[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
+        avhrr[:, np.newaxis, :], [1, scans_nb, 1])
 
 # building the corresponding times array
-times = np.tile(scan_points * int_t, [np.int32(scans_nb), 1])
-offset = np.arange(np.int32(scans_nb)) * scan_p
+times = np.tile(scan_points * int_t, [scans_nb, 1])
+offset = np.arange(scans_nb) * scan_p
 times += np.expand_dims(offset, 1)
 
 # build the scan geometry object

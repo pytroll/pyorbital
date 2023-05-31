@@ -190,6 +190,16 @@ class TestGeolocDefs:
         np.testing.assert_allclose(geom.fovs,
                                    expected_fovs, rtol=1e-2, atol=1e-2)
 
+    def test_viirs_defaults(self):
+        """Test the definition of the viirs instrument with default slicing."""
+        geom = viirs(1, chn_pixels=3)
+        expected_fovs = np.array([
+            np.tile(np.array([[0.98, -0., -0.98]]), [32, 1]),
+            np.tile(np.array([[0., -0., 0]]), [32, 1])], dtype=np.float64)
+
+        np.testing.assert_allclose(geom.fovs,
+                                   expected_fovs, rtol=1e-2, atol=1e-2)
+
     def test_amsua(self):
         """Test the definition of the amsua instrument."""
         geom = amsua(1)

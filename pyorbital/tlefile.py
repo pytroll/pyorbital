@@ -323,8 +323,8 @@ def _get_uris_and_open_func(tle_file=None):
     elif local_tle_path:
         # TODO: get the TLE file closest in time to the actual satellite
         # overpass, NOT the latest!
-        uris = (max(glob.glob(local_tle_path),
-                    key=os.path.getctime), )
+        uris = (max(glob.glob(os.path.join(local_tle_path, '*')),
+                key=os.path.getctime), )
         LOGGER.debug("Reading TLE from %s", uris[0])
         open_func = _open
     else:

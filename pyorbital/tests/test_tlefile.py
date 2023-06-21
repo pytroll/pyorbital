@@ -273,10 +273,13 @@ def test_get_uris_and_open_func_using_tles_env(caplog, fake_local_tles_dir):
 
     Test providing no tle file but using the TLES env to find local tle files.
     """
+    from collections.abc import Sequence
+
     with caplog.at_level(logging.DEBUG):
         uris, _ = _get_uris_and_open_func()
 
-    assert uris[0] == str(fake_local_tles_dir)
+    assert isinstance(uris, Sequence)
+    assert uris[0] == str(fake_local_tles_dir / 'tle-202211180830.txt')
     log_message = "Reading TLE from {msg}".format(msg=str(fake_local_tles_dir))
     assert log_message in caplog.text
 
@@ -337,6 +340,19 @@ class TLETest(unittest.TestCase):
             self.check_example(tle)
         finally:
             remove(filename)
+
+    # def test_from_local_files(self):
+    #     """Test reading and parsing TLEs getting the latest TLE file from a local directory."""
+    #     from tempfile import mkstemp
+    #     from os import write, close, remove
+    #     filehandle, filename = mkstemp()
+    #     try:
+    #         write(filehandle, "\n".join([line0, line1, line2]).encode('utf-8'))
+    #         close(filehandle)
+    #         tle = Tle("NOAA-20", filename)
+    #         self.check_example(tle)
+    #     finally:
+    #         remove(filename)
 
     def test_from_file_with_hyphenated_platform_name(self):
         """Test reading and parsing from a file with a slightly different name."""

@@ -341,19 +341,6 @@ class TLETest(unittest.TestCase):
         finally:
             remove(filename)
 
-    # def test_from_local_files(self):
-    #     """Test reading and parsing TLEs getting the latest TLE file from a local directory."""
-    #     from tempfile import mkstemp
-    #     from os import write, close, remove
-    #     filehandle, filename = mkstemp()
-    #     try:
-    #         write(filehandle, "\n".join([line0, line1, line2]).encode('utf-8'))
-    #         close(filehandle)
-    #         tle = Tle("NOAA-20", filename)
-    #         self.check_example(tle)
-    #     finally:
-    #         remove(filename)
-
     def test_from_file_with_hyphenated_platform_name(self):
         """Test reading and parsing from a file with a slightly different name."""
         from tempfile import mkstemp

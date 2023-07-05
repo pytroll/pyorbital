@@ -1,5 +1,6 @@
-# The platform numbers are given in a file $PPP_CONFIG_DIR/platforms.txt
-# in the following format.  Copy this file to $PPP_CONFIG_DIR
+# The satellite platform names and international designators are given in a
+# file $PYORBITAL_CONFIG_PATH/platforms.txt in the following format. Copy this
+# file to $PYORBITAL_CONFIG_PATH
 #
 # Mappings between satellite catalogue numbers and corresponding
 # platform names from OSCAR.

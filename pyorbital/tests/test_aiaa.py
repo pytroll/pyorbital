@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011 - 2021 Pytroll Community
+# Copyright (c) 2011 - 2022 Pytroll Community
 
 # Author(s):
 
@@ -147,13 +147,3 @@ class AIAAIntegrationTest(unittest.TestCase):
                             self.assertTrue(abs(dt) < delta_time)
 
                 test_line = f__.readline()
-
-
-def suite():
-    """The suite for test_aiaa
-    """
-    loader = unittest.TestLoader()
-    mysuite = unittest.TestSuite()
-    mysuite.addTest(loader.loadTestsFromTestCase(AIAAIntegrationTest))
-
-    return mysuite

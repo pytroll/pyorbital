@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011, 2012, 2013, 2014, 2015.
+# Copyright (c) 2011 - 2023 Pytroll Community
 
 # Author(s):
 
@@ -631,11 +631,11 @@ class _SGDP4(object):
         self.xn_0 = orbit_elements.mean_motion
         # A30 = -XJ3 * AE**3
 
-        if not(0 < self.eo < ECC_LIMIT_HIGH):
+        if not (0 < self.eo < ECC_LIMIT_HIGH):
             raise OrbitalError('Eccentricity out of range: %e' % self.eo)
-        elif not((0.0035 * 2 * np.pi / XMNPDA) < self.xn_0 < (18 * 2 * np.pi / XMNPDA)):
+        elif not ((0.0035 * 2 * np.pi / XMNPDA) < self.xn_0 < (18 * 2 * np.pi / XMNPDA)):
             raise OrbitalError('Mean motion out of range: %e' % self.xn_0)
-        elif not(0 < self.xincl < np.pi):
+        elif not (0 < self.xincl < np.pi):
             raise OrbitalError('Inclination out of range: %e' % self.xincl)
 
         if self.eo < 0:

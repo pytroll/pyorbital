@@ -99,10 +99,13 @@ def fake_local_tles_dir(tmp_path, monkeypatch):
     """Make a list of fake tle files in a directory."""
     file_path = tmp_path / 'tle-202211180230.txt'
     file_path.touch()
+    time.sleep(1)
     file_path = tmp_path / 'tle-202211180430.txt'
     file_path.touch()
+    time.sleep(1)
     file_path = tmp_path / 'tle-202211180630.txt'
     file_path.touch()
+    time.sleep(1)
     file_path = tmp_path / 'tle-202211180830.txt'
     file_path.touch()
 

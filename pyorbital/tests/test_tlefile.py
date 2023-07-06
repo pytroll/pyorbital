@@ -94,7 +94,7 @@ def fake_platforms_file(tmp_path):
     yield file_path
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def fake_local_tles_dir(tmp_path, monkeypatch):
     """Make a list of fake tle files in a directory."""
     file_path = tmp_path / 'tle-202211180230.txt'

@@ -73,7 +73,7 @@ jobs:
           python -m pip install \
           --no-deps --upgrade \
           git+https://github.com/dask/dask \
-          git+https://github.com/pydata/xarray \
+          git+https://github.com/pydata/xarray;
           LD_PRELOAD=$(python -c "import sys; print(sys.prefix)")/lib/libstdc++.so
           echo "LD_PRELOAD=${LD_PRELOAD}" >> $GITHUB_ENV
 

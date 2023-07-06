@@ -2,6 +2,9 @@ name: CI
 
 on: [push, pull_request]
 
+env:
+  CACHE_NUMBER: 1
+
 jobs:
   test:
     runs-on: ${{ matrix.os }}
@@ -98,14 +101,6 @@ jobs:
           flag-name: run-${{ matrix.test_number }}
           parallel: true
         if: runner.os == 'Linux'
-
-      - name: Run behaviour tests
-        shell: bash -l {0}
-        run: |
-          export LD_PRELOAD=${{ env.LD_PRELOAD }};
-          coverage run --source=pyorbital --tags=-download
-          coverage xml
-
 
   coveralls:
     needs: [test]

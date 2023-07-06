@@ -56,6 +56,6 @@ setup(name='pyorbital',
       package_data={'pyorbital': [os.path.join('etc', 'platforms.txt')]},
       scripts=['bin/fetch_tles.py', ],
       install_requires=['numpy>=1.19.0', 'scipy', 'requests'],
-      python_requires='>=3.8',
+      python_requires='>=3.9',
       zip_safe=False,
       )

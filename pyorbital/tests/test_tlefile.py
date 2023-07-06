@@ -94,21 +94,23 @@ def fake_platforms_file(tmp_path):
     yield file_path
 
 
-@pytest.fixture
-def fake_local_tles_dir(tmp_path, monkeypatch):
+@pytest.fixture(scope="session")
+def fake_local_tles_dir(tmp_path_factory):
     """Make a list of fake tle files in a directory."""
-    file_path = tmp_path / 'tle-202211180230.txt'
+    tle_dir = tmp_path_factory.mktemp('tle_files')
+    file_path = tle_dir / 'tle-202211180230.txt'
     file_path.touch()
-    file_path = tmp_path / 'tle-202211180430.txt'
+    time.sleep(1)
+    file_path = tle_dir / 'tle-202211180430.txt'
     file_path.touch()
-    file_path = tmp_path / 'tle-202211180630.txt'
+    time.sleep(1)
+    file_path = tle_dir / 'tle-202211180630.txt'
     file_path.touch()
-    file_path = tmp_path / 'tle-202211180830.txt'
+    time.sleep(1)
+    file_path = tle_dir / 'tle-202211180830.txt'
     file_path.touch()
 
-    monkeypatch.setenv('TLES', str(file_path.parent))
-
-    yield file_path.parent
+    yield tle_dir
 
 
 @pytest.fixture
@@ -268,15 +270,19 @@ def test_get_local_tle_path(mock_env_tles):
     assert res == '/path/to/local/tles'
 
 
-def test_get_uris_and_open_func_using_tles_env(caplog, fake_local_tles_dir):
+def test_get_uris_and_open_func_using_tles_env(caplog, fake_local_tles_dir, monkeypatch):
     """Test getting the uris and associated open-function for reading tles.
 
     Test providing no tle file but using the TLES env to find local tle files.
     """
+    from collections.abc import Sequence
+
+    monkeypatch.setenv('TLES', str(fake_local_tles_dir))
     with caplog.at_level(logging.DEBUG):
         uris, _ = _get_uris_and_open_func()
 
-    assert uris[0] == str(fake_local_tles_dir)
+    assert isinstance(uris, Sequence)
+    assert uris[0] == str(fake_local_tles_dir / 'tle-202211180830.txt')
     log_message = "Reading TLE from {msg}".format(msg=str(fake_local_tles_dir))
     assert log_message in caplog.text
 

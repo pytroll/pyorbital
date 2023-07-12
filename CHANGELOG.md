@@ -1,3 +1,31 @@
+## Version 1.8.0 (2023/07/12)
+
+### Issues Closed
+
+* [Issue 112](https://github.com/pytroll/pyorbital/issues/112) - Is the TLES environment variable described? ([PR 113](https://github.com/pytroll/pyorbital/pull/113) by [@adybbroe](https://github.com/adybbroe))
+
+In this release 1 issue was closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 129](https://github.com/pytroll/pyorbital/pull/129) - Fix bug getting local tlefiles
+* [PR 128](https://github.com/pytroll/pyorbital/pull/128) - Fix typo in VIIRS geoloc definition
+* [PR 121](https://github.com/pytroll/pyorbital/pull/121) - fixed geoloc_example and added variable descriptions
+
+#### Features added
+
+* [PR 120](https://github.com/pytroll/pyorbital/pull/120) - Update versioneer to stop using deprecated distutils module.
+* [PR 113](https://github.com/pytroll/pyorbital/pull/113) - Make use of env variables free from satpy ([112](https://github.com/pytroll/pyorbital/issues/112))
+
+#### Documentation changes
+
+* [PR 113](https://github.com/pytroll/pyorbital/pull/113) - Make use of env variables free from satpy ([112](https://github.com/pytroll/pyorbital/issues/112))
+
+In this release 6 pull requests were closed.
+
+
 ## Version 1.7.3 (2022/07/11)
 
 ### Pull Requests Merged

@@ -1,0 +1,12 @@
+name: readthedocs
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - numpy
+  - scipy
+  - requests
+  - pytest
+  - pyproj
+  - sphinx_rtd_theme

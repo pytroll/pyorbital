@@ -1,8 +1,3 @@
-.. pyorbital documentation master file, created by
-   sphinx-quickstart on Mon Oct  3 08:48:29 2011.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 Pyorbital
 =========
 
@@ -92,10 +87,10 @@ specific TLE file is provided or if the :envvar:`TLES` environment variable is n
 
 
 TLE download and database
-~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The historical TLE files can be requested from
-`celestrak <https://celestrak.com/NORAD/archives/request.php>`_.
+`celestrak's request page <https://celestrak.com/NORAD/archives/request.php>`_.
 
 There is also a script, ``fetch_tles.py``, that can be used to collect
 TLE data from several locations. The currently supported locations
@@ -197,21 +192,21 @@ API
 ---
 
 Orbital computations
-~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^
 
 .. automodule:: pyorbital.orbital
    :members:
    :undoc-members:
 
 TLE handling
-~~~~~~~~~~~~
+^^^^^^^^^^^^
 
 .. automodule:: pyorbital.tlefile
    :members:
    :undoc-members:
 
 Astronomical computations
-~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. automodule:: pyorbital.astronomy
    :members:

@@ -57,5 +57,6 @@ setup(name='pyorbital',
       scripts=['bin/fetch_tles.py', ],
       install_requires=['numpy>=1.19.0', 'scipy', 'requests'],
       python_requires='>=3.9',
+      extras_require={"doc": ["sphinx", "sphinx_rtd_theme", "sphinxcontrib-apidoc"]},
       zip_safe=False,
       )

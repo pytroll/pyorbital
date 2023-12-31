@@ -37,16 +37,18 @@ import sqlite3
 from xml.etree import ElementTree as ET
 from itertools import zip_longest
 
+TLE_GROUPS = ('active',
+              'weather',
+              'resource',
+              'cubesat',
+              'stations',
+              'sarsat',
+              'noaa',
+              'amateur',
+              'engineering')
 
-TLE_URLS = ('https://celestrak.org/NORAD/elements/active.txt',
-            'https://celestrak.org/NORAD/elements/weather.txt',
-            'https://celestrak.org/NORAD/elements/resource.txt',
-            'https://celestrak.org/NORAD/elements/cubesat.txt',
-            'https://celestrak.org/NORAD/elements/stations.txt',
-            'https://celestrak.org/NORAD/elements/sarsat.txt',
-            'https://celestrak.org/NORAD/elements/noaa.txt',
-            'https://celestrak.org/NORAD/elements/amateur.txt',
-            'https://celestrak.org/NORAD/elements/engineering.txt')
+TLE_URLS = [f'https://celestrak.org/NORAD/elements/gp.php?GROUP={group}&FORMAT=tle'
+            for group in TLE_GROUPS]
 
 
 LOGGER = logging.getLogger(__name__)

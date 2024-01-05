@@ -1,3 +1,23 @@
+## Version 1.8.1 (2024/01/05)
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 138](https://github.com/pytroll/pyorbital/pull/138) - Update celestrak urls ([139](https://github.com/pytroll/pyorbital/issues/139))
+
+#### Features added
+
+* [PR 137](https://github.com/pytroll/pyorbital/pull/137) - Prettify the RTD pages
+
+#### Documentation changes
+
+* [PR 137](https://github.com/pytroll/pyorbital/pull/137) - Prettify the RTD pages
+* [PR 132](https://github.com/pytroll/pyorbital/pull/132) - Add .readthedocs.yaml
+
+In this release 4 pull requests were closed.
+
+
 ## Version 1.8.0 (2023/07/12)
 
 ### Issues Closed

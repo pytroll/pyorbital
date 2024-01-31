@@ -184,9 +184,9 @@ The astronomy module enables computation of certain parameters of interest for s
    for instance. Also, it may not be sustainable in a production environment.
 
    However, it is possible to let Pyorbital look for the necessary and more
-   optimal TLE data locally, by specifying the directory where such local TLE
-   files are located. If the TLES environment variable is set to point at an
-   existing local directory Pyorbital will first search for the needed TLEs
+   optimal TLE data locally, by specifying locations where such local TLE
+   files are located. If the TLES environment variable is set to a glob pattern to
+   local locations, Pyorbital will first search for the needed TLEs
    there. This can both be useful in an operational setup where access to the
    internet is restricted, and when processing old/historic satellite data.
 

@@ -132,9 +132,9 @@ def mock_env_tles_missing(monkeypatch):
 
 
 @pytest.fixture
-def mock_env_tles(monkeypatch):
+def mock_env_tles(monkeypatch, fake_local_tles_dir):
     """Mock environment variable TLES."""
-    monkeypatch.setenv('TLES', '/path/to/local/tles')
+    monkeypatch.setenv('TLES', os.path.join(fake_local_tles_dir, '*'))
 
 
 def test_get_config_path_no_env_defined(caplog, mock_env_ppp_config_dir_missing):
@@ -264,10 +264,10 @@ def test_get_local_tle_path_tle_env_missing(mock_env_tles_missing):
     assert res is None
 
 
-def test_get_local_tle_path(mock_env_tles):
+def test_get_local_tle_path(mock_env_tles, fake_local_tles_dir):
     """Test getting the path to local TLE files."""
     res = _get_local_tle_path_from_env()
-    assert res == '/path/to/local/tles'
+    assert res == os.path.join(fake_local_tles_dir, "*")
 
 
 def test_get_uris_and_open_func_using_tles_env(caplog, fake_local_tles_dir, monkeypatch):
@@ -277,7 +277,7 @@ def test_get_uris_and_open_func_using_tles_env(caplog, fake_local_tles_dir, monk
     """
     from collections.abc import Sequence
 
-    monkeypatch.setenv('TLES', str(fake_local_tles_dir))
+    monkeypatch.setenv('TLES', str(os.path.join(fake_local_tles_dir, "*")))
     with caplog.at_level(logging.DEBUG):
         uris, _ = _get_uris_and_open_func()
 

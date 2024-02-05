@@ -79,9 +79,14 @@ Pyorbital has a module for parsing NORAD TLE-files
     >>> tle.inclination
     99.043499999999995
 
-If no path is provided pyorbital first tries to read any local TLE files in the
-directory given by the environment variable :envvar:`TLES`. If this variable is not
-set Pyorbital will try get the earth observation TLE files over the internet
+If no path is provided pyorbital first tries to read any local TLE files defined by the
+environment variable :envvar:`TLES` giving a glob pattern that can be used to retrieve all relevant files:
+
+.. code::
+
+   TLES=/path/to/tle_files/*/tle*txt
+
+If this variable is not set Pyorbital will try get the earth observation TLE files over the internet
 from `celestrak`_. Note this downloading only happens if no
 specific TLE file is provided or if the :envvar:`TLES` environment variable is not set.
 
@@ -179,9 +184,9 @@ The astronomy module enables computation of certain parameters of interest for s
    for instance. Also, it may not be sustainable in a production environment.
 
    However, it is possible to let Pyorbital look for the necessary and more
-   optimal TLE data locally, by specifying the directory where such local TLE
-   files are located. If the TLES environment variable is set to point at an
-   existing local directory Pyorbital will first search for the needed TLEs
+   optimal TLE data locally, by specifying locations where such local TLE
+   files are located. If the TLES environment variable is set to a glob pattern to
+   local locations, Pyorbital will first search for the needed TLEs
    there. This can both be useful in an operational setup where access to the
    internet is restricted, and when processing old/historic satellite data.
 

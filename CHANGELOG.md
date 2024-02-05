@@ -1,3 +1,25 @@
+## Version 1.8.2 (2024/02/05)
+
+### Issues Closed
+
+* [Issue 140](https://github.com/pytroll/pyorbital/issues/140) - pyorbital cannot read TLE for MTG-I1 / Meteosat-12 ([PR 141](https://github.com/pytroll/pyorbital/pull/141) by [@gerritholl](https://github.com/gerritholl))
+* [Issue 139](https://github.com/pytroll/pyorbital/issues/139) - `Orbital` cannot get TLEs from the internet
+
+In this release 2 issues were closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 143](https://github.com/pytroll/pyorbital/pull/143) - Fix a bug in using TLES env variable
+
+#### Features added
+
+* [PR 141](https://github.com/pytroll/pyorbital/pull/141) - Add Meteosat-12 to platforms.txt ([140](https://github.com/pytroll/pyorbital/issues/140))
+
+In this release 2 pull requests were closed.
+
+
 ## Version 1.8.1 (2024/01/05)
 
 ### Pull Requests Merged

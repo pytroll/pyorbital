@@ -794,8 +794,12 @@ class _SGDP4(object):
         if self.mode == SGDP4_ZERO_ECC:
             raise NotImplementedError('Mode SGDP4_ZERO_ECC not implemented')
         elif self.mode == SGDP4_NEAR_SIMP:
-            raise NotImplementedError('Mode "Near-space, simplified equations"'
-                                      ' not implemented')
+            tempa = 1.0 - ts * self.c1
+            tempe = self.bstar * ts * self.c4
+            templ = ts * ts * self.t2cof
+            a = self.aodp * tempa * tempa
+            e = em - tempe
+            xl = xmp + omega + xnode + self.xnodp * templ
         elif self.mode == SGDP4_NEAR_NORM:
             delm = self.xmcof * \
                 ((1.0 + self.eta * np.cos(xmp))**3 - self.delmo)

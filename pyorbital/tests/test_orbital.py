@@ -220,19 +220,25 @@ class TestGetObserverLook(unittest.TestCase):
     def setUp(self):
         self.t = datetime(2018, 1, 1, 0, 0, 0)
         self.sat_lon = np.array([[-89.5, -89.4, -89.5, -89.4],
-                                 [-89.3, -89.2, -89.3, -89.2]])
+                                 [-89.3, -89.2, -89.3, -89.2]],
+                                dtype=np.float64)
         self.sat_lat = np.array([[45.5, 45.4, 45.5, 45.4],
-                                 [45.3, 40.2, 45.3, 40.2]])
-        self.sat_alt = 35786 * np.ones((2, 4))
+                                 [45.3, 40.2, 45.3, 40.2]],
+                                dtype=np.float64)
+        self.sat_alt = 35786 * np.ones((2, 4), dtype=np.float64)
         self.lon = np.array([[-85.5, -85.4, -89.5, -99.4],
-                             [-85.3, -89.2, -89.3, -79.2]])
+                             [-85.3, -89.2, -89.3, -79.2]],
+                            dtype=np.float64)
         self.lat = np.array([[40.5, 40.4, 65.5, 45.4],
-                             [40.3, 40.2, 25.3, 40.2]])
-        self.alt = np.zeros((2, 4))
+                             [40.3, 40.2, 25.3, 40.2]],
+                            dtype=np.float64)
+        self.alt = np.zeros((2, 4), dtype=np.float64)
         self.exp_azi = np.array([[331.00275902, 330.95954165, 180, 86.435411],
-                                 [330.91642994, 180, 0, 273.232073]])
+                                 [330.91642994, 180, 0, 273.232073]],
+                                dtype=np.float64)
         self.exp_elev = np.array([[83.18070976, 83.17788976, 66.548467, 81.735221],
-                                  [83.17507167, 90, 66.559906, 81.010018]])
+                                  [83.17507167, 90, 66.559906, 81.010018]],
+                                 dtype=np.float64)
 
     def test_basic_numpy(self):
         """Test with numpy array inputs"""

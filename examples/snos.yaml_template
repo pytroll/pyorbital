@@ -1,0 +1,18 @@
+# The position of a Direct Readout station of interest. It is not necessary to
+# change this in order to calculate the SNOs, but if/when set the sno-script
+# will mark those crossings where the satellites being matched are within the
+# reception horizon (makred=True).
+station:
+  # Grenwhich London, approx.:
+  longitude: 0.0
+  latitude: 51.478
+  altitude: 30.0
+
+# Here a list of directories can be given, to determine where to look up the
+# TLE files covering the time period of interest.
+tle-dirs:
+  - /path/to/tle/files
+
+
+# The format of tle filenames.
+tle-file-format: 'tle-%Y%m%d.txt'

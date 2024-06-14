@@ -31,8 +31,8 @@ import pyresample as pr
 from pyorbital.config import get_config
 from pyorbital.orbital import Orbital
 from pyorbital.tlefile import SATELLITES
-from pyorbital.tle_archive import get_tle_archive
 from pyorbital.tle_archive import get_datetime_from_tle
+from pyorbital.tle_archive import TwoLineElementsFinder
 
 from trollsift.parser import Parser
 from pathlib import Path
@@ -56,8 +56,6 @@ OSCAR_NAMES = {'npp': 'Suomi-NPP',
                }
 
 
-TLE_BUFFER_OTHER = {}
-TLE_BUFFER_CALIPSO = {}
 TLE_SATNAME = {'npp': 'SUOMI NPP',
                'snpp': 'SUOMI NPP',
                'aqua': 'AQUA',
@@ -98,6 +96,8 @@ class SNOfinder:
         self.time_end = time_window[1]
         self.arc_len_min = arc_len_min
         self.sno_minute_threshold = sno_min_thr
+        self._tle_buffer_calipso = {}
+        self._tle_buffer_other = {}
 
     def set_configuration(self, configfile):
         """Set the basic configuration from yaml config file."""
@@ -179,19 +179,22 @@ class SNOfinder:
                 print(message)
 
             if not tle_calipso or calipso_obj - tobj > t_diff or tobj - calipso_obj > t_diff:
-                tle_calipso = get_tle_archive(tobj, str(filename_calipso), TLE_ID_CALIPSO, TLE_BUFFER_CALIPSO)
+                tle_finder = TwoLineElementsFinder(TLE_ID_CALIPSO, str(filename_calipso),
+                                                   tle_buffer=self._tle_buffer_calipso)
+                tle_calipso = tle_finder.get_tle_archive(tobj)
+                self._tle_buffer_calipso = tle_finder.tle_buffer
+                # tle_calipso = get_tle_archive(tobj, str(filename_calipso), TLE_ID_CALIPSO, TLE_BUFFER_CALIPSO)
 
             if tle_calipso:
                 calipso_obj = get_datetime_from_tle(tle_calipso)
 
-            # if tle_calipso:
-            #     ts = (tle_calipso.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
-            #     calipso_obj = dt.datetime.utcfromtimestamp(ts)
             if not tle_the_other_one or other_obj - tobj > t_diff or tobj - other_obj > t_diff:
-                tle_the_other_one = get_tle_archive(tobj, filename_other, TLE_ID_OTHER, TLE_BUFFER_OTHER)
-            # if tle_the_other_one:
-            #     ts = (tle_the_other_one.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
-            #     other_obj = dt.datetime.utcfromtimestamp(ts)
+                tle_finder = TwoLineElementsFinder(TLE_ID_OTHER, str(filename_other),
+                                                   tle_buffer=self._tle_buffer_other)
+                tle_the_other_one = tle_finder.get_tle_archive(tobj)
+                self._tle_buffer_other = tle_finder.tle_buffer
+                # tle_the_other_one = get_tle_archive(tobj, filename_other, TLE_ID_OTHER, TLE_BUFFER_OTHER)
+
             if tle_the_other_one:
                 other_obj = get_datetime_from_tle(tle_the_other_one)
 

@@ -27,48 +27,106 @@ from pyorbital.tlefile import Tle
 max_tle_days_diff = 3
 
 
-def populate_tle_buffer(filename, tle_id, tle_buffer):
-    """Populate the TLE buffer."""
-    with open(filename, 'r') as fh_:
-        tle_data_as_list = fh_.readlines()
-        for ind in range(0, len(tle_data_as_list), 2):
-            if tle_id in tle_data_as_list[ind]:
-                tle = Tle(tle_id, line1=tle_data_as_list[ind], line2=tle_data_as_list[ind+1])
-                # dto = datetime.strptime(tle.epoch, '%Y-%m-%dT%H:%M:%S:%f')
-                ts = (tle.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
-                # tobj = dt.datetime.utcfromtimestamp(ts)
-                tobj = dt.datetime.fromtimestamp(ts, tz=timezone.utc)
-                tle_buffer[tobj] = tle
+class TwoLineElementsFinder:
+    """Finding the most adequate TLEs for a given platform and time."""
 
-
-def get_tle_archive(time_requested, filename, tle_id, tle_buffer):
-    """Get Two-Line elements from the archive.
-
-    The TLE buffer tle_buffer is being updated.
-    """
-    # Read tle data if not already in buffer
-    if len(tle_buffer) == 0:
-        populate_tle_buffer(filename, tle_id, tle_buffer)
-
-    for tobj in tle_buffer:
-        if tobj > time_requested:
-            deltat = tobj - time_requested
+    def __init__(self, platform_catalogue_id, tle_filename, tle_buffer=None):
+        """Initialize the class."""
+        self.tle_id = platform_catalogue_id
+        self.filename = tle_filename
+        self._tles_as_list = self._read_tles_from_file()
+        if tle_buffer:
+            self.tle_buffer = tle_buffer
         else:
-            deltat = time_requested - tobj
-        if np.abs((deltat).days) < 1:
-            return tle_buffer[tobj]
+            self.tle_buffer = {}
 
-    for delta_days in range(1, max_tle_days_diff + 1, 1):
-        for tobj in tle_buffer:
+    def _read_tles_from_file(self):
+        """Read the TLEs from file."""
+        with open(self.filename, 'r') as fh_:
+            tle_data_as_list = fh_.readlines()
+        return tle_data_as_list
+
+    def populate_tle_buffer(self):
+        """Populate the TLE buffer."""
+        for ind in range(0, len(self._tles_as_list), 2):
+            if self.tle_id in self._tles_as_list[ind]:
+                tle = Tle(self.tle_id, line1=self._tles_as_list[ind], line2=self._tles_as_list[ind+1])
+                ts = (tle.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+                tobj = dt.datetime.fromtimestamp(ts, tz=timezone.utc)
+                self.tle_buffer[tobj] = tle
+
+    def get_tle_archive(self, time_requested):
+        """Get Two-Line elements from the archive.
+
+        The TLE buffer tle_buffer is being updated.
+        """
+        # Read tle data if not already in buffer
+        if len(self.tle_buffer) == 0:
+            self.populate_tle_buffer()
+
+        for tobj in self.tle_buffer:
             if tobj > time_requested:
                 deltat = tobj - time_requested
             else:
                 deltat = time_requested - tobj
-            if np.abs((deltat).days) <= delta_days:
-                print("Did not find TLE for {:s}, Using TLE from {:s}".format(tobj.strftime("%Y%m%d"),
-                                                                              time_requested.strftime("%Y%m%d")))
-                return tle_buffer[tobj]
-    print("Did not find TLE for {:s} +/- 3 days")
+            if np.abs((deltat).days) < 1:
+                return self.tle_buffer[tobj]
+
+        for delta_days in range(1, max_tle_days_diff + 1, 1):
+            for tobj in self.tle_buffer:
+                if tobj > time_requested:
+                    deltat = tobj - time_requested
+                else:
+                    deltat = time_requested - tobj
+                if np.abs((deltat).days) <= delta_days:
+                    print("Did not find TLE for {:s}, Using TLE from {:s}".format(tobj.strftime("%Y%m%d"),
+                                                                                  time_requested.strftime("%Y%m%d")))
+                    return self.tle_buffer[tobj]
+        print("Did not find TLE for {:s} +/- 3 days")
+
+
+# def populate_tle_buffer(filename, tle_id, tle_buffer):
+#     """Populate the TLE buffer."""
+#     with open(filename, 'r') as fh_:
+#         tle_data_as_list = fh_.readlines()
+#         for ind in range(0, len(tle_data_as_list), 2):
+#             if tle_id in tle_data_as_list[ind]:
+#                 tle = Tle(tle_id, line1=tle_data_as_list[ind], line2=tle_data_as_list[ind+1])
+#                 # dto = datetime.strptime(tle.epoch, '%Y-%m-%dT%H:%M:%S:%f')
+#                 ts = (tle.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+#                 # tobj = dt.datetime.utcfromtimestamp(ts)
+#                 tobj = dt.datetime.fromtimestamp(ts, tz=timezone.utc)
+#                 tle_buffer[tobj] = tle
+
+
+# def get_tle_archive(time_requested, filename, tle_id, tle_buffer):
+#     """Get Two-Line elements from the archive.
+
+#     The TLE buffer tle_buffer is being updated.
+#     """
+#     # Read tle data if not already in buffer
+#     if len(tle_buffer) == 0:
+#         populate_tle_buffer(filename, tle_id, tle_buffer)
+
+#     for tobj in tle_buffer:
+#         if tobj > time_requested:
+#             deltat = tobj - time_requested
+#         else:
+#             deltat = time_requested - tobj
+#         if np.abs((deltat).days) < 1:
+#             return tle_buffer[tobj]
+
+#     for delta_days in range(1, max_tle_days_diff + 1, 1):
+#         for tobj in tle_buffer:
+#             if tobj > time_requested:
+#                 deltat = tobj - time_requested
+#             else:
+#                 deltat = time_requested - tobj
+#             if np.abs((deltat).days) <= delta_days:
+#                 print("Did not find TLE for {:s}, Using TLE from {:s}".format(tobj.strftime("%Y%m%d"),
+#                                                                               time_requested.strftime("%Y%m%d")))
+#                 return tle_buffer[tobj]
+#     print("Did not find TLE for {:s} +/- 3 days")
 
 
 def get_datetime_from_tle(tle_obj):

@@ -20,6 +20,7 @@
 
 import json
 import datetime as dt
+# from datetime import timedelta, timezone
 from datetime import timedelta
 from geopy import distance
 # from geojson import dump
@@ -30,8 +31,8 @@ from pyresample.spherical import SCoordinate
 import pyresample as pr
 from pyorbital.config import get_config
 from pyorbital.orbital import Orbital
-from pyorbital.tlefile import Tle
 from pyorbital.tlefile import SATELLITES
+from pyorbital.tle_archive import get_tle_archive
 
 from trollsift.parser import Parser
 from pathlib import Path
@@ -77,7 +78,6 @@ TLE_SATNAME = {'npp': 'SUOMI NPP',
                }
 
 ZERO_SECONDS = timedelta(seconds=0)
-max_tle_days_diff = 3
 
 LOG = logging.getLogger(__name__)
 
@@ -348,48 +348,6 @@ def get_sno_point(calipso, the_other_one, arc_calipso, arc_the_other_one, tobj, 
         match['minutes_diff'] = tdmin
         match['within_local_reception_area'] = isNorrk
         return match
-
-
-def populate_tle_buffer(filename, TLE_ID, MY_TLE_BUFFER):
-    """Populate the TLE buffer."""
-    with open(filename, 'r') as fh_:
-        tle_data_as_list = fh_.readlines()
-        for ind in range(0, len(tle_data_as_list), 2):
-            if TLE_ID in tle_data_as_list[ind]:
-                tle = Tle(TLE_ID, line1=tle_data_as_list[ind], line2=tle_data_as_list[ind+1])
-                # dto = datetime.strptime(tle.epoch, '%Y-%m-%dT%H:%M:%S:%f')
-                ts = (tle.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
-                tobj = dt.datetime.utcfromtimestamp(ts)
-                MY_TLE_BUFFER[tobj] = tle
-
-
-def get_tle_archive(timestamp, filename, TLE_ID, MY_TLE_BUFFER):
-    """Get Two-Line elements from the archive.
-
-    The TLE buffer MY_TLE_BUFFER is being updated.
-    """
-    # Read tle data if not already in buffer
-    if len(MY_TLE_BUFFER) == 0:
-        populate_tle_buffer(filename, TLE_ID, MY_TLE_BUFFER)
-
-    for tobj in MY_TLE_BUFFER:
-        if tobj > timestamp:
-            deltat = tobj - timestamp
-        else:
-            deltat = timestamp - tobj
-        if np.abs((deltat).days) < 1:
-            return MY_TLE_BUFFER[tobj]
-    for delta_days in range(1, max_tle_days_diff + 1, 1):
-        for tobj in MY_TLE_BUFFER:
-            if tobj > timestamp:
-                deltat = tobj - timestamp
-            else:
-                deltat = timestamp - tobj
-            if np.abs((deltat).days) <= delta_days:
-                print("Did not find TLE for {:s}, Using TLE from {:s}".format(tobj.strftime("%Y%m%d"),
-                                                                              timestamp.strftime("%Y%m%d")))
-                return MY_TLE_BUFFER[tobj]
-    print("Did not find TLE for {:s} +/- 3 days")
 
 
 def get_closest_sno_to_reference(all_features, rfeature, tol_seconds=ZERO_SECONDS):

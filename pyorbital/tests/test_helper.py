@@ -24,7 +24,8 @@
 
 import pandas as pd
 import io
-from datetime import datetime, timedelta
+from datetime import timedelta
+import datetime as dt
 # from geojson import dump
 
 
@@ -56,10 +57,10 @@ def df2geojson(df):
 
     # go through dataframe, append entries to geojson format
     for _, row in df.iterrows():
-        dtobj1 = datetime(int(row['year1']), int(row['month1']), int(row['day1']),
-                          int(row['hour1']), int(row['minute1'])) + timedelta(seconds=float(row['second1']))
-        dtobj2 = datetime(int(row['year2']), int(row['month2']), int(row['day2']),
-                          int(row['hour2']), int(row['minute2'])) + timedelta(seconds=float(row['second2']))
+        dtobj1 = dt.datetime(int(row['year1']), int(row['month1']), int(row['day1']),
+                             int(row['hour1']), int(row['minute1'])) + timedelta(seconds=float(row['second1']))
+        dtobj2 = dt.datetime(int(row['year2']), int(row['month2']), int(row['day2']),
+                             int(row['hour2']), int(row['minute2'])) + timedelta(seconds=float(row['second2']))
 
         feature = {"type": "Feature", "geometry": {"type": "Point",
                                                    "coordinates": [row['longitude'],

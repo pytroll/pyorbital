@@ -27,8 +27,7 @@ allowing the times to differ by up to a few minutes.
 
 from pyorbital.sno_utils import SNOfinder
 from pyorbital.logger import setup_logging_from_config
-
-from datetime import datetime
+import datetime as dt
 import logging
 
 
@@ -113,8 +112,8 @@ if __name__ == "__main__":
     platform_id_two = args.platform_name_two
 
     minutes_thr = int(args.time_window)
-    starttime = datetime.strptime(args.start_datetime, "%Y%m%d%H%M")
-    endtime = datetime.strptime(args.end_datetime, "%Y%m%d%H%M")
+    starttime = dt.datetime.strptime(args.start_datetime, "%Y%m%d%H%M")
+    endtime = dt.datetime.strptime(args.end_datetime, "%Y%m%d%H%M")
     arclength_minutes = args.arc_len_min
 
     sno_finder = SNOfinder(platform_id_one, platform_id_two, (starttime, endtime),

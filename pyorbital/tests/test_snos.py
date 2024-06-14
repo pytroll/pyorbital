@@ -25,7 +25,7 @@
 
 import pytest
 import numpy as np
-from datetime import datetime
+import datetime as dt
 from pyorbital.sno_utils import SNOfinder
 from pyorbital.sno_utils import check_overlapping_times
 # from pyorbital.config import get_config
@@ -64,7 +64,7 @@ def test_get_snos_calipso_snpp(fake_yamlconfig_file, fake_tle_file1_calipso, fak
     """Test finding calipso and SNPP SNOs within time window."""
     platform_one = 'snpp'
     platform_two = 'calipso'
-    time_window = (datetime(2014, 1, 3), datetime(2014, 1, 4))
+    time_window = (dt.datetime(2014, 1, 3), dt.datetime(2014, 1, 4))
     sno_min_thr = 2  # SNOs allowed to have 2 minute deviation between the two platforms
     mysnofinder = SNOfinder(platform_one, platform_two, time_window, sno_min_thr)
     mysnofinder.set_configuration(fake_yamlconfig_file)
@@ -89,8 +89,8 @@ def test_get_snos_calipso_snpp(fake_yamlconfig_file, fake_tle_file1_calipso, fak
 
 # Times: 2014-01-03 06:22:53.516417 2014-01-03 06:21:54.322415
 # ('2014-01-03 06:22:51', '2014-01-03 06:21:51.800000')
-TWIN1 = (datetime(2014, 1, 3, 6, 22, 51), datetime(2014, 1, 3, 6, 21, 51, 800000))
-TWIN2 = (datetime(2014, 1, 3, 6, 22, 53, 516417), datetime(2014, 1, 3, 6, 21, 51, 800000))
+TWIN1 = (dt.datetime(2014, 1, 3, 6, 22, 51), dt.datetime(2014, 1, 3, 6, 21, 51, 800000))
+TWIN2 = (dt.datetime(2014, 1, 3, 6, 22, 53, 516417), dt.datetime(2014, 1, 3, 6, 21, 51, 800000))
 
 
 @pytest.mark.parametrize("twin1, twin2, expected",

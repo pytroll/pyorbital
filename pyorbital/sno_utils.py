@@ -19,7 +19,8 @@
 """Utility functions to find simultaneous nadir overpasses (SNOs)."""
 
 import json
-from datetime import datetime, timedelta
+import datetime as dt
+from datetime import timedelta
 from geopy import distance
 # from geojson import dump
 import numpy as np
@@ -161,8 +162,8 @@ class SNOfinder:
         # make sure the two sat pass the SNO in the same step. We need and overlap of at least half minthr minutes.
         timestep_plus_30s = timedelta(seconds=60 * minthr_step * 1.0 + (self.sno_minute_threshold*0.5)*60 + 30)
 
-        calipso_obj = datetime(1970, 1, 1)
-        other_obj = datetime(1970, 1, 1)
+        calipso_obj = dt.datetime(1970, 1, 1)
+        other_obj = dt.datetime(1970, 1, 1)
 
         tobj = self.time_start
         tle_calipso = None
@@ -182,12 +183,12 @@ class SNOfinder:
 
             if tle_calipso:
                 ts = (tle_calipso.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
-                calipso_obj = datetime.utcfromtimestamp(ts)
+                calipso_obj = dt.datetime.utcfromtimestamp(ts)
             if not tle_the_other_one or other_obj - tobj > t_diff or tobj - other_obj > t_diff:
                 tle_the_other_one = get_tle_archive(tobj, filename_other, TLE_ID_OTHER, TLE_BUFFER_OTHER)
             if tle_the_other_one:
                 ts = (tle_the_other_one.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
-                other_obj = datetime.utcfromtimestamp(ts)
+                other_obj = dt.datetime.utcfromtimestamp(ts)
 
             calipso = Orbital(self.calipso_id,
                               line1=tle_calipso.line1,
@@ -358,7 +359,7 @@ def populate_tle_buffer(filename, TLE_ID, MY_TLE_BUFFER):
                 tle = Tle(TLE_ID, line1=tle_data_as_list[ind], line2=tle_data_as_list[ind+1])
                 # dto = datetime.strptime(tle.epoch, '%Y-%m-%dT%H:%M:%S:%f')
                 ts = (tle.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
-                tobj = datetime.utcfromtimestamp(ts)
+                tobj = dt.datetime.utcfromtimestamp(ts)
                 MY_TLE_BUFFER[tobj] = tle
 
 
@@ -400,8 +401,8 @@ def get_closest_sno_to_reference(all_features, rfeature, tol_seconds=ZERO_SECOND
     rlon, rlat = rgeom['coordinates']
     rprop = rfeature['properties']
 
-    rtime1 = datetime.fromisoformat(rprop['datetime1'])
-    rtime2 = datetime.fromisoformat(rprop['datetime2'])
+    rtime1 = dt.datetime.fromisoformat(rprop['datetime1'])
+    rtime2 = dt.datetime.fromisoformat(rprop['datetime2'])
 
     overlap_found = False
     for tfeat in all_features['features']:
@@ -409,8 +410,8 @@ def get_closest_sno_to_reference(all_features, rfeature, tol_seconds=ZERO_SECOND
         tlon, tlat = tgeom['coordinates']
         tprop = tfeat['properties']
 
-        ttime1 = datetime.fromisoformat(tprop['datetime1'])
-        ttime2 = datetime.fromisoformat(tprop['datetime2'])
+        ttime1 = dt.datetime.fromisoformat(tprop['datetime1'])
+        ttime2 = dt.datetime.fromisoformat(tprop['datetime2'])
 
         # Check for time overlap:
         if check_overlapping_times((rtime1, rtime2), (ttime1, ttime2), tol_seconds):

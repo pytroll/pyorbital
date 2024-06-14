@@ -20,8 +20,7 @@
 
 import json
 import datetime as dt
-# from datetime import timedelta, timezone
-from datetime import timedelta
+from datetime import timedelta, timezone
 from geopy import distance
 # from geojson import dump
 import numpy as np
@@ -33,6 +32,7 @@ from pyorbital.config import get_config
 from pyorbital.orbital import Orbital
 from pyorbital.tlefile import SATELLITES
 from pyorbital.tle_archive import get_tle_archive
+from pyorbital.tle_archive import get_datetime_from_tle
 
 from trollsift.parser import Parser
 from pathlib import Path
@@ -120,7 +120,7 @@ class SNOfinder:
                                                                        row['sno_latitude']]},
                        "properties": {"datetime1": row['satAdatetime'].isoformat(),
                                       "datetime2": row['satBdatetime'].isoformat(),
-                                      "tdiff_min": row['minutes_diff'],
+                                      "tdif_fmin": row['minutes_diff'],
                                       "within_area": row["within_local_reception_area"]}}
             gjson['features'].append(feature)
         self.geojson_results = gjson
@@ -162,8 +162,8 @@ class SNOfinder:
         # make sure the two sat pass the SNO in the same step. We need and overlap of at least half minthr minutes.
         timestep_plus_30s = timedelta(seconds=60 * minthr_step * 1.0 + (self.sno_minute_threshold*0.5)*60 + 30)
 
-        calipso_obj = dt.datetime(1970, 1, 1)
-        other_obj = dt.datetime(1970, 1, 1)
+        calipso_obj = dt.datetime(1970, 1, 1).replace(tzinfo=timezone.utc)
+        other_obj = dt.datetime(1970, 1, 1).replace(tzinfo=timezone.utc)
 
         tobj = self.time_start
         tle_calipso = None
@@ -182,13 +182,18 @@ class SNOfinder:
                 tle_calipso = get_tle_archive(tobj, str(filename_calipso), TLE_ID_CALIPSO, TLE_BUFFER_CALIPSO)
 
             if tle_calipso:
-                ts = (tle_calipso.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
-                calipso_obj = dt.datetime.utcfromtimestamp(ts)
+                calipso_obj = get_datetime_from_tle(tle_calipso)
+
+            # if tle_calipso:
+            #     ts = (tle_calipso.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+            #     calipso_obj = dt.datetime.utcfromtimestamp(ts)
             if not tle_the_other_one or other_obj - tobj > t_diff or tobj - other_obj > t_diff:
                 tle_the_other_one = get_tle_archive(tobj, filename_other, TLE_ID_OTHER, TLE_BUFFER_OTHER)
+            # if tle_the_other_one:
+            #     ts = (tle_the_other_one.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+            #     other_obj = dt.datetime.utcfromtimestamp(ts)
             if tle_the_other_one:
-                ts = (tle_the_other_one.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
-                other_obj = dt.datetime.utcfromtimestamp(ts)
+                other_obj = get_datetime_from_tle(tle_the_other_one)
 
             calipso = Orbital(self.calipso_id,
                               line1=tle_calipso.line1,

@@ -24,7 +24,6 @@ dependencies:
   - geoviews
   - geopy
   - geojson
-  - json
   - pytest
   - pytest-cov
   - fsspec

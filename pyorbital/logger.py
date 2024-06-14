@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2023 Pyorbital developers
+# Copyright (c) 2023 - 2024 Pyorbital developers
 
 
 # This program is free software: you can redistribute it and/or modify
@@ -20,6 +20,37 @@
 """Functionality to support standard logging."""
 
 import logging
+import logging.config
+import logging.handlers
+import yaml
+
+
+LOG_FORMAT = "[%(asctime)s %(levelname)-8s] %(message)s"
+
+log_levels = {
+    0: logging.WARN,
+    1: logging.INFO,
+    2: logging.DEBUG,
+}
+
+
+def setup_logging_from_config(cmd_args):
+    """Set up logging."""
+    if cmd_args.log_config is not None:
+        with open(cmd_args.log_config) as fd:
+            log_dict = yaml.safe_load(fd.read())
+            logging.config.dictConfig(log_dict)
+            return
+
+    root = logging.getLogger('')
+    root.setLevel(log_levels[cmd_args.verbosity])
+
+    fh_ = logging.StreamHandler()
+
+    formatter = logging.Formatter(LOG_FORMAT)
+    fh_.setFormatter(formatter)
+
+    root.addHandler(fh_)
 
 
 def debug_on():

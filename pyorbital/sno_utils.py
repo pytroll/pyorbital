@@ -40,6 +40,12 @@ import time
 import logging
 
 
+class PlatformNotSupported(Exception):
+    """Exception error when platform is not supported."""
+
+    pass
+
+
 OSCAR_NAMES = {'npp': 'Suomi-NPP',
                'snpp': 'Suomi-NPP',
                'aqua': 'EOS-Aqua',
@@ -99,6 +105,13 @@ class SNOfinder:
         self._tle_buffer_calipso = {}
         self._tle_buffer_other = {}
 
+        self._check_platforms()
+
+    def _check_platforms(self):
+        # Check if satellite is supported:
+        if OSCAR_NAMES.get(self.platform_id, self.platform_id).upper() not in SATELLITES.keys():
+            raise PlatformNotSupported(f"Platform {self.platform_id} not supported!")
+
     def set_configuration(self, configfile):
         """Set the basic configuration from yaml config file."""
         conf = get_config(configfile)
@@ -135,12 +148,6 @@ class SNOfinder:
         """Search and retrieve the SNOs inside the time window defined."""
         tle_dirs = self._conf['tle-dirs']
         tle_file_format = self._conf['tle-file-format']
-
-        import sys
-        # Check if satellite is supported:
-        if OSCAR_NAMES.get(self.platform_id, self.platform_id).upper() not in SATELLITES.keys():
-            LOG.error("Platform %s not supported!" % self.platform_id)
-            sys.exit()
 
         pobj = Parser(tle_file_format)
         for tledir in tle_dirs:
@@ -207,7 +214,7 @@ class SNOfinder:
 
             got_intersection_acurate = False
             arc_calipso_vector = get_arc_vector(tobj, timestep_plus_30s, calipso, self.arc_len_min)
-            arc_the_other_one_vector = get_arc_vector(tobj, timestep_plus_30s, the_other_one,  self.arc_len_min)
+            arc_the_other_one_vector = get_arc_vector(tobj, timestep_plus_30s, the_other_one, self.arc_len_min)
             # Approximate tracks with one arc each self.arc_len_min minutes.
             # For each pair of arcs check if they intersect.
             # There is atmost one intersection. Quit when we find it.

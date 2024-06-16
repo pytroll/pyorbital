@@ -29,6 +29,7 @@ import datetime as dt
 from datetime import timezone
 from pyorbital.sno_utils import SNOfinder
 from pyorbital.sno_utils import check_overlapping_times
+from pyorbital.sno_utils import PlatformNotSupported
 # from pyorbital.config import get_config
 from pyorbital.tests.test_helper import get_dataframe_from_ascii
 from pyorbital.tests.test_helper import df2geojson
@@ -59,6 +60,21 @@ TEST2_SNOS_ASCII = """
   2014  1 11  5 32  27.1     2014  1 11  5 32  58.4        78.64   -11.43
   2014  1 11  6 23   2.8     2014  1 11  6 22  17.1       -78.99   158.18
 """
+
+
+def test_snofinder_unsupported_platform(fake_yamlconfig_file, fake_tle_file1_calipso, fake_tle_file1_snpp):
+    """Test the SNO finder when one of the platform names are not supported."""
+    platform_one = 'PARASOL'
+    platform_two = 'calipso'
+    time_window = (dt.datetime(2014, 1, 3, tzinfo=timezone.utc),
+                   dt.datetime(2014, 1, 4, tzinfo=timezone.utc))
+    sno_min_thr = 2  # SNOs allowed to have 2 minute deviation between the two platforms
+
+    with pytest.raises(PlatformNotSupported) as exec_info:
+        _ = SNOfinder(platform_one, platform_two, time_window, sno_min_thr)
+
+    exception_raised = exec_info.value
+    assert str(exception_raised) == "Platform PARASOL not supported!"
 
 
 def test_get_snos_calipso_snpp(fake_yamlconfig_file, fake_tle_file1_calipso, fake_tle_file1_snpp):

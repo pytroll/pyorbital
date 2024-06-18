@@ -107,6 +107,11 @@ class SNOfinder:
 
         self._check_platforms()
 
+        self.tle_id_platform_one = get_satellite_catalogue_number_from_name(self.calipso_id)
+        self.tle_id_platform_other = get_satellite_catalogue_number_from_name(self.platform_id)
+
+        self._minthr_step = 20  # min less than half an orbit
+
     def _check_platforms(self):
         # Check if satellite is supported:
         if OSCAR_NAMES.get(self.platform_id, self.platform_id).upper() not in SATELLITES.keys():
@@ -160,21 +165,23 @@ class SNOfinder:
             if filename_other.exists():
                 break
 
-        TLE_ID_CALIPSO = get_satellite_catalogue_number_from_name(self.calipso_id)
-        TLE_ID_OTHER = get_satellite_catalogue_number_from_name(self.platform_id)
-
-        minthr_step = 20  # min less than half an orbit probably
-        dtime = timedelta(seconds=60 * minthr_step * 2.0)
-        timestep_double = timedelta(seconds=60 * minthr_step * 2.0)
-        # make sure the two sat pass the SNO in the same step. We need and overlap of at least half minthr minutes.
-        timestep_plus_30s = timedelta(seconds=60 * minthr_step * 1.0 + (self.sno_minute_threshold*0.5)*60 + 30)
+        dtime = timedelta(seconds=60 * self._minthr_step * 2.0)
+        timestep_double = timedelta(seconds=60 * self._minthr_step * 2.0)
 
         calipso_obj = dt.datetime(1970, 1, 1).replace(tzinfo=timezone.utc)
         other_obj = dt.datetime(1970, 1, 1).replace(tzinfo=timezone.utc)
 
+        tle_finder_one = TwoLineElementsFinder(self.tle_id_platform_one, str(filename_calipso))
+        tle_finder_one.populate_tle_buffer()
+        self._tle_buffer_calipso = tle_finder_one.tle_buffer
+
+        tle_finder_other = TwoLineElementsFinder(self.tle_id_platform_other, str(filename_other))
+        tle_finder_other.populate_tle_buffer()
+        self._tle_buffer_other = tle_finder_other.tle_buffer
+
         tobj = self.time_start
         tle_calipso = None
-        tle_the_other_one = None
+        tle_the_other = None
         tobj_tmp = self.time_start
         i = 0
         t_diff = timedelta(days=1)
@@ -185,71 +192,33 @@ class SNOfinder:
                 message = time.time() - tic, "seconds", dtime
                 print(message)
 
-            if not tle_calipso or calipso_obj - tobj > t_diff or tobj - calipso_obj > t_diff:
-                tle_finder = TwoLineElementsFinder(TLE_ID_CALIPSO, str(filename_calipso),
-                                                   tle_buffer=self._tle_buffer_calipso)
-                tle_calipso = tle_finder.get_tle_archive(tobj)
-                self._tle_buffer_calipso = tle_finder.tle_buffer
-                # tle_calipso = get_tle_archive(tobj, str(filename_calipso), TLE_ID_CALIPSO, TLE_BUFFER_CALIPSO)
+            if not tle_calipso or abs(calipso_obj - tobj) > t_diff:
+                tle_calipso = tle_finder_one.get_best_tle_from_archive(tobj)
+                self._tle_buffer_calipso = tle_finder_one.tle_buffer
 
             if tle_calipso:
                 calipso_obj = get_datetime_from_tle(tle_calipso)
 
-            if not tle_the_other_one or other_obj - tobj > t_diff or tobj - other_obj > t_diff:
-                tle_finder = TwoLineElementsFinder(TLE_ID_OTHER, str(filename_other),
-                                                   tle_buffer=self._tle_buffer_other)
-                tle_the_other_one = tle_finder.get_tle_archive(tobj)
-                self._tle_buffer_other = tle_finder.tle_buffer
-                # tle_the_other_one = get_tle_archive(tobj, filename_other, TLE_ID_OTHER, TLE_BUFFER_OTHER)
+            if not tle_the_other or abs(other_obj - tobj) > t_diff:
+                tle_the_other = tle_finder_other.get_best_tle_from_archive(tobj)
+                self._tle_buffer_other = tle_finder_other.tle_buffer
 
-            if tle_the_other_one:
-                other_obj = get_datetime_from_tle(tle_the_other_one)
+            if tle_the_other:
+                other_obj = get_datetime_from_tle(tle_the_other)
 
-            calipso = Orbital(self.calipso_id,
-                              line1=tle_calipso.line1,
-                              line2=tle_calipso.line2)
-            the_other_one = Orbital(self.platform_id,
-                                    line1=tle_the_other_one.line1,
-                                    line2=tle_the_other_one.line2)
+            calipso = Orbital(self.calipso_id, line1=tle_calipso.line1, line2=tle_calipso.line2)
+            the_other = Orbital(self.platform_id, line1=tle_the_other.line1, line2=tle_the_other.line2)
 
-            got_intersection_acurate = False
-            arc_calipso_vector = get_arc_vector(tobj, timestep_plus_30s, calipso, self.arc_len_min)
-            arc_the_other_one_vector = get_arc_vector(tobj, timestep_plus_30s, the_other_one, self.arc_len_min)
-            # Approximate tracks with one arc each self.arc_len_min minutes.
-            # For each pair of arcs check if they intersect.
-            # There is atmost one intersection. Quit when we find it.
-            for arc_calipso in arc_calipso_vector:
-                for arc_the_other_one in arc_the_other_one_vector:
-                    if arc_calipso.intersects(arc_the_other_one):
-                        got_intersection_acurate = True
-                    if got_intersection_acurate:
-                        break
-                if got_intersection_acurate:
-                    break
-
-            if got_intersection_acurate:
-                sno = get_sno_point(calipso, the_other_one,
-                                    arc_calipso, arc_the_other_one,
+            retv = self.search_intersection(tobj, calipso, the_other)
+            if retv:
+                arc_calipso, arc_the_other = retv
+                sno = get_sno_point(calipso, the_other,
+                                    arc_calipso, arc_the_other,
                                     tobj, self.sno_minute_threshold, self.station)
 
                 if sno:
-                    # For debugging:
-                    create_geojson_line('./calipso_arc_%d.geojson' % i, arc_calipso)
+                    self.write_output_on_screen(sno, arc_calipso, arc_the_other, i)
                     results.append(sno)
-
-                    seconds_a = int(sno['satAdatetime'].strftime("%S")) + \
-                        float(sno['satAdatetime'].strftime("%f"))/1000000.
-                    seconds_b = int(sno['satBdatetime'].strftime("%S")) + \
-                        float(sno['satBdatetime'].strftime("%f"))/1000000.
-
-                    print("  " +
-                          str(sno['satBdatetime'].strftime("%Y%m%d %H:%M")) +
-                          "%5.1fs" % seconds_b + " "*5 +
-                          str(sno['satAdatetime'].strftime("%Y%m%d %H:%M")) +
-                          "%5.1fs" % seconds_a +
-                          " "*6 + "(%7.2f, %7.2f)" % (sno['sno_latitude'], sno['sno_longitude']) +
-                          "   " + "%4.1f min" % (sno['minutes_diff']) + "   " + str(sno['within_local_reception_area'])
-                          )
 
             tobj = tobj + timestep_double
             if tobj - tobj_tmp > timedelta(days=1):
@@ -258,6 +227,42 @@ class SNOfinder:
 
         print(str(results[0]))
         return pd.DataFrame(results)
+
+    def search_intersection(self, dtime, orb_obj1, orb_obj2):
+        """Get two pieces of a great arc circle and check if there is an intersection."""
+        # make sure the two sat pass the SNO in the same step. We need and overlap of at least half minthr minutes.
+        timestep_plus_30s = timedelta(seconds=60 * self._minthr_step * 1.0 + (self.sno_minute_threshold*0.5)*60 + 30)
+
+        arc_orb_obj1_vector = get_arc_vector(dtime, timestep_plus_30s, orb_obj1, self.arc_len_min)
+        arc_orb_obj2_vector = get_arc_vector(dtime, timestep_plus_30s, orb_obj2, self.arc_len_min)
+        # Approximate tracks with one arc each self.arc_len_min minutes.
+        # For each pair of arcs check if they intersect.
+        # There is atmost one intersection. Quit when we find it.
+        for arc_orb_obj1 in arc_orb_obj1_vector:
+            for arc_orb_obj2 in arc_orb_obj2_vector:
+                if arc_orb_obj1.intersects(arc_orb_obj2):
+                    return arc_orb_obj1, arc_orb_obj2
+
+        return
+
+    def write_output_on_screen(self, sno, arc_calipso, arc_the_other, idx):
+        """Write output results on stdout."""
+        # For debugging:
+        create_geojson_line('./calipso_arc_%d.geojson' % idx, arc_calipso)
+
+        seconds_a = int(sno['satAdatetime'].strftime("%S")) + \
+            float(sno['satAdatetime'].strftime("%f"))/1000000.
+        seconds_b = int(sno['satBdatetime'].strftime("%S")) + \
+            float(sno['satBdatetime'].strftime("%f"))/1000000.
+
+        print("  " +
+              str(sno['satBdatetime'].strftime("%Y%m%d %H:%M")) +
+              "%5.1fs" % seconds_b + " "*5 +
+              str(sno['satAdatetime'].strftime("%Y%m%d %H:%M")) +
+              "%5.1fs" % seconds_a +
+              " "*6 + "(%7.2f, %7.2f)" % (sno['sno_latitude'], sno['sno_longitude']) +
+              "   " + "%4.1f min" % (sno['minutes_diff']) + "   " + str(sno['within_local_reception_area'])
+              )
 
 
 def get_satellite_catalogue_number_from_name(satname):
@@ -303,7 +308,7 @@ def get_arc_vector(timeobj, delta_t, sat, arc_len_min):
     return arcs
 
 
-def get_sno_point(calipso, the_other_one, arc_calipso, arc_the_other_one, tobj, minthr, station):
+def get_sno_point(calipso, the_other, arc_calipso, arc_the_other, tobj, minthr, station):
     """Get the SNO point if there is any.
 
     If the two sub-satellite tracks of the overpasses intersects
@@ -311,16 +316,13 @@ def get_sno_point(calipso, the_other_one, arc_calipso, arc_the_other_one, tobj, 
     and determine if the time deviation is smaller than the require threshold:
     """
     import math
-    intersect = arc_calipso.intersection(arc_the_other_one)
+    intersect = arc_calipso.intersection(arc_the_other)
     point = (math.degrees(intersect.lon),
              math.degrees(intersect.lat))
-    nextp = the_other_one.get_next_passes(tobj - timedelta(seconds=60*60),
-                                          # SNO around tobj check for passes between +- one hour.
-                                          # So that wanted pass for sure is next pass!
-                                          2,  # Number of hours to find overpasses
-                                          point[0],
-                                          point[1],
-                                          0)
+    # SNO around tobj check for passes between +- one hour.
+    # So that wanted pass for sure is next pass!
+    nextp = the_other.get_next_passes(tobj - timedelta(seconds=60*60), 2,  # Number of hours to find overpasses
+                                      point[0], point[1], 0)
 
     minthr_step = 20  # min less than half an orbit probably
     dtime = timedelta(seconds=60 * minthr_step * 2.0)
@@ -347,8 +349,8 @@ def get_sno_point(calipso, the_other_one, arc_calipso, arc_the_other_one, tobj, 
     # Get observer look from Norrkoping to the satellite when it is
     # in zenith over the SNO point:
 
-    azi, elev = the_other_one.get_observer_look(maxt,
-                                                station['lon'], station['lat'], station['alt'])
+    azi, elev = the_other.get_observer_look(maxt,
+                                            station['lon'], station['lat'], station['alt'])
     isNorrk = (elev > 0.0)
 
     tdelta = (maxt_calipso - maxt)

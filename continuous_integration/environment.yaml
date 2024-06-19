@@ -22,6 +22,8 @@ dependencies:
   - mock
   - zarr
   - geoviews
+  - geopy
+  - geojson
   - pytest
   - pytest-cov
   - fsspec

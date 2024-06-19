@@ -105,12 +105,24 @@ class SNOfinder:
         self._tle_buffer_calipso = {}
         self._tle_buffer_other = {}
 
+        self.tle_finder_one = None
+        self.tle_finder_other = None
+
+        self._epoch_begin = dt.datetime(1970, 1, 1).replace(tzinfo=timezone.utc)
+        self.t_diff = timedelta(days=1)
+        self._minthr_step = 20  # min less than half an orbit
+        self.timestep_double = timedelta(seconds=60 * self._minthr_step * 2.0)
+
+        self._check_times()
         self._check_platforms()
 
         self.tle_id_platform_one = get_satellite_catalogue_number_from_name(self.calipso_id)
         self.tle_id_platform_other = get_satellite_catalogue_number_from_name(self.platform_id)
 
-        self._minthr_step = 20  # min less than half an orbit
+    def _check_times(self):
+        """Check if the selected time period is supported."""
+        if self._epoch_begin > (self.time_start - self.t_diff):
+            raise IOError(f"Start time too early: {str(self.time_start)}")
 
     def _check_platforms(self):
         # Check if satellite is supported:
@@ -126,6 +138,40 @@ class SNOfinder:
         self.station['lon'] = conf['station']['longitude']
         self.station['lat'] = conf['station']['latitude']
         self.station['alt'] = conf['station']['altitude']
+
+    def initialize(self):
+        """Initialize."""
+        self.get_tle_filenames()
+        self.tle_finder_one = TwoLineElementsFinder(self.tle_id_platform_one, str(self.filename_calipso))
+        self.tle_finder_one.populate_tle_buffer()
+        self._tle_buffer_calipso = self.tle_finder_one.tle_buffer
+
+        self.tle_finder_other = TwoLineElementsFinder(self.tle_id_platform_other, str(self.filename_other))
+        self.tle_finder_other.populate_tle_buffer()
+        self._tle_buffer_other = self.tle_finder_other.tle_buffer
+
+    def get_tlefilename(self, platform_id):
+        """From a platform id try find the filename with all TLEs."""
+        tle_dirs = self._conf['tle-dirs']
+        tle_file_format = self._conf['tle-file-format']
+
+        pobj = Parser(tle_file_format)
+
+        filename = None
+        for tledir in tle_dirs:
+            filename = Path(tledir) / pobj.compose({'platform': platform_id})
+            if filename.exists():
+                break
+
+        if filename and filename.exists():
+            return filename
+        else:
+            return None
+
+    def get_tle_filenames(self):
+        """From the two platform ids get the two filenames with all the TLE data."""
+        self.filename_calipso = self.get_tlefilename(self.calipso_id)
+        self.filename_other = self.get_tlefilename(self.platform_id)
 
     def dataframe2geojson(self, df_):
         """Convert the resulting Pandas dataframe to a Geojson object."""
@@ -151,57 +197,30 @@ class SNOfinder:
 
     def get_snos_within_time_window(self):
         """Search and retrieve the SNOs inside the time window defined."""
-        tle_dirs = self._conf['tle-dirs']
-        tle_file_format = self._conf['tle-file-format']
+        calipso_obj = self._epoch_begin
+        other_obj = self._epoch_begin
 
-        pobj = Parser(tle_file_format)
-        for tledir in tle_dirs:
-            filename_calipso = Path(tledir) / pobj.compose({'platform': self.calipso_id})
-            if filename_calipso.exists():
-                break
-
-        for tledir in tle_dirs:
-            filename_other = Path(tledir) / pobj.compose({'platform': self.platform_id})
-            if filename_other.exists():
-                break
-
-        dtime = timedelta(seconds=60 * self._minthr_step * 2.0)
-        timestep_double = timedelta(seconds=60 * self._minthr_step * 2.0)
-
-        calipso_obj = dt.datetime(1970, 1, 1).replace(tzinfo=timezone.utc)
-        other_obj = dt.datetime(1970, 1, 1).replace(tzinfo=timezone.utc)
-
-        tle_finder_one = TwoLineElementsFinder(self.tle_id_platform_one, str(filename_calipso))
-        tle_finder_one.populate_tle_buffer()
-        self._tle_buffer_calipso = tle_finder_one.tle_buffer
-
-        tle_finder_other = TwoLineElementsFinder(self.tle_id_platform_other, str(filename_other))
-        tle_finder_other.populate_tle_buffer()
-        self._tle_buffer_other = tle_finder_other.tle_buffer
-
-        tobj = self.time_start
         tle_calipso = None
         tle_the_other = None
+        tobj = self.time_start
         tobj_tmp = self.time_start
         i = 0
-        t_diff = timedelta(days=1)
         results = []
         while tobj < self.time_end:
             i = i + 1
-            if i == 100:
-                message = time.time() - tic, "seconds", dtime
-                print(message)
+            if i % 100 == 0:
+                print(time.time() - tic)
 
-            if not tle_calipso or abs(calipso_obj - tobj) > t_diff:
-                tle_calipso = tle_finder_one.get_best_tle_from_archive(tobj)
-                self._tle_buffer_calipso = tle_finder_one.tle_buffer
+            if not tle_calipso or abs(calipso_obj - tobj) > self.t_diff:
+                tle_calipso = self.tle_finder_one.get_best_tle_from_archive(tobj)
+                self._tle_buffer_calipso = self.tle_finder_one.tle_buffer
 
             if tle_calipso:
                 calipso_obj = get_datetime_from_tle(tle_calipso)
 
-            if not tle_the_other or abs(other_obj - tobj) > t_diff:
-                tle_the_other = tle_finder_other.get_best_tle_from_archive(tobj)
-                self._tle_buffer_other = tle_finder_other.tle_buffer
+            if not tle_the_other or abs(other_obj - tobj) > self.t_diff:
+                tle_the_other = self.tle_finder_other.get_best_tle_from_archive(tobj)
+                self._tle_buffer_other = self.tle_finder_other.tle_buffer
 
             if tle_the_other:
                 other_obj = get_datetime_from_tle(tle_the_other)
@@ -220,7 +239,7 @@ class SNOfinder:
                     self.write_output_on_screen(sno, arc_calipso, arc_the_other, i)
                     results.append(sno)
 
-            tobj = tobj + timestep_double
+            tobj = tobj + self.timestep_double
             if tobj - tobj_tmp > timedelta(days=1):
                 tobj_tmp = tobj
                 LOG.debug(tobj_tmp.strftime("%Y-%m-%d"))

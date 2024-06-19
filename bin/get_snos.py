@@ -123,6 +123,7 @@ if __name__ == "__main__":
     sno_finder = SNOfinder(platform_id_one, platform_id_two, (starttime, endtime),
                            minutes_thr, arclength_minutes)
     sno_finder.set_configuration(args.configfile)
+    sno_finder.initialize()
     results = sno_finder.get_snos_within_time_window()
 
     logger.info("Finished getting SNOs")

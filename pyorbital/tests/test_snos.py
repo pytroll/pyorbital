@@ -88,6 +88,7 @@ def test_get_snos_calipso_snpp(fake_yamlconfig_file, fake_tle_file1_calipso, fak
     mysnofinder.set_configuration(fake_yamlconfig_file)
     mysnofinder._conf['tle-dirs'].insert(0, str(fake_tle_file1_snpp.parent))
     mysnofinder._conf['tle-dirs'].insert(0, str(fake_tle_file1_calipso.parent))
+    mysnofinder.initialize()
 
     results = mysnofinder.get_snos_within_time_window()
 

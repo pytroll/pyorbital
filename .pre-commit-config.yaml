@@ -6,3 +6,15 @@ repos:
     hooks:
     - id: flake8
       additional_dependencies: [flake8-docstrings, flake8-debugger, flake8-bugbear]
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: 'v1.10.0'  # Use the sha / tag you want to point at
+  hooks:
+    - id: mypy
+      additional_dependencies:
+        - types-docutils
+        - types-pkg-resources
+        - types-PyYAML
+        - types-requests
+        - types-mock
+        - types-python-dateutil
+      args: ["--python-version", "3.10", "--ignore-missing-imports"]

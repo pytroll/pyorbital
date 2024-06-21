@@ -22,10 +22,32 @@
 
 from datetime import datetime
 
+import dask.array as da
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 import pyorbital.astronomy as astr
+
+try:
+    from xarray import DataArray
+except ImportError:
+    DataArray = None
+
+
+def _create_dask_array(input_list: list, dtype: npt.DTypeLike) -> da.Array:
+    np_arr = np.array(input_list, dtype=dtype)
+    return da.from_array(np_arr)
+
+
+def _create_xarray_numpy(input_list: list, dtype: npt.DTypeLike) -> DataArray:
+    np_arr = np.array(input_list, dtype=dtype)
+    return DataArray(np_arr)
+
+
+def _create_xarray_dask(input_list: list, dtype: npt.DTypeLike) -> DataArray:
+    dask_arr = _create_dask_array(input_list, dtype)
+    return DataArray(dask_arr)
 
 
 class TestAstronomy:
@@ -50,14 +72,30 @@ class TestAstronomy:
             (0.0, 0.0, 1.8751916863323426),
         ]
     )
-    @pytest.mark.parametrize("dtype", [None, np.float32, np.float64])
-    def test_sunangles(self, lon, lat, exp_theta, dtype):
+    @pytest.mark.parametrize(
+        ("dtype", "array_construct"),
+        [
+            (None, None),
+            (np.float32, np.array),
+            (np.float64, np.array),
+            (np.float32, _create_dask_array),
+            (np.float64, _create_dask_array),
+            (np.float32, _create_xarray_numpy),
+            (np.float64, _create_xarray_numpy),
+            (np.float32, _create_xarray_dask),
+            (np.float64, _create_xarray_dask),
+        ]
+    )
+    def test_sunangles(self, lon, lat, exp_theta, dtype, array_construct):
         """Test the sun-angle calculations."""
+        if array_construct is None and dtype is not None:
+            pytest.skip(reason="Xarray dependency unavailable")
+
         time_slot = datetime(2011, 9, 23, 12, 0)
         abs_tolerance = 1e-8
         if dtype is not None:
-            lon = np.array([lon], dtype=dtype)
-            lat = np.array([lat], dtype=dtype)
+            lon = array_construct([lon], dtype=dtype)
+            lat = array_construct([lat], dtype=dtype)
             if np.dtype(dtype).itemsize < 8:
                 abs_tolerance = 1e-4
 
@@ -68,6 +106,7 @@ class TestAstronomy:
         else:
             assert sun_theta.dtype == dtype
             np.testing.assert_allclose(sun_theta, exp_theta, atol=abs_tolerance)
+            assert isinstance(sun_theta, type(lon))
 
     def test_sun_earth_distance_correction(self):
         """Test the sun-earth distance correction."""

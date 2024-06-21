@@ -20,25 +20,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import unittest
-
 from datetime import datetime
+
+import pytest
+
 import pyorbital.astronomy as astr
 
 
-class TestAstronomy(unittest.TestCase):
-
-    def setUp(self):
-        pass
+class TestAstronomy:
 
     def test_jdays(self):
         """Test julian day functions."""
         t = datetime(2000, 1, 1, 12, 0)
-        self.assertEqual(astr.jdays(t), 2451545.0)
-        self.assertEqual(astr.jdays2000(t), 0)
+        assert astr.jdays(t) == 2451545.0
+        assert astr.jdays2000(t) == 0
         t = datetime(2009, 10, 8, 14, 30)
-        self.assertEqual(astr.jdays(t), 2455113.1041666665)
-        self.assertEqual(astr.jdays2000(t), 3568.1041666666665)
+        assert astr.jdays(t) == 2455113.1041666665
+        assert astr.jdays2000(t) == 3568.1041666666665
 
     def test_sunangles(self):
         """Test the sun-angle calculations."""
@@ -46,13 +44,13 @@ class TestAstronomy(unittest.TestCase):
         time_slot = datetime(2011, 9, 23, 12, 0)
 
         sun_theta = astr.sun_zenith_angle(time_slot, lon, lat)
-        self.assertAlmostEqual(sun_theta, 60.371433482557833, places=8)
+        assert sun_theta == pytest.approx(60.371433482557833, abs=1e-8)
         sun_theta = astr.sun_zenith_angle(time_slot, 0., 0.)
-        self.assertAlmostEqual(sun_theta, 1.8751916863323426, places=8)
+        assert sun_theta == pytest.approx(1.8751916863323426, abs=1e-8)
 
     def test_sun_earth_distance_correction(self):
         """Test the sun-earth distance correction."""
         utc_time = datetime(2022, 6, 15, 12, 0, 0)
         corr = astr.sun_earth_distance_correction(utc_time)
         corr_exp = 1.0156952156742332
-        self.assertAlmostEqual(corr, corr_exp, places=8)
+        assert corr == pytest.approx(corr_exp, abs=1e-8)

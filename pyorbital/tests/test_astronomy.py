@@ -22,6 +22,7 @@
 
 from datetime import datetime
 
+import numpy as np
 import pytest
 
 import pyorbital.astronomy as astr
@@ -29,24 +30,44 @@ import pyorbital.astronomy as astr
 
 class TestAstronomy:
 
-    def test_jdays(self):
+    @pytest.mark.parametrize(
+        ("dt", "exp_jdays", "exp_j2000"),
+        [
+            (datetime(2000, 1, 1, 12, 0), 2451545.0, 0),
+            (datetime(2009, 10, 8, 14, 30), 2455113.1041666665, 3568.1041666666665),
+        ]
+    )
+    def test_jdays(self, dt, exp_jdays, exp_j2000):
         """Test julian day functions."""
-        t = datetime(2000, 1, 1, 12, 0)
-        assert astr.jdays(t) == 2451545.0
-        assert astr.jdays2000(t) == 0
-        t = datetime(2009, 10, 8, 14, 30)
-        assert astr.jdays(t) == 2455113.1041666665
-        assert astr.jdays2000(t) == 3568.1041666666665
+        assert astr.jdays(dt) == exp_jdays
+        assert astr.jdays2000(dt) == exp_j2000
 
-    def test_sunangles(self):
+    @pytest.mark.parametrize(
+        ("lon", "lat", "exp_theta"),
+        [
+            # Norrkoping
+            (16.1833, 58.6167, 60.371433482557833),
+            (0.0, 0.0, 1.8751916863323426),
+        ]
+    )
+    @pytest.mark.parametrize("dtype", [None, np.float32, np.float64])
+    def test_sunangles(self, lon, lat, exp_theta, dtype):
         """Test the sun-angle calculations."""
-        lat, lon = 58.6167, 16.1833  # Norrkoping
         time_slot = datetime(2011, 9, 23, 12, 0)
+        abs_tolerance = 1e-8
+        if dtype is not None:
+            lon = np.array([lon], dtype=dtype)
+            lat = np.array([lat], dtype=dtype)
+            if np.dtype(dtype).itemsize < 8:
+                abs_tolerance = 1e-4
 
         sun_theta = astr.sun_zenith_angle(time_slot, lon, lat)
-        assert sun_theta == pytest.approx(60.371433482557833, abs=1e-8)
-        sun_theta = astr.sun_zenith_angle(time_slot, 0., 0.)
-        assert sun_theta == pytest.approx(1.8751916863323426, abs=1e-8)
+        if dtype is None:
+            assert sun_theta == pytest.approx(exp_theta, abs=abs_tolerance)
+            assert isinstance(sun_theta, float)
+        else:
+            assert sun_theta.dtype == dtype
+            np.testing.assert_allclose(sun_theta, exp_theta, atol=abs_tolerance)
 
     def test_sun_earth_distance_correction(self):
         """Test the sun-earth distance correction."""

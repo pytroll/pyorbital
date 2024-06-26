@@ -1,3 +1,20 @@
+## Version 1.8.3 (2024/06/25)
+
+### Issues Closed
+
+* [Issue 151](https://github.com/pytroll/pyorbital/issues/151) - Issue Calculating Accurate View Zenith Angles on Terra Satellite Overpasses
+
+In this release 1 issue was closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 156](https://github.com/pytroll/pyorbital/pull/156) - Fix dtype preservation in astronomy functions
+
+In this release 1 pull request was closed.
+
+
 ## Version 1.8.2 (2024/02/05)
 
 ### Issues Closed

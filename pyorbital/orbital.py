@@ -339,7 +339,7 @@ class Orbital(object):
         :length: Number of hours to find passes (int)
         :lon: Longitude of observer position on ground (float)
         :lat: Latitude of observer position on ground (float)
-        :alt: Altitude above sea-level (geoid) of observer position on ground (float)
+        :alt: Altitude above sea-level (geoid) in km of observer position on ground (float)
         :tol: precision of the result in seconds
         :horizon: the elevation of horizon to compute risetime and falltime.
 

@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2011, 2013
+# Copyright (c) 2011, 2013, 2023
 #
 # Author(s):
 #
 #   Martin Raspaud <martin.raspaud@smhi.se>
+#   Bardur Arantsson <bardur.arantsson@smhi.se>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -39,39 +40,69 @@ produce scalar outputs.
 import datetime
 
 import numpy as np
+from typing import Tuple, Union
 
 from pyorbital import dt2np
 
-F = 1 / 298.257223563  # Earth flattening WGS-84
-A = 6378.137  # WGS84 Equatorial radius
+# Astronomical constants
+AU = 149597870700.0  # Astronomical unit in meters
+EARTH_ flattening = 1 / 298.257223563  # Earth flattening WGS-84
+EARTH_RADIUS = 6378.137  # WGS84 Equatorial radius in km
 MFACTOR = 7.292115E-5
+EARTH_SEMI_MAJOR_AXIS = 1.00000261 * AU  # Earth semi-major axis in meters
+EARTH_ECCENTRICITY = 0.01671123  # Earth orbital eccentricity
+EARTH_YEAR = 365.25636  # Length of Earth year in days
+PERIHELION_DAY = 3  # Day of year with Earth in perihelion (approx.)
+
+# Type alias for time arguments
+TimeLike = Union[dt.datetime, np.datetime64, np.ndarray]
 
 
-def jdays2000(utc_time):
+def jdays2000(utc_time: TimeLike) -> Union[float, np.ndarray]:
     """Get the days since year 2000.
+
+    :param utc_time: UTC time
+    :type utc_time: datetime.datetime, numpy.datetime64, or array-like
+    :return: Days since year 2000
+    :rtype: float or numpy.ndarray
     """
     return _days(dt2np(utc_time) - np.datetime64('2000-01-01T12:00'))
 
 
-def jdays(utc_time):
-    """Get the julian day of *utc_time*.
+def jdays(utc_time: TimeLike) -> Union[float, np.ndarray]:
+    """Get the Julian day of *utc_time*.
+
+    :param utc_time: UTC time
+    :type utc_time: datetime.datetime, numpy.datetime64, or array-like
+    :return: Julian day
+    :rtype: float or numpy.ndarray
     """
     return jdays2000(utc_time) + 2451545.0
 
 
-def _days(dt):
+def _days(dt: TimeLike) -> Union[float, np.ndarray]:
     """Get the days (floating point) from *d_t*.
+
+    :param dt: Time delta
+    :type dt: datetime.timedelta or numpy.timedelta64
+    :return: Days
+    :rtype: float or numpy.ndarray
     """
     if hasattr(dt, "shape"):
         dt = np.asanyarray(dt, dtype=np.timedelta64)
     return dt / np.timedelta64(1, 'D')
 
 
-def gmst(utc_time):
-    """Greenwich mean sidereal utc_time, in radians.
+def gmst(utc_time: TimeLike) -> Union[float, np.ndarray]:
+    """Greenwich mean sidereal time, in radians.
 
     As defined in the AIAA 2006 implementation:
     http://www.celestrak.com/publications/AIAA/2006-6753/
+
+    :param utc_time: UTC time
+    :type utc_time: datetime.datetime, numpy.datetime64, or array-like
+    :return: Greenwich mean sidereal time in radians
+    :rtype: float or numpy.ndarray
     """
     ut1 = jdays2000(utc_time) / 36525.0
     theta = 67310.54841 + ut1 * (876600 * 3600 + 8640184.812866 + ut1 *
@@ -79,15 +110,27 @@ def gmst(utc_time):
     return np.deg2rad(theta / 240.0) % (2 * np.pi)
 
 
-def _lmst(utc_time, longitude):
+def _lmst(utc_time: TimeLike, longitude: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
     """Local mean sidereal time, computed from *utc_time* and *longitude*.
     In radians.
+
+    :param utc_time: UTC time
+    :type utc_time: datetime.datetime, numpy.datetime64, or array-like
+    :param longitude: Longitude in radians
+    :type longitude: float or numpy.ndarray
+    :return: Local mean sidereal time in radians
+    :rtype: float or numpy.ndarray
     """
     return gmst(utc_time) + longitude
 
 
-def sun_ecliptic_longitude(utc_time):
+def sun_ecliptic_longitude(utc_time: TimeLike) -> Union[float, np.ndarray]:
     """Ecliptic longitude of the sun at *utc_time*.
+
+    :param utc_time: UTC time
+    :type utc_time: datetime.datetime, numpy.datetime64, or array-like
+    :return: Ecliptic longitude of the sun in radians
+    :rtype: float or numpy.ndarray
     """
     jdate = jdays2000(utc_time) / 36525.0
     # mean anomaly, rad
@@ -104,8 +147,13 @@ def sun_ecliptic_longitude(utc_time):
     return np.deg2rad(l__)
 
 
-def sun_ra_dec(utc_time):
+def sun_ra_dec(utc_time: TimeLike) -> Tuple[Union[float, np.ndarray], Union[float, np.ndarray]]:
     """Right ascension and declination of the sun at *utc_time*.
+
+    :param utc_time: UTC time
+    :type utc_time: datetime.datetime, numpy.datetime64, or array-like
+    :return: (Right ascension, Declination) in radians
+    :rtype: tuple of float or numpy.ndarray
     """
     jdate = jdays2000(utc_time) / 36525.0
     eps = np.deg2rad(23.0 + 26.0 / 60.0 + 21.448 / 3600.0 -
@@ -123,19 +171,34 @@ def sun_ra_dec(utc_time):
     return right_ascension, declination
 
 
-def _local_hour_angle(utc_time, longitude, right_ascension):
+def _local_hour_angle(utc_time: TimeLike, longitude: Union[float, np.ndarray],
+                      right_ascension: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
     """Hour angle at *utc_time* for the given *longitude* and
-    *right_ascension*
-    longitude in radians
+    *right_ascension*. Longitude in radians.
+
+    :param utc_time: UTC time
+    :type utc_time: datetime.datetime, numpy.datetime64, or array-like
+    :param longitude: Longitude in radians
+    :type longitude: float or numpy.ndarray
+    :param right_ascension: Right ascension in radians
+    :type right_ascension: float or numpy.ndarray
+    :return: Local hour angle in radians
+    :rtype: float or numpy.ndarray
     """
     return _lmst(utc_time, longitude) - right_ascension
 
 
-def get_alt_az(utc_time, lon, lat):
+def get_alt_az(utc_time: TimeLike, lon: Union[float, np.ndarray], lat: Union[float, np.ndarray]) -> Tuple[Union[float, np.ndarray], Union[float, np.ndarray]]:
     """Return sun altitude and azimuth from *utc_time*, *lon*, and *lat*.
 
-    lon,lat in degrees
-    The returned angles are given in radians.
+    :param utc_time: UTC time
+    :type utc_time: datetime.datetime, numpy.datetime64, or array-like
+    :param lon: Longitude in degrees
+    :type lon: float or numpy.ndarray
+    :param lat: Latitude in degrees
+    :type lat: float or numpy.ndarray
+    :return: (Altitude, Azimuth) in radians
+    :rtype: tuple of float or numpy.ndarray
     """
     lon = np.deg2rad(lon)
     lat = np.deg2rad(lat)
@@ -151,10 +214,17 @@ def get_alt_az(utc_time, lon, lat):
     return alt_az
 
 
-def cos_zen(utc_time, lon, lat):
+def cos_zen(utc_time: TimeLike, lon: Union[float, np.ndarray], lat: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
     """Cosine of the sun-zenith angle for *lon*, *lat* at *utc_time*.
-    utc_time: datetime.datetime instance of the UTC time
-    lon and lat in degrees.
+
+    :param utc_time: UTC time
+    :type utc_time: datetime.datetime, numpy.datetime64, or array-like
+    :param lon: Longitude in degrees
+    :type lon: float or numpy.ndarray
+    :param lat: Latitude in degrees
+    :type lat: float or numpy.ndarray
+    :return: Cosine of the sun-zenith angle
+    :rtype: float or numpy.ndarray
     """
     lon = np.deg2rad(lon)
     lat = np.deg2rad(lat)
@@ -167,10 +237,17 @@ def cos_zen(utc_time, lon, lat):
     return csza
 
 
-def sun_zenith_angle(utc_time, lon, lat):
+def sun_zenith_angle(utc_time: TimeLike, lon: Union[float, np.ndarray], lat: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
     """Sun-zenith angle for *lon*, *lat* at *utc_time*.
-    lon,lat in degrees.
-    The angle returned is given in degrees
+
+    :param utc_time: UTC time
+    :type utc_time: datetime.datetime, numpy.datetime64, or array-like
+    :param lon: Longitude in degrees
+    :type lon: float or numpy.ndarray
+    :param lat: Latitude in degrees
+    :type lat: float or numpy.ndarray
+    :return: Sun-zenith angle in degrees
+    :rtype: float or numpy.ndarray
     """
     sza = np.rad2deg(np.arccos(cos_zen(utc_time, lon, lat)))
     if not isinstance(lon, float):
@@ -178,48 +255,53 @@ def sun_zenith_angle(utc_time, lon, lat):
     return sza
 
 
-def sun_earth_distance_correction(utc_time):
+def sun_earth_distance_correction(utc_time: TimeLike) -> Union[float, np.ndarray]:
     """Calculate the sun earth distance correction, relative to 1 AU.
+
+    :param utc_time: UTC time
+    :type utc_time: datetime.datetime, numpy.datetime64, or array-like
+    :return: Sun-Earth distance correction relative to 1 AU
+    :rtype: float or numpy.ndarray
     """
-    # Computation according to
-    #  https://web.archive.org/web/20150117190838/http://curious.astro.cornell.edu/question.php?number=582
-    # with
-    #  Astronomical unit: AU = 149597870700.0 meter (https://ssd.jpl.nasa.gov/glossary/au.html)
-    #  Semi-major axis:    a = 1.00000261 AU = 149598261150.0 m (https://ssd.jpl.nasa.gov/planets/approx_pos.html)
-    #  Eccentricity:       e = 0.01671123 (https://ssd.jpl.nasa.gov/planets/approx_pos.html)
-    #  Length of year:  year = 365.25636 days (https://ssd.jpl.nasa.gov/astro_par.html)
-    #  Perihelion:         p = 3 (day of year with Earth in perihelion, varies between Jan 2 and Jan 5,
-    #                             http://www.astropixels.com/ephemeris/perap2001.html
-    #                             https://web.archive.org/web/20080328044924/http://aa.usno.navy.mil/data/docs/EarthSeasons)
-    # Formula:
-    #  theta = (jdays2000(utc_time) - p) * (2 * np.pi) / year
-    #  r = a * (1 - e * e) / (1 + e * np.cos(theta))
-    #  corr := r/AU
-    #        =  a * (1 - e * e) / AU / (1 + e * np.cos(theta))
-    #       "=" a * (1 - e * e) / AU * (1 - e * np.cos(theta))
-    #       "=" 1 - 0.0167 * np.cos(theta)
-
-    corr = 1 - 0.0167 * np.cos(2 * np.pi * (jdays2000(utc_time) - 3) / 365.25636)
-    return corr
+    theta = 2 * np.pi * (jdays2000(utc_time) - PERIHELION_DAY) / EARTH_YEAR
+    return 1 - EARTH_ECCENTRICITY * np.cos(theta)
 
 
-def observer_position(utc_time, lon, lat, alt):
+def observer_position(utc_time: TimeLike, lon: Union[float, np.ndarray],
+                      lat: Union[float, np.ndarray], alt: Union[float, np.ndarray]) -> Tuple[Tuple[Union[float, np.ndarray], Union[float, np.ndarray], Union[float, np.ndarray]], Tuple[Union[float, np.ndarray], Union[float, np.ndarray], Union[float, np.ndarray]]]:
     """Calculate observer ECI position.
 
     http://celestrak.com/columns/v02n03/
+
+    :param utc_time: UTC time
+    :type utc_time: datetime.datetime, numpy.datetime64, or array-like
+    :param lon: Longitude in degrees
+    :type lon: float or numpy.ndarray
+    :param lat: Latitude in degrees
+    :type lat: float or numpy.ndarray
+    :param alt: Altitude above sea-level (geoid) in km
+    :type alt: float or numpy.ndarray
+    :raises TypeError: if altitude is not a number
+    :raises ValueError: if altitude is negative
+    :return: ((X, Y, Z), (VX, VY, VZ)) in km and km/s
+    :rtype: tuple of tuples of float or numpy.ndarray
     """
+    if not isinstance(alt, (int, float)):
+        raise TypeError("Altitude must be a number.")
+    if alt < 0:
+        raise ValueError("Altitude must be non-negative.")
 
     lon = np.deg2rad(lon)
     lat = np.deg2rad(lat)
 
     theta = (gmst(utc_time) + lon) % (2 * np.pi)
-    c = 1 / np.sqrt(1 + F * (F - 2) * np.sin(lat)**2)
-    sq = c * (1 - F)**2
+    c = 1 / np.sqrt(1 + EARTH_flattening * (EARTH_flattening - 2) * np.sin(lat)**2)
+    sq = c * (1 - EARTH_flattening)**2
 
-    achcp = (A * c + alt) * np.cos(lat)
+    achcp = (EARTH_RADIUS * c + alt) * np.cos(lat)
     x = achcp * np.cos(theta)  # kilometers
     y = achcp * np.sin(theta)
-    z = (A * sq + alt) * np.sin(lat)
+    z = (EARTH_RADIUS * sq + alt) * np.sin(lat)
 
     vx = -MFACTOR * y  # kilometers/second
     vy = MFACTOR * x

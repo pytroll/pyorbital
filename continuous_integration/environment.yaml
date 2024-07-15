@@ -21,6 +21,8 @@ dependencies:
   - behave
   - zarr
   - geoviews
+  - geopy
+  - geojson
   - pytest
   - pytest-cov
   - fsspec

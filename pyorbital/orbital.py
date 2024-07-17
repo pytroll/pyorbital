@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011-2023 Pyorbital developers
+# Copyright (c) 2011-2024 Pyorbital developers
 
 # Author(s):
 
@@ -86,11 +86,14 @@ A3OVK2 = (-XJ3 / CK2) * AE**3
 
 
 class OrbitalError(Exception):
+    """Custom exception for the Orbital class."""
+
     pass
 
 
 def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     """Calculate observers look angle to a satellite.
+
     http://celestrak.com/columns/v02n02/
 
     :utc_time: Observation time (datetime object)
@@ -142,7 +145,6 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
 
 
 class Orbital(object):
-
     """Class for orbital computations.
 
     The *satellite* parameter is the name of the satellite to work on and is
@@ -151,6 +153,7 @@ class Orbital(object):
     """
 
     def __init__(self, satellite, tle_file=None, line1=None, line2=None):
+        """Initialize the class."""
         satellite = satellite.upper()
         self.satellite_name = satellite
         self.tle = tlefile.read(satellite, tle_file=tle_file,
@@ -159,16 +162,14 @@ class Orbital(object):
         self._sgdp4 = _SGDP4(self.orbit_elements)
 
     def __str__(self):
+        """Print the Orbital object state."""
         return self.satellite_name + " " + str(self.tle)
 
     def get_last_an_time(self, utc_time):
-        """Calculate time of last ascending node relative to the
-        specified time
-        """
-
+        """Calculate time of last ascending node relative to the specified time."""
         # Propagate backwards to ascending node
         dt = np.timedelta64(10, 'm')
-        t_old = utc_time
+        t_old = np.datetime64(utc_time)
         t_new = t_old - dt
         pos0, vel0 = self.get_position(t_old, normalize=False)
         pos1, vel1 = self.get_position(t_new, normalize=False)
@@ -236,14 +237,17 @@ class Orbital(object):
         return np.rad2deg(lon), np.rad2deg(lat), alt
 
     def find_aos(self, utc_time, lon, lat):
+        """Find AOS."""
         pass
 
     def find_aol(self, utc_time, lon, lat):
+        """Find AOL."""
         pass
 
     def get_observer_look(self, utc_time, lon, lat, alt):
         """Calculate observers look angle to a satellite.
-        http://celestrak.com/columns/v02n02/
+
+        See http://celestrak.com/columns/v02n02/
 
         utc_time: Observation time (datetime object)
         lon: Longitude of observer position on ground in degrees east
@@ -251,8 +255,8 @@ class Orbital(object):
         alt: Altitude above sea-level (geoid) of observer position on ground in km
 
         Return: (Azimuth, Elevation)
-        """
 
+        """
         utc_time = dt2np(utc_time)
         (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(
             utc_time, normalize=False)
@@ -330,8 +334,7 @@ class Orbital(object):
         return orbit
 
     def get_next_passes(self, utc_time, length, lon, lat, alt, tol=0.001, horizon=0):
-        """Calculate passes for the next hours for a given start time and a
-        given observer.
+        """Calculate passes for the next hours for a given start time and a given observer.
 
         Original by Martin.
 
@@ -344,8 +347,8 @@ class Orbital(object):
         :horizon: the elevation of horizon to compute risetime and falltime.
 
         :return: [(rise-time, fall-time, max-elevation-time), ...]
-        """
 
+        """
         def elevation(minutes):
             """Compute the elevation."""
             return self.get_observer_look(utc_time +
@@ -358,7 +361,7 @@ class Orbital(object):
             return -elevation(minutes)
 
         def get_root(fun, start, end, tol=0.01):
-            """Root finding scheme"""
+            """Root finding scheme."""
             x_0 = end
             x_1 = start
             fx_0 = fun(end)
@@ -432,15 +435,18 @@ class Orbital(object):
         return res
 
     def _get_time_at_horizon(self, utc_time, obslon, obslat, **kwargs):
-        """Get the time closest in time to *utc_time* when the
-        satellite is at the horizon relative to the position of an observer on
-        ground (altitude = 0)
+        """Determine when the satellite is at the horizon relative to an observer on ground.
+
+        Get the time closest in time to *utc_time* when the satellite is at the
+        horizon relative to the position of an observer on ground (altitude =
+        0).
 
         Note: This is considered deprecated and it's functionality is currently
         replaced by 'get_next_passes'.
+
         """
         warnings.warn("_get_time_at_horizon is replaced with get_next_passes",
-                      DeprecationWarning)
+                      DeprecationWarning, stacklevel=2)
         if "precision" in kwargs:
             precision = kwargs['precision']
         else:
@@ -518,7 +524,7 @@ class Orbital(object):
             return None
         elif n_end - n_start > 1:
             warnings.warn('Multiple revolutions between start and end time. Computing crossing '
-                          'time for the last revolution in that interval.')
+                          'time for the last revolution in that interval.', stacklevel=2)
 
         # Let n'(t) = n(t) - offset. Determine offset so that n'(tstart) < 0 and n'(tend) > 0 and
         # n'(tcross) = 0.
@@ -555,11 +561,10 @@ class Orbital(object):
 
 
 class OrbitElements(object):
-
-    """Class holding the orbital elements.
-    """
+    """Class holding the orbital elements."""
 
     def __init__(self, tle):
+        """Initialize the class."""
         self.epoch = tle.epoch
         self.excentricity = tle.excentricity
         self.inclination = np.deg2rad(tle.inclination)
@@ -609,9 +614,7 @@ class OrbitElements(object):
 
 
 class _SGDP4(object):
-
-    """Class for the SGDP4 computations.
-    """
+    """Class for the SGDP4 computations."""
 
     def __init__(self, orbit_elements):
         self.mode = None
@@ -918,6 +921,10 @@ class _SGDP4(object):
 
 
 def kep2xyz(kep):
+    """Keppler to cartesian coordinates conversion.
+
+    (Not sure what 'kep' acttually refers to, just guessing! FIXME!)
+    """
     sinT = np.sin(kep['theta'])
     cosT = np.cos(kep['theta'])
     sinI = np.sin(kep['eqinc'])

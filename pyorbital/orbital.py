@@ -927,13 +927,12 @@ def _get_tz_unaware_utctime(utc_time):
     The input *utc_time* is either a timezone unaware object assumed to be in
     UTC, or a timezone aware datetime object in UTC.
     """
-    if not hasattr(utc_time, 'tzinfo') or utc_time.tzinfo is None:
-        return utc_time
+    if isinstance(utc_time, datetime):
+        if utc_time.tzinfo and utc_time.tzinfo != pytz.utc:
+            raise AttributeError("UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!")
+        return utc_time.replace(tzinfo=None)
 
-    if utc_time.tzinfo != pytz.utc:
-        raise AttributeError("UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!")
-
-    return utc_time.replace(tzinfo=None)
+    return utc_time
 
 
 def kep2xyz(kep):

@@ -27,6 +27,7 @@
 import logging
 import warnings
 from datetime import datetime, timedelta
+import pytz
 
 import numpy as np
 from scipy import optimize
@@ -169,7 +170,7 @@ class Orbital(object):
         """Calculate time of last ascending node relative to the specified time."""
         # Propagate backwards to ascending node
         dt = np.timedelta64(10, 'm')
-        t_old = np.datetime64(utc_time)
+        t_old = np.datetime64(_get_tz_unaware_utctime(utc_time))
         t_new = t_old - dt
         pos0, vel0 = self.get_position(t_old, normalize=False)
         pos1, vel1 = self.get_position(t_new, normalize=False)
@@ -918,6 +919,21 @@ class _SGDP4(object):
         kep['rfdotk'] = rfdotk
 
         return kep
+
+
+def _get_tz_unaware_utctime(utc_time):
+    """Return timzone unaware datetime object.
+
+    The input *utc_time* is either a timezone unaware object assumed to be in
+    UTC, or a timezone aware datetime object in UTC.
+    """
+    if not hasattr(utc_time, 'tzinfo') or utc_time.tzinfo is None:
+        return utc_time
+
+    if utc_time.tzinfo != pytz.utc:
+        raise AttributeError("UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!")
+
+    return utc_time.replace(tzinfo=None)
 
 
 def kep2xyz(kep):

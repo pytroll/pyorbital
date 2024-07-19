@@ -26,6 +26,7 @@ import pytest
 import unittest
 from unittest import mock
 from datetime import datetime, timedelta
+import pytz
 import numpy as np
 from pyorbital import orbital
 
@@ -417,21 +418,37 @@ class TestRegressions(unittest.TestCase):
         warnings.filterwarnings('default')
 
 
-@pytest.mark.parametrize('dtime, expected',
-                         [(datetime(2024, 6, 25, 11, 0, 18),
-                           np.datetime64('2024-06-25T10:44:18.234375')),
-                          (datetime(2024, 6, 25, 11, 5, 0),
-                           np.datetime64('2024-06-25T10:44:18.234375')),
-                          (np.datetime64('2024-06-25T11:10:00.000000'),
-                           np.datetime64('2024-06-25T10:44:18.234375')),
+@pytest.mark.parametrize('dtime',
+                         [datetime(2024, 6, 25, 11, 0, 18),
+                          datetime(2024, 6, 25, 11, 5, 0, 0, pytz.UTC),
+                          np.datetime64('2024-06-25T11:10:00.000000')
                           ]
                          )
-def test_get_last_an_time_scalar_input(dtime, expected):
+def test_get_last_an_time_scalar_input(dtime):
     """Test getting the time of the last ascending node - input time is a scalar."""
     from pyorbital.orbital import Orbital
     orb = Orbital("NOAA-20",
                   line1='1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014',
                   line2='2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971')
 
+    expected = np.datetime64('2024-06-25T10:44:18.234375')
     result = orb.get_last_an_time(dtime)
     assert abs(expected - result) < np.timedelta64(1, 's')
+
+
+@pytest.mark.parametrize('dtime',
+                         [datetime(2024, 6, 25, 11, 5, 0, 0, pytz.timezone('Europe/Stockholm')),
+                          ]
+                         )
+def test_get_last_an_time_wrong_input(dtime):
+    """Test getting the time of the last ascending node - wrong input."""
+    from pyorbital.orbital import Orbital
+    orb = Orbital("NOAA-20",
+                  line1='1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014',
+                  line2='2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971')
+
+    with pytest.raises(AttributeError) as exec_info:
+        _ = orb.get_last_an_time(dtime)
+
+    expected = "UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!"
+    assert str(exec_info.value) == expected

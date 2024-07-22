@@ -929,7 +929,7 @@ def _get_tz_unaware_utctime(utc_time):
     """
     if isinstance(utc_time, datetime):
         if utc_time.tzinfo and utc_time.tzinfo != pytz.utc:
-            raise AttributeError("UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!")
+            raise ValueError("UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!")
         return utc_time.replace(tzinfo=None)
 
     return utc_time

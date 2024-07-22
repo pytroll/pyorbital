@@ -447,7 +447,7 @@ def test_get_last_an_time_wrong_input(dtime):
                   line1='1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014',
                   line2='2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971')
 
-    with pytest.raises(AttributeError) as exec_info:
+    with pytest.raises(ValueError) as exec_info:
         _ = orb.get_last_an_time(dtime)
 
     expected = "UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!"

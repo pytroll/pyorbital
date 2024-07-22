@@ -938,7 +938,7 @@ def _get_tz_unaware_utctime(utc_time):
 def kep2xyz(kep):
     """Keppler to cartesian coordinates conversion.
 
-    (Not sure what 'kep' acttually refers to, just guessing! FIXME!)
+    (Not sure what 'kep' actually refers to, just guessing! FIXME!)
     """
     sinT = np.sin(kep['theta'])
     cosT = np.cos(kep['theta'])

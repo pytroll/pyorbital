@@ -29,7 +29,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Check if a satellite is supported.')
     parser.add_argument("-s", "--satellite",
-                        help=("Name of the Satellite - following WMO Oscar naming."),
+                        help=("Name of the Satellite [in upper case] - following WMO Oscar naming."),
                         default=None,
                         required=True,
                         type=str)

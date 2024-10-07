@@ -1,0 +1,92 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# Copyright (c) 2024 Pyorbital developers
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+"""Functions to support handling many archived TLEs."""
+
+
+import numpy as np
+import datetime as dt
+from datetime import timezone
+from pyorbital.tlefile import Tle
+
+max_tle_days_diff = 3
+
+
+class TwoLineElementsFinder:
+    """Finding the most adequate TLEs for a given platform and time."""
+
+    def __init__(self, platform_catalogue_id, tle_filename, tle_buffer=None):
+        """Initialize the class."""
+        self.tle_id = platform_catalogue_id
+        self.filename = tle_filename
+        self._tles_as_list = self._read_tles_from_file()
+        if tle_buffer:
+            self.tle_buffer = tle_buffer
+        else:
+            self.tle_buffer = {}
+
+    def _read_tles_from_file(self):
+        """Read the TLEs from file."""
+        with open(self.filename, 'r') as fh_:
+            tle_data_as_list = fh_.readlines()
+        return tle_data_as_list
+
+    def populate_tle_buffer(self):
+        """Populate the TLE buffer."""
+        for ind in range(0, len(self._tles_as_list), 2):
+            if self.tle_id in self._tles_as_list[ind]:
+                tle = Tle(self.tle_id, line1=self._tles_as_list[ind], line2=self._tles_as_list[ind+1])
+                ts = (tle.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+                tobj = dt.datetime.fromtimestamp(ts, tz=timezone.utc)
+                self.tle_buffer[tobj] = tle
+
+    def get_best_tle_from_archive(self, time_requested):
+        """From the archive get the Two-Line elements that best fit for the requested time.
+
+        The TLE buffer tle_buffer is being updated.
+        """
+        # Read tle data if not already in buffer
+        if len(self.tle_buffer) == 0:
+            self.populate_tle_buffer()
+
+        for tobj in self.tle_buffer:
+            if tobj > time_requested:
+                deltat = tobj - time_requested
+            else:
+                deltat = time_requested - tobj
+            if np.abs((deltat).days) < 1:
+                return self.tle_buffer[tobj]
+
+        for delta_days in range(1, max_tle_days_diff + 1, 1):
+            for tobj in self.tle_buffer:
+                if tobj > time_requested:
+                    deltat = tobj - time_requested
+                else:
+                    deltat = time_requested - tobj
+                if np.abs((deltat).days) <= delta_days:
+                    print("Did not find TLE for {:s}, Using TLE from {:s}".format(tobj.strftime("%Y%m%d"),
+                                                                                  time_requested.strftime("%Y%m%d")))
+                    return self.tle_buffer[tobj]
+        print("Did not find TLE for {:s} +/- 3 days")
+
+
+def get_datetime_from_tle(tle_obj):
+    """Get the datetime from a TLE object."""
+    ts = (tle_obj.epoch - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+    # return dt.datetime.utcfromtimestamp(ts)
+    return dt.datetime.fromtimestamp(ts, tz=timezone.utc)

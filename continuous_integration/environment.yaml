@@ -19,7 +19,6 @@ dependencies:
   - coverage
   - codecov
   - behave
-  - mock
   - zarr
   - geoviews
   - pytest

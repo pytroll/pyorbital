@@ -1,4 +1,4 @@
-<!-- Please make the PR against the `master` branch. -->
+<!-- Please make the PR against the `main` branch. -->
 
 <!-- Describe what your PR does, and why -->
 

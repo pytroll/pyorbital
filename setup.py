@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2011-2021 Pytroll Community
+# Copyright (c) 2011-2023 Pytroll Community
 #
 # Author(s):
 #
@@ -52,10 +52,11 @@ setup(name='pyorbital',
       url="https://github.com/pytroll/pyorbital",
       long_description=long_description,
       long_description_content_type='text/markdown',
-      test_suite='pyorbital.tests.suite',
       packages=find_packages(),
       package_data={'pyorbital': [os.path.join('etc', 'platforms.txt')]},
       scripts=['bin/fetch_tles.py', ],
       install_requires=['numpy>=1.19.0', 'scipy', 'requests'],
+      python_requires='>=3.9',
+      extras_require={"doc": ["sphinx", "sphinx_rtd_theme", "sphinxcontrib-apidoc"]},
       zip_safe=False,
       )

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2014, 2017, 2018, 2021 Martin Raspaud
+# Copyright (c) 2014-2023 Pytroll Community
 
 # Author(s):
 
@@ -19,19 +19,17 @@
 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""Test the geoloc module.
-"""
 
-import unittest
+"""Test the geoloc module."""
+
 from datetime import datetime
-
 import numpy as np
 
 from pyorbital.geoloc import ScanGeometry, geodetic_lat, qrotate, subpoint
 from pyorbital.geoloc_instrument_definitions import avhrr, viirs, amsua, mhs, hirs4, atms, ascat, slstr
 
 
-class TestQuaternion(unittest.TestCase):
+class TestQuaternion:
     """Test the quaternion rotation."""
 
     def test_qrotate(self):
@@ -39,35 +37,39 @@ class TestQuaternion(unittest.TestCase):
         vector = np.array([[1, 0, 0]]).T
         axis = np.array([[0, 1, 0]]).T
         angle = np.deg2rad(90)
-        self.assertTrue(np.allclose(qrotate(vector, axis, angle),
-                                    np.array([[0, 0, 1]]).T))
+
+        result = qrotate(vector, axis, angle)[:, 0]
+        expected = np.array([0, 0, 1])
+        np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
 
         axis = np.array([0, 1, 0])
-        self.assertTrue(np.allclose(qrotate(vector, axis, angle),
-                                    np.array([[0, 0, 1]]).T))
+        result = qrotate(vector, axis, angle)
+        expected = np.array([[0, 0, 1]]).T
+        np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
 
         vector = np.array([[1, 0, 0],
                            [0, 0, 1]]).T
         axis = np.array([0, 1, 0])
         angle = np.deg2rad(90)
-        self.assertTrue(np.allclose(qrotate(vector, axis, angle),
-                                    np.array([[0, 0, 1],
-                                              [-1, 0, 0]]).T))
+        result = qrotate(vector, axis, angle)
+        expected = np.array([[0, 0, 1],
+                             [-1, 0, 0]]).T
+
+        np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
 
         axis = np.array([[0, 1, 0]]).T
-        self.assertTrue(np.allclose(qrotate(vector, axis, angle),
-                                    np.array([[0, 0, 1],
-                                              [-1, 0, 0]]).T))
+        result = qrotate(vector, axis, angle)
+        expected = np.array([[0, 0, 1],
+                             [-1, 0, 0]]).T
+
+        np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
 
 
-class TestGeoloc(unittest.TestCase):
-
-    """Test for the core computing part.
-    """
+class TestGeoloc:
+    """Test for the core computing part."""
 
     def test_scan_geometry(self):
-        """Test the ScanGeometry object.
-        """
+        """Test the ScanGeometry object."""
         scans_nb = 1
 
         xy = np.vstack((np.deg2rad(np.array([10, 0, -10])),
@@ -78,8 +80,7 @@ class TestGeoloc(unittest.TestCase):
 
         instrument = ScanGeometry(xy, times)
 
-        self.assertTrue(np.allclose(np.rad2deg(instrument.fovs[0]),
-                                    np.array([[10, 0, -10]])))
+        np.testing.assert_allclose(np.rad2deg(instrument.fovs[0]), np.array([[10, 0, -10]]))
 
         # Test vectors
 
@@ -90,38 +91,39 @@ class TestGeoloc(unittest.TestCase):
 
         vec = instrument.vectors(pos, vel)
 
-        self.assertTrue(np.allclose(np.array([[0, 0, -1]]),
-                                    vec[:, 0, 1]))
+        result = vec[:, 0, 1]
+        expected = np.array([0.0, 0.0, -1.0])
+        np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
 
         # minus sin because we use trigonometrical direction of angles
+        result = vec[:, 0, 0]
+        expected = np.array([0, -np.sin(np.deg2rad(10)), -np.cos(np.deg2rad(10))])
+        np.testing.assert_allclose(result, expected, rtol=1e-7, atol=1e-7)
 
-        self.assertTrue(np.allclose(np.array([[0,
-                                               -np.sin(np.deg2rad(10)),
-                                               -np.cos(np.deg2rad(10))]]),
-                                    vec[:, 0, 0]))
-        self.assertTrue(np.allclose(np.array([[0,
-                                               -np.sin(np.deg2rad(-10)),
-                                               -np.cos(np.deg2rad(-10))]]),
-                                    vec[:, 0, 2]))
+        result = vec[:, 0, 2]
+        expected = np.array([0, -np.sin(np.deg2rad(-10)), -np.cos(np.deg2rad(-10))])
+        np.testing.assert_allclose(result, expected, rtol=1e-7, atol=1e-7)
 
         # Test times
 
         start_of_scan = np.datetime64(datetime(2014, 1, 8, 11, 30))
         times = instrument.times(start_of_scan)
 
-        self.assertEqual(times[0, 1], start_of_scan)
-        self.assertEqual(times[0, 0], start_of_scan -
-                         np.timedelta64(100, 'ms'))
-        self.assertEqual(times[0, 2], start_of_scan +
-                         np.timedelta64(100, 'ms'))
+        assert times[0, 1] == start_of_scan
+        assert times[0, 0] == start_of_scan - np.timedelta64(100, 'ms')
+        assert times[0, 2] == start_of_scan + np.timedelta64(100, 'ms')
 
     def test_geodetic_lat(self):
         """Test the determination of the geodetic latitude."""
-        point = np.array([7000, 0, 7000])
-        self.assertEqual(geodetic_lat(point), 0.78755832699854733)
+        point = np.array([[7000, 0, 7000]]).T
+        np.testing.assert_allclose(geodetic_lat(point),
+                                   np.array([0.78755832699854733]), rtol=1e-8, atol=1e-8)
+
         points = np.array([[7000, 0, 7000],
                            [7000, 0, 7000]]).T
-        self.assertTrue(np.allclose(geodetic_lat(points), np.array([0.78755832699854733, 0.78755832699854733])))
+        result = geodetic_lat(points)
+        expected = np.array([0.78755832699854733, 0.78755832699854733])
+        np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
 
     def test_subpoint(self):
         """Test nadir determination."""
@@ -129,71 +131,77 @@ class TestGeoloc(unittest.TestCase):
         b = 6356.75231414  # km, GRS80
         point = np.array([0, 0, 7000])
         nadir = subpoint(point, a, b)
-        self.assertTrue(np.allclose(nadir, np.array([[0, 0, b]])))
+        np.testing.assert_allclose(nadir, np.array([0, 0, b]), rtol=1e-7, atol=1e-7)
 
         point = np.array([7000, 0, 7000])
         nadir = subpoint(point, a, b)
-        self.assertTrue(np.allclose(nadir,
-                                    np.array([[4507.85431429,
-                                               0,
-                                               4497.06396339]])))
+        np.testing.assert_allclose(nadir,
+                                   np.array([4507.85431429,
+                                             0,
+                                             4497.06396339]), rtol=1e-8, atol=1e-8)
         points = np.array([[7000, 0, 7000],
                            [7000, 0, 7000]]).T
         nadir = subpoint(points, a, b)
-        self.assertTrue(np.allclose(nadir[:, 0],
-                                    np.array([[4507.85431429,
-                                               0,
-                                               4497.06396339]])))
-        self.assertTrue(np.allclose(nadir[:, 1],
-                                    np.array([[4507.85431429,
-                                               0,
-                                               4497.06396339]])))
+        np.testing.assert_allclose(nadir[:, 0],
+                                   np.array([4507.85431429,
+                                             0,
+                                             4497.06396339]), rtol=1e-8, atol=1e-8)
+        np.testing.assert_allclose(nadir[:, 1],
+                                   np.array([4507.85431429,
+                                             0,
+                                             4497.06396339]), rtol=1e-8, atol=1e-8)
 
 
-class TestGeolocDefs(unittest.TestCase):
-
-    """Test the instrument definitions.
-    """
+class TestGeolocDefs:
+    """Test the instrument definitions."""
 
     def test_avhrr(self):
-        """Test the definition of the avhrr instrument
-        """
+        """Test the definition of the avhrr instrument."""
         avh = avhrr(1, np.array([0, 1023.5, 2047]))
-        self.assertTrue(np.allclose(np.rad2deg(avh.fovs[0]),
-                                    np.array([55.37, 0, -55.37])))
+        result = np.rad2deg(avh.fovs[0])
+        expected = np.array([[55.37, 0, -55.37]])
+        np.testing.assert_allclose(result, expected, rtol=1e-7, atol=1e-7)
 
         avh = avhrr(1, np.array([0, 1023.5, 2047]), 10)
-        self.assertTrue(np.allclose(np.rad2deg(avh.fovs[0]),
-                                    np.array([10, 0, -10])))
+        np.testing.assert_allclose(np.rad2deg(avh.fovs[0]),
+                                   np.array([[10, 0, -10]]))
 
         # This is perhaps a bit odd, to require avhrr to accept floats for
         # the number of scans? FIXME!
         avh = avhrr(1.1, np.array([0, 1023.5, 2047]), 10)
-        self.assertTrue(np.allclose(np.rad2deg(avh.fovs[0]),
-                                    np.array([10, 0, -10])))
+        np.testing.assert_allclose(np.rad2deg(avh.fovs[0]),
+                                   np.array([[10, 0, -10]]))
 
     def test_viirs(self):
-        """Test the definition of the viirs instrument
-        """
+        """Test the definition of the viirs instrument."""
         geom = viirs(1, np.array([0, 3200, 6399]))
         expected_fovs = np.array([
             np.tile(np.array([[0.98, -0., -0.98]]), [32, 1]),
             np.tile(np.array([[0., -0., 0]]), [32, 1])], dtype=np.float64)
 
-        self.assertTrue(np.allclose(geom.fovs,
-                                    expected_fovs, rtol=1e-2, atol=1e-2))
+        np.testing.assert_allclose(geom.fovs,
+                                   expected_fovs, rtol=1e-2, atol=1e-2)
 
         geom = viirs(2, np.array([0, 3200, 6399]))
         expected_fovs = np.array([
             np.tile(np.array([[0.98, -0., -0.98]]), [32*2, 1]),
             np.tile(np.array([[0., -0., 0]]), [32*2, 1])], dtype=np.float64)
 
-        self.assertTrue(np.allclose(geom.fovs,
-                                    expected_fovs, rtol=1e-2, atol=1e-2))
+        np.testing.assert_allclose(geom.fovs,
+                                   expected_fovs, rtol=1e-2, atol=1e-2)
+
+    def test_viirs_defaults(self):
+        """Test the definition of the viirs instrument with default slicing."""
+        geom = viirs(1, chn_pixels=3)
+        expected_fovs = np.array([
+            np.tile(np.array([[0.98, -0., -0.98]]), [32, 1]),
+            np.tile(np.array([[0., -0., 0]]), [32, 1])], dtype=np.float64)
+
+        np.testing.assert_allclose(geom.fovs,
+                                   expected_fovs, rtol=1e-2, atol=1e-2)
 
     def test_amsua(self):
-        """Test the definition of the amsua instrument
-        """
+        """Test the definition of the amsua instrument."""
         geom = amsua(1)
         expected_fovs = np.array([
             [[0.84,  0.78,  0.73,  0.67,  0.61,  0.55,  0.49,  0.44,  0.38,
@@ -201,11 +209,10 @@ class TestGeolocDefs(unittest.TestCase):
               -0.2, -0.26, -0.32, -0.38, -0.44, -0.49, -0.55, -0.61, -0.67,
               -0.73, -0.78, -0.84]],
             np.zeros((1, 30))], dtype=np.float64)
-        self.assertTrue(np.allclose(geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
+        np.testing.assert_allclose(geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2)
 
     def test_mhs(self):
-        """Test the definition of the mhs instrument
-        """
+        """Test the definition of the mhs instrument."""
         geom = mhs(1)
         expected_fovs = np.array([
             [[0.86,  0.84,  0.82,  0.8,  0.79,  0.77,  0.75,  0.73,  0.71,
@@ -219,12 +226,11 @@ class TestGeolocDefs(unittest.TestCase):
               -0.53, -0.55, -0.57, -0.59, -0.61, -0.63, -0.65, -0.67, -0.69,
               -0.71, -0.73, -0.75, -0.77, -0.79, -0.8, -0.82, -0.84, -0.86]],
             np.zeros((1, 90))], dtype=np.float64)
-        self.assertTrue(np.allclose(geom.fovs,
-                                    expected_fovs, rtol=1e-2, atol=1e-2))
+        np.testing.assert_allclose(geom.fovs,
+                                   expected_fovs, rtol=1e-2, atol=1e-2)
 
     def test_hirs4(self):
-        """Test the definition of the hirs4 instrument
-        """
+        """Test the definition of the hirs4 instrument."""
         geom = hirs4(1)
         expected_fovs = np.array([
             [[0.86,  0.83,  0.8,  0.77,  0.74,  0.71,  0.68,  0.64,  0.61,
@@ -235,12 +241,11 @@ class TestGeolocDefs(unittest.TestCase):
               -0.55, -0.58, -0.61, -0.64, -0.68, -0.71, -0.74, -0.77, -0.8,
               -0.83, -0.86]],
             np.zeros((1, 56))], dtype=np.float64)
-        self.assertTrue(np.allclose(geom.fovs,
-                                    expected_fovs, rtol=1e-2, atol=1e-2))
+        np.testing.assert_allclose(geom.fovs,
+                                   expected_fovs, rtol=1e-2, atol=1e-2)
 
     def test_atms(self):
-        """Test the definition of the atms instrument
-        """
+        """Test the definition of the atms instrument."""
         geom = atms(1)
         expected_fovs = np.array([
             [[0.92,  0.9,  0.88,  0.86,  0.84,  0.82,  0.8,  0.78,  0.76,
@@ -255,12 +260,11 @@ class TestGeolocDefs(unittest.TestCase):
               -0.65, -0.67, -0.69, -0.71, -0.73, -0.75, -0.76, -0.78, -0.8,
               -0.82, -0.84, -0.86, -0.88, -0.9, -0.92]],
             np.zeros((1, 96))], dtype=np.float64)
-        self.assertTrue(np.allclose(geom.fovs,
-                                    expected_fovs, rtol=1e-2, atol=1e-2))
+        np.testing.assert_allclose(geom.fovs,
+                                   expected_fovs, rtol=1e-2, atol=1e-2)
 
     def test_ascat(self):
-        """Test the definition of the ASCAT instrument onboard Metop"""
-
+        """Test the definition of the ASCAT instrument onboard Metop."""
         geom = ascat(1)
         expected_fovs = np.array([
             [[0.9250245,  0.90058989,  0.87615528,  0.85172067,
@@ -275,17 +279,17 @@ class TestGeolocDefs(unittest.TestCase):
               -0.80285146, -0.82728607, -0.85172067, -0.87615528,
               -0.90058989, -0.9250245]], np.zeros((1, 42))], dtype=np.float64)
 
-        self.assertTrue(np.allclose(
-            geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
+        np.testing.assert_allclose(
+            geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2)
         geom = ascat(1, np.array([0, 41]))
         expected_fovs = np.array([[[0.9250245,  -0.9250245]],
                                   [[0.,  0.]]], dtype=np.float64)
-        self.assertTrue(np.allclose(
-            geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
+        np.testing.assert_allclose(
+            geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2)
 
         geom = ascat(1, np.array([0, -1]))
-        self.assertTrue(np.allclose(
-            geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
+        np.testing.assert_allclose(
+            geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2)
 
     def test_slstr(self):
         """Test the definition of the slstr instrument flying on Sentinel-3
@@ -301,13 +305,3 @@ class TestGeolocDefs(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             slstr(1, [0, 1], is_nadir=False)
 
-def suite():
-    """The suite for test_geoloc
-    """
-    loader = unittest.TestLoader()
-    mysuite = unittest.TestSuite()
-    mysuite.addTest(loader.loadTestsFromTestCase(TestQuaternion))
-    mysuite.addTest(loader.loadTestsFromTestCase(TestGeoloc))
-    mysuite.addTest(loader.loadTestsFromTestCase(TestGeolocDefs))
-
-    return mysuite

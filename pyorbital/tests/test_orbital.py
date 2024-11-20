@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2012-2014 Martin Raspaud
+# Copyright (c) 2012-2024 Pytroll Community
 
 # Author(s):
 
@@ -20,27 +20,24 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Test the geoloc orbital.
-"""
+"""Test the geoloc orbital."""
 
+import pytest
 import unittest
-try:
-    from unittest import mock
-except ImportError:
-    import mock
+from unittest import mock
 from datetime import datetime, timedelta
-
+import pytz
 import numpy as np
-
 from pyorbital import orbital
 
 eps_deg = 10e-3
 
 
 class Test(unittest.TestCase):
+    """Basic test class for unittesting the pyorbital.orbital class."""
 
     def test_get_orbit_number(self):
-        """Testing getting the orbitnumber from the tle"""
+        """Testing getting the orbitnumber from the TLEs."""
         sat = orbital.Orbital("NPP",
                               line1="1 37849U 11061A   12017.90990040 "
                                     "-.00000112  00000-0 -32693-4 0   772",
@@ -51,6 +48,7 @@ class Test(unittest.TestCase):
         self.assertEqual(orbnum, 1163)
 
     def test_sublonlat(self):
+        """Test getting the sub-satellite position."""
         sat = orbital.Orbital("ISS (ZARYA)",
                               line1="1 25544U 98067A   03097.78853147  "
                                     ".00021906  00000-0  28403-3 0  8652",
@@ -69,6 +67,7 @@ class Test(unittest.TestCase):
                         'Calculation of altitude failed')
 
     def test_observer_look(self):
+        """Test getting the observer look angles."""
         sat = orbital.Orbital("ISS (ZARYA)",
                               line1="1 25544U 98067A   03097.78853147  "
                                     ".00021906  00000-0  28403-3 0  8652",
@@ -84,6 +83,7 @@ class Test(unittest.TestCase):
                         'Calculation of elevation failed')
 
     def test_orbit_num_an(self):
+        """Test getting orbit number - ascending node."""
         sat = orbital.Orbital("METOP-A",
                               line1="1 29499U 06044A   11254.96536486  "
                                     ".00000092  00000-0  62081-4 0  5221",
@@ -93,6 +93,7 @@ class Test(unittest.TestCase):
         self.assertEqual(sat.get_orbit_number(d), 25437)
 
     def test_orbit_num_non_an(self):
+        """Test getting orbit number - not ascending node."""
         sat = orbital.Orbital("METOP-A",
                               line1="1 29499U 06044A   13060.48822809  "
                                     ".00000017  00000-0  27793-4 0  9819",
@@ -102,6 +103,7 @@ class Test(unittest.TestCase):
         self.assertEqual(sat.get_orbit_number(sat.tle.epoch + dt), 33028)
 
     def test_orbit_num_equator(self):
+        """Test getting orbit numbers when being around equator."""
         sat = orbital.Orbital("SUOMI NPP",
                               line1="1 37849U 11061A   13061.24611272  "
                                     ".00000048  00000-0  43679-4 0  4334",
@@ -134,7 +136,7 @@ class Test(unittest.TestCase):
             timedelta(seconds=0.01))
 
     def test_get_next_passes_tricky(self):
-        """ Check issue #34 for reference """
+        """Check issue #34 for reference."""
         line1 = "1 43125U 18004Q   18251.42128650 " \
             "+.00001666 +00000-0 +73564-4 0  9991"
 
@@ -156,7 +158,7 @@ class Test(unittest.TestCase):
         self.assertTrue(len(res) == 15)
 
     def test_get_next_passes_issue_22(self):
-        """Check that max"""
+        """Check that max."""
         line1 = '1 28654U 05018A   21083.16603416  .00000102  00000-0  79268-4 0  9999'
         line2 = '2 28654  99.0035 147.6583 0014816 159.4931 200.6838 14.12591533816498'
 
@@ -169,6 +171,7 @@ class Test(unittest.TestCase):
 
     @mock.patch('pyorbital.orbital.Orbital.get_lonlatalt')
     def test_utc2local(self, get_lonlatalt):
+        """Test converting UTC to local time."""
         get_lonlatalt.return_value = -45, None, None
         sat = orbital.Orbital("METOP-A",
                               line1="1 29499U 06044A   13060.48822809  "
@@ -181,6 +184,7 @@ class Test(unittest.TestCase):
     @mock.patch('pyorbital.orbital.Orbital.utc2local')
     @mock.patch('pyorbital.orbital.Orbital.get_orbit_number')
     def test_get_equatorial_crossing_time(self, get_orbit_number, utc2local):
+        """Test get the equatorial crossing time."""
         def get_orbit_number_patched(utc_time, **kwargs):
             utc_time = np.datetime64(utc_time)
             diff = (utc_time - np.datetime64('2009-07-01 12:38:12')) / np.timedelta64(7200, 's')
@@ -215,9 +219,10 @@ class Test(unittest.TestCase):
 
 
 class TestGetObserverLook(unittest.TestCase):
-    """Test the get_observer_look function"""
+    """Test the get_observer_look function."""
 
     def setUp(self):
+        """Set up the test environment."""
         self.t = datetime(2018, 1, 1, 0, 0, 0)
         self.sat_lon = np.array([[-89.5, -89.4, -89.5, -89.4],
                                  [-89.3, -89.2, -89.3, -89.2]])
@@ -235,7 +240,7 @@ class TestGetObserverLook(unittest.TestCase):
                                   [83.17507167, 90, 66.559906, 81.010018]])
 
     def test_basic_numpy(self):
-        """Test with numpy array inputs"""
+        """Test with numpy array inputs."""
         from pyorbital import orbital
         azi, elev = orbital.get_observer_look(self.sat_lon, self.sat_lat,
                                               self.sat_alt, self.t,
@@ -244,7 +249,7 @@ class TestGetObserverLook(unittest.TestCase):
         np.testing.assert_allclose(elev, self.exp_elev)
 
     def test_basic_dask(self):
-        """Test with dask array inputs"""
+        """Test with dask array inputs."""
         from pyorbital import orbital
         import dask.array as da
         sat_lon = da.from_array(self.sat_lon, chunks=2)
@@ -260,7 +265,7 @@ class TestGetObserverLook(unittest.TestCase):
         np.testing.assert_allclose(elev.compute(), self.exp_elev)
 
     def test_xarray_with_numpy(self):
-        """Test with xarray DataArray with numpy array as inputs"""
+        """Test with xarray DataArray with numpy array as inputs."""
         from pyorbital import orbital
         import xarray as xr
 
@@ -279,7 +284,7 @@ class TestGetObserverLook(unittest.TestCase):
         np.testing.assert_allclose(elev.data, self.exp_elev)
 
     def test_xarray_with_dask(self):
-        """Test with xarray DataArray with dask array as inputs"""
+        """Test with xarray DataArray with dask array as inputs."""
         from pyorbital import orbital
         import dask.array as da
         import xarray as xr
@@ -309,13 +314,14 @@ class TestGetObserverLookNadir(unittest.TestCase):
     """Test the get_observer_look function when satellite is at nadir."""
 
     def setUp(self):
-        """Setup for test observer at nadir.
+        """Set up for test observer at nadir.
+
         Note that rounding error differs between array types.
         With 1000 elements a test gives:
-        1 error for basic numpy
-        41 errors for basic dask
-        63 errors for xarray with dask
-        2 error for xarray with numpy
+          1 error for basic numpy
+          41 errors for basic dask
+          63 errors for xarray with dask
+          2 error for xarray with numpy
         """
         rng = np.random.RandomState(125)
         self.t = datetime(2018, 1, 1, 0, 0, 0)
@@ -328,7 +334,7 @@ class TestGetObserverLookNadir(unittest.TestCase):
         self.exp_elev = np.zeros((100)) + 90
 
     def test_basic_numpy(self):
-        """Test with numpy array inputs"""
+        """Test with numpy array inputs."""
         from pyorbital import orbital
         azi, elev = orbital.get_observer_look(self.sat_lon, self.sat_lat,
                                               self.sat_alt, self.t,
@@ -338,7 +344,7 @@ class TestGetObserverLookNadir(unittest.TestCase):
         np.testing.assert_allclose(elev, self.exp_elev)
 
     def test_basic_dask(self):
-        """Test with dask array inputs"""
+        """Test with dask array inputs."""
         from pyorbital import orbital
         import dask.array as da
         sat_lon = da.from_array(self.sat_lon, chunks=2)
@@ -355,7 +361,7 @@ class TestGetObserverLookNadir(unittest.TestCase):
         np.testing.assert_allclose(elev.compute(), self.exp_elev)
 
     def test_xarray_with_numpy(self):
-        """Test with xarray DataArray with numpy array as inputs"""
+        """Test with xarray DataArray with numpy array as inputs."""
         from pyorbital import orbital
         import xarray as xr
 
@@ -375,7 +381,7 @@ class TestGetObserverLookNadir(unittest.TestCase):
         np.testing.assert_allclose(elev.data, self.exp_elev)
 
     def test_xarray_with_dask(self):
-        """Test with xarray DataArray with dask array as inputs"""
+        """Test with xarray DataArray with dask array as inputs."""
         from pyorbital import orbital
         import dask.array as da
         import xarray as xr
@@ -412,14 +418,37 @@ class TestRegressions(unittest.TestCase):
         warnings.filterwarnings('default')
 
 
-def suite():
-    """The suite for test_orbital
-    """
-    loader = unittest.TestLoader()
-    mysuite = unittest.TestSuite()
-    mysuite.addTest(loader.loadTestsFromTestCase(Test))
-    mysuite.addTest(loader.loadTestsFromTestCase(TestGetObserverLook))
-    mysuite.addTest(loader.loadTestsFromTestCase(TestGetObserverLookNadir))
-    mysuite.addTest(loader.loadTestsFromTestCase(TestRegressions))
+@pytest.mark.parametrize('dtime',
+                         [datetime(2024, 6, 25, 11, 0, 18),
+                          datetime(2024, 6, 25, 11, 5, 0, 0, pytz.UTC),
+                          np.datetime64('2024-06-25T11:10:00.000000')
+                          ]
+                         )
+def test_get_last_an_time_scalar_input(dtime):
+    """Test getting the time of the last ascending node - input time is a scalar."""
+    from pyorbital.orbital import Orbital
+    orb = Orbital("NOAA-20",
+                  line1='1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014',
+                  line2='2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971')
 
-    return mysuite
+    expected = np.datetime64('2024-06-25T10:44:18.234375')
+    result = orb.get_last_an_time(dtime)
+    assert abs(expected - result) < np.timedelta64(1, 's')
+
+
+@pytest.mark.parametrize('dtime',
+                         [datetime(2024, 6, 25, 11, 5, 0, 0, pytz.timezone('Europe/Stockholm')),
+                          ]
+                         )
+def test_get_last_an_time_wrong_input(dtime):
+    """Test getting the time of the last ascending node - wrong input."""
+    from pyorbital.orbital import Orbital
+    orb = Orbital("NOAA-20",
+                  line1='1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014',
+                  line2='2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971')
+
+    with pytest.raises(ValueError) as exec_info:
+        _ = orb.get_last_an_time(dtime)
+
+    expected = "UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!"
+    assert str(exec_info.value) == expected

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011 - 2021 Pytroll Community
+# Copyright (c) 2011 - 2023 Pytroll Community
 
 # Author(s):
 
@@ -55,10 +55,10 @@ def get_results(satnumber, delay):
     path = os.path.dirname(os.path.abspath(__file__))
     with open(os.path.join(path, "aiaa_results")) as f_2:
         line = f_2.readline()
-        while(line):
+        while line:
             if line.endswith(" xx\n") and int(line[:-3]) == satnumber:
                 line = f_2.readline()
-                while(not line.startswith("%.8f" % delay)):
+                while (not line.startswith("%.8f" % delay)):
                     line = f_2.readline()
                 sline = line.split()
                 if delay == 0:
@@ -94,7 +94,7 @@ class AIAAIntegrationTest(unittest.TestCase):
         path = os.path.dirname(os.path.abspath(__file__))
         with open(os.path.join(path, "SGP4-VER.TLE")) as f__:
             test_line = f__.readline()
-            while(test_line):
+            while test_line:
                 if test_line.startswith("#"):
                     test_name = test_line
                 if test_line.startswith("1 "):
@@ -147,13 +147,3 @@ class AIAAIntegrationTest(unittest.TestCase):
                             self.assertTrue(abs(dt) < delta_time)
 
                 test_line = f__.readline()
-
-
-def suite():
-    """The suite for test_aiaa
-    """
-    loader = unittest.TestLoader()
-    mysuite = unittest.TestSuite()
-    mysuite.addTest(loader.loadTestsFromTestCase(AIAAIntegrationTest))
-
-    return mysuite

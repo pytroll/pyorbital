@@ -1,5 +1,125 @@
-## Version 1.7.1 (2021/12/22)
+## Version 1.8.3 (2024/06/25)
 
+### Issues Closed
+
+* [Issue 151](https://github.com/pytroll/pyorbital/issues/151) - Issue Calculating Accurate View Zenith Angles on Terra Satellite Overpasses
+
+In this release 1 issue was closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 156](https://github.com/pytroll/pyorbital/pull/156) - Fix dtype preservation in astronomy functions
+
+In this release 1 pull request was closed.
+
+
+## Version 1.8.2 (2024/02/05)
+
+### Issues Closed
+
+* [Issue 140](https://github.com/pytroll/pyorbital/issues/140) - pyorbital cannot read TLE for MTG-I1 / Meteosat-12 ([PR 141](https://github.com/pytroll/pyorbital/pull/141) by [@gerritholl](https://github.com/gerritholl))
+* [Issue 139](https://github.com/pytroll/pyorbital/issues/139) - `Orbital` cannot get TLEs from the internet
+
+In this release 2 issues were closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 143](https://github.com/pytroll/pyorbital/pull/143) - Fix a bug in using TLES env variable
+
+#### Features added
+
+* [PR 141](https://github.com/pytroll/pyorbital/pull/141) - Add Meteosat-12 to platforms.txt ([140](https://github.com/pytroll/pyorbital/issues/140))
+
+In this release 2 pull requests were closed.
+
+
+## Version 1.8.1 (2024/01/05)
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 138](https://github.com/pytroll/pyorbital/pull/138) - Update celestrak urls ([139](https://github.com/pytroll/pyorbital/issues/139))
+
+#### Features added
+
+* [PR 137](https://github.com/pytroll/pyorbital/pull/137) - Prettify the RTD pages
+
+#### Documentation changes
+
+* [PR 137](https://github.com/pytroll/pyorbital/pull/137) - Prettify the RTD pages
+* [PR 132](https://github.com/pytroll/pyorbital/pull/132) - Add .readthedocs.yaml
+
+In this release 4 pull requests were closed.
+
+
+## Version 1.8.0 (2023/07/12)
+
+### Issues Closed
+
+* [Issue 112](https://github.com/pytroll/pyorbital/issues/112) - Is the TLES environment variable described? ([PR 113](https://github.com/pytroll/pyorbital/pull/113) by [@adybbroe](https://github.com/adybbroe))
+
+In this release 1 issue was closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 129](https://github.com/pytroll/pyorbital/pull/129) - Fix bug getting local tlefiles
+* [PR 128](https://github.com/pytroll/pyorbital/pull/128) - Fix typo in VIIRS geoloc definition
+* [PR 121](https://github.com/pytroll/pyorbital/pull/121) - fixed geoloc_example and added variable descriptions
+
+#### Features added
+
+* [PR 120](https://github.com/pytroll/pyorbital/pull/120) - Update versioneer to stop using deprecated distutils module.
+* [PR 113](https://github.com/pytroll/pyorbital/pull/113) - Make use of env variables free from satpy ([112](https://github.com/pytroll/pyorbital/issues/112))
+
+#### Documentation changes
+
+* [PR 113](https://github.com/pytroll/pyorbital/pull/113) - Make use of env variables free from satpy ([112](https://github.com/pytroll/pyorbital/issues/112))
+
+In this release 6 pull requests were closed.
+
+
+## Version 1.7.3 (2022/07/11)
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 103](https://github.com/pytroll/pyorbital/pull/103) - www.celestrak.org → celestrak.org ([101](https://github.com/pytroll/pyorbital/issues/101))
+
+#### Documentation changes
+
+* [PR 104](https://github.com/pytroll/pyorbital/pull/104) - Fixed comment in sun_earth_distance_correction
+
+In this release 2 pull requests was closed.
+
+
+## Version 1.7.2 (2022/07/07)
+
+### Issues Closed
+
+* [Issue 100](https://github.com/pytroll/pyorbital/issues/100) - TLE URIs land at redirect page ([PR 101](https://github.com/pytroll/pyorbital/pull/101) by [@gerritholl](https://github.com/gerritholl))
+* [Issue 97](https://github.com/pytroll/pyorbital/issues/97) - sun_earth_distance_correction returns the square of the sun-earth distance relativ to 1 AU ([PR 99](https://github.com/pytroll/pyorbital/pull/99) by [@depion](https://github.com/depion))
+
+In this release 2 issues were closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 101](https://github.com/pytroll/pyorbital/pull/101) - Update celestrak URIs ([100](https://github.com/pytroll/pyorbital/issues/100))
+* [PR 99](https://github.com/pytroll/pyorbital/pull/99) - Fixed earth sun distance ([97](https://github.com/pytroll/pyorbital/issues/97))
+
+In this release 2 pull requests were closed.
+
+
+## Version 1.7.1 (2021/12/22)
 
 ### Pull Requests Merged
 

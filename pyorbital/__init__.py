@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2017
-
-# Author(s):
-
-#   Martin Raspaud <martin.raspaud@smhi.se>
+# Copyright (c) 2017-2024 Pytroll Community
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,14 +15,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""Package file."""
+
 import numpy as np
-from .version import get_versions
-__version__ = get_versions()['version']
-del get_versions
 
 
 def dt2np(utc_time):
+    """Convert datetime to numpy datetime64 object."""
     try:
         return np.datetime64(utc_time)
     except ValueError:
-        return utc_time.astype('datetime64[ns]')
+        return utc_time.astype("datetime64[ns]")

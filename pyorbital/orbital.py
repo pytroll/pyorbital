@@ -27,6 +27,7 @@
 import logging
 import warnings
 from datetime import datetime, timedelta
+from functools import partial
 
 import numpy as np
 import pytz
@@ -352,60 +353,6 @@ class Orbital(object):
         :return: [(rise-time, fall-time, max-elevation-time), ...]
 
         """
-        def elevation(minutes):
-            """Compute the elevation."""
-            return self.get_observer_look(utc_time +
-                                          timedelta(
-                                              minutes=np.float64(minutes)),
-                                          lon, lat, alt)[1] - horizon
-
-        def elevation_inv(minutes):
-            """Compute the inverse of elevation."""
-            return -elevation(minutes)
-
-        def get_root(fun, start, end, tol=0.01):
-            """Root finding scheme."""
-            x_0 = end
-            x_1 = start
-            fx_0 = fun(end)
-            fx_1 = fun(start)
-            if abs(fx_0) < abs(fx_1):
-                fx_0, fx_1 = fx_1, fx_0
-                x_0, x_1 = x_1, x_0
-
-            x_n = optimize.brentq(fun, x_0, x_1)
-            return x_n
-
-        def get_max_parab(fun, start, end, tol=0.01):
-            """Successive parabolic interpolation."""
-            a = float(start)
-            c = float(end)
-            b = (a + c) / 2.0
-
-            f_a = fun(a)
-            f_b = fun(b)
-            f_c = fun(c)
-
-            x = b
-            with np.errstate(invalid="raise"):
-                while True:
-                    try:
-                        x = x - 0.5 * (((b - a) ** 2 * (f_b - f_c)
-                                        - (b - c) ** 2 * (f_b - f_a)) /
-                                       ((b - a) * (f_b - f_c) - (b - c) * (f_b - f_a)))
-                    except FloatingPointError:
-                        return b
-                    if abs(b - x) <= tol:
-                        return x
-                    f_x = fun(x)
-                    # sometimes the estimation diverges... return best guess
-                    if f_x > f_b:
-                        logger.info("Parabolic interpolation did not converge, returning best guess so far.")
-                        return b
-
-                    a, b, c = (a + x) / 2.0, x, (x + c) / 2.0
-                    f_a, f_b, f_c = fun(a), f_x, fun(c)
-
         # every minute
         times = utc_time + np.array([timedelta(minutes=minutes)
                                      for minutes in range(length * 60)])
@@ -413,9 +360,11 @@ class Orbital(object):
         zcs = np.where(np.diff(np.sign(elev)))[0]
         res = []
         risetime = None
+        risemins = None
+        elev_func = partial(self._elevation, utc_time, lon, lat, alt, horizon)
+        elev_inv_func = partial(self._elevation_inv, utc_time, lon, lat, alt, horizon)
         for guess in zcs:
-            horizon_mins = get_root(
-                elevation, guess, guess + 1.0, tol=tol / 60.0)
+            horizon_mins = _get_root(elev_func, guess, guess + 1.0, tol=tol / 60.0)
             horizon_time = utc_time + timedelta(minutes=horizon_mins)
             if elev[guess] < 0:
                 risetime = horizon_time
@@ -423,18 +372,18 @@ class Orbital(object):
             else:
                 falltime = horizon_time
                 fallmins = horizon_mins
-                if risetime:
-                    int_start = max(0, int(np.floor(risemins)))
-                    int_end = min(len(elev), int(np.ceil(fallmins) + 1))
-                    middle = int_start + np.argmax(elev[int_start:int_end])
-                    highest = utc_time + \
-                        timedelta(minutes=get_max_parab(
-                            elevation_inv,
-                            max(risemins, middle - 1), min(fallmins, middle + 1),
-                            tol=tol / 60.0
-                        ))
-                    res += [(risetime, falltime, highest)]
-                risetime = None
+                if risetime is None:
+                    continue
+                int_start = max(0, int(np.floor(risemins)))
+                int_end = min(len(elev), int(np.ceil(fallmins) + 1))
+                middle = int_start + np.argmax(elev[int_start:int_end])
+                highest = utc_time + \
+                    timedelta(minutes=_get_max_parab(
+                        elev_inv_func,
+                        max(risemins, middle - 1), min(fallmins, middle + 1),
+                        tol=tol / 60.0
+                    ))
+                res += [(risetime, falltime, highest)]
         return res
 
     def _get_time_at_horizon(self, utc_time, obslon, obslat, **kwargs):
@@ -561,6 +510,63 @@ class Orbital(object):
             tcross = self.utc2local(tcross)
 
         return tcross
+
+
+    def _elevation(self, utc_time, lon, lat, alt, horizon, minutes):
+        """Compute the elevation."""
+        return self.get_observer_look(utc_time +
+                                      timedelta(minutes=np.float64(minutes)),
+                                      lon, lat, alt)[1] - horizon
+
+
+    def _elevation_inv(self, utc_time, lon, lat, alt, horizon, minutes):
+        """Compute the inverse of elevation."""
+        return -self._elevation(utc_time, lon, lat, alt, horizon, minutes)
+
+
+def _get_root(fun, start, end, tol=0.01):
+    """Root finding scheme."""
+    x_0 = end
+    x_1 = start
+    fx_0 = fun(end)
+    fx_1 = fun(start)
+    if abs(fx_0) < abs(fx_1):
+        fx_0, fx_1 = fx_1, fx_0
+        x_0, x_1 = x_1, x_0
+
+    x_n = optimize.brentq(fun, x_0, x_1)
+    return x_n
+
+
+def _get_max_parab(fun, start, end, tol=0.01):
+    """Successive parabolic interpolation."""
+    a = float(start)
+    c = float(end)
+    b = (a + c) / 2.0
+
+    f_a = fun(a)
+    f_b = fun(b)
+    f_c = fun(c)
+
+    x = b
+    with np.errstate(invalid="raise"):
+        while True:
+            try:
+                x = x - 0.5 * (((b - a) ** 2 * (f_b - f_c)
+                                - (b - c) ** 2 * (f_b - f_a)) /
+                               ((b - a) * (f_b - f_c) - (b - c) * (f_b - f_a)))
+            except FloatingPointError:
+                return b
+            if abs(b - x) <= tol:
+                return x
+            f_x = fun(x)
+            # sometimes the estimation diverges... return best guess
+            if f_x > f_b:
+                logger.info("Parabolic interpolation did not converge, returning best guess so far.")
+                return b
+
+            a, b, c = (a + x) / 2.0, x, (x + c) / 2.0
+            f_a, f_b, f_c = fun(a), f_x, fun(c)
 
 
 class OrbitElements(object):

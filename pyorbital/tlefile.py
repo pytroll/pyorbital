@@ -598,7 +598,7 @@ class SQLiteTLE(object):
         for satid, platform_name in self.platforms.items():
             if self.writer_config.get("write_name", False):
                 data.append(platform_name)
-            query = f"SELECT epoch, tle FROM '{satid:d}' ORDER BY epoch DESC LIMIT 1"  # noseq
+            query = f"SELECT epoch, tle FROM '{satid:d}' ORDER BY epoch DESC LIMIT 1"  # nosec
             epoch, tle = self.db.execute(query).fetchone()  # nosec
             date_epoch = dt.datetime.strptime(epoch, ISO_TIME_FORMAT)
             tle_age = (

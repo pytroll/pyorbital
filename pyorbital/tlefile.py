@@ -558,7 +558,7 @@ class SQLiteTLE(object):
         cmd = SATID_VALUES.format(num)
         epoch = tle.epoch.item().isoformat()
         tle = "\n".join([tle.line1, tle.line2])
-        now = dt.datetime.utcnow().isoformat()
+        now = _utcnow().isoformat()
         try:
             with self.db:
                 self.db.execute(cmd, (epoch, tle, now, source))
@@ -575,7 +575,7 @@ class SQLiteTLE(object):
             return
         pattern = os.path.join(self.writer_config["output_dir"],
                                self.writer_config["filename_pattern"])
-        now = dt.datetime.utcnow()
+        now = _utcnow()
         fname = now.strftime(pattern)
         out_dir = os.path.dirname(fname)
         if not os.path.exists(out_dir):
@@ -589,8 +589,7 @@ class SQLiteTLE(object):
             query = f"SELECT epoch, tle FROM '{satid:d}' ORDER BY epoch DESC LIMIT 1"  # nosec
             epoch, tle = self.db.execute(query).fetchone()  # nosec
             date_epoch = dt.datetime.strptime(epoch, ISO_TIME_FORMAT)
-            tle_age = (
-                dt.datetime.utcnow() - date_epoch).total_seconds() / 3600.
+            tle_age = (_utcnow() - date_epoch).total_seconds() / 3600.
             logging.info("Latest TLE for '%s' (%s) is %d hours old.",
                          satid, platform_name, int(tle_age))
             data.append(tle)
@@ -611,6 +610,9 @@ def table_exists(db, name):
     query = "SELECT 1 FROM sqlite_master WHERE type='table' and name=?"
     return db.execute(query, (name,)).fetchone() is not None  # nosec
 
+
+def _utcnow():
+    return dt.datetime.now(tz=dt.timezone.utc).replace(tzinfo=None)
 
 def main():
     """Run a test TLE reading."""

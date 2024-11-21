@@ -42,6 +42,7 @@ from pyorbital.tlefile import (
     _get_uris_and_open_func,
     check_is_platform_supported,
     read_platform_numbers,
+    _utcnow,
 )
 
 LINE0 = "ISS (ZARYA)"
@@ -651,7 +652,7 @@ class TestSQLiteTLE(unittest.TestCase):
         assert data[0][1] == "\n".join((LINE1, LINE2))
         # Date when the data were added should be close to current time
         date_added = datetime.datetime.strptime(data[0][2], ISO_TIME_FORMAT)
-        now = datetime.datetime.utcnow()
+        now = _utcnow()
         assert (now - date_added).total_seconds() < 1.0
         # Source of the data
         assert data[0][3] == "foo"

@@ -22,12 +22,13 @@ by the environment variable PYORBITAL_CONFIG_PATH.
 
 import argparse
 import logging
-from pyorbital.tlefile import check_is_platform_supported
+
 from pyorbital.logger import logging_on
+from pyorbital.tlefile import check_is_platform_supported
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='Check if a satellite is supported.')
+        description="Check if a satellite is supported.")
     parser.add_argument("-s", "--satellite",
                         help=("Name of the Satellite [in upper case] - following WMO Oscar naming."),
                         default=None,

@@ -404,14 +404,12 @@ class TestRegressions(unittest.TestCase):
         """Check that no runtimewarning is raised, #63."""
         import warnings
 
-        from dateutil import parser
-
         from pyorbital.orbital import Orbital
         warnings.filterwarnings("error")
         orb = Orbital("Suomi-NPP",
                       line1="1 37849U 11061A   19292.84582509  .00000011  00000-0  25668-4 0  9997",
                       line2="2 37849  98.7092 229.3263 0000715  98.5313 290.6262 14.19554485413345")
-        orb.get_next_passes(parser.parse("2019-10-21 16:00:00"), 12, 123.29736, -13.93763, 0)
+        orb.get_next_passes(datetime(2019, 10, 21, 16, 0, 0), 12, 123.29736, -13.93763, 0)
         warnings.filterwarnings("default")
 
 

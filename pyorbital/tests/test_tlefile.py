@@ -117,30 +117,31 @@ def fake_local_tles_dir(tmp_path_factory):
 
 
 @pytest.fixture
-def mock_env_ppp_config_dir(monkeypatch):
+def _mock_env_ppp_config_dir(monkeypatch):
     """Mock environment variable PPP_CONFIG_DIR."""
     monkeypatch.setenv("PPP_CONFIG_DIR", "/path/to/old/mpop/config/dir")
 
 
 @pytest.fixture
-def mock_env_ppp_config_dir_missing(monkeypatch):
+def _mock_env_ppp_config_dir_missing(monkeypatch):
     """Mock that the environment variable PPP_CONFIG_DIR is missing."""
     monkeypatch.delenv("PPP_CONFIG_DIR", raising=False)
 
 
 @pytest.fixture
-def mock_env_tles_missing(monkeypatch):
+def _mock_env_tles_missing(monkeypatch):
     """Mock that the environment variable TLES is missing."""
     monkeypatch.delenv("TLES", raising=False)
 
 
 @pytest.fixture
-def mock_env_tles(monkeypatch, fake_local_tles_dir):
+def _mock_env_tles(monkeypatch, fake_local_tles_dir):
     """Mock environment variable TLES."""
     monkeypatch.setenv("TLES", os.path.join(fake_local_tles_dir, "*"))
 
 
-def test_get_config_path_no_env_defined(caplog, mock_env_ppp_config_dir_missing):
+@pytest.mark.usefixtures("_mock_env_ppp_config_dir_missing")
+def test_get_config_path_no_env_defined(caplog):
     """Test getting the config path."""
     with caplog.at_level(logging.WARNING):
         res = _get_config_path()
@@ -149,7 +150,8 @@ def test_get_config_path_no_env_defined(caplog, mock_env_ppp_config_dir_missing)
     assert caplog.text == ""
 
 
-def test_check_is_platform_supported_existing(caplog, mock_env_ppp_config_dir_missing):
+@pytest.mark.usefixtures("_mock_env_ppp_config_dir_missing")
+def test_check_is_platform_supported_existing(caplog):
     """Test the function to check if an existing platform is supported on default."""
     with caplog.at_level(logging.INFO):
         check_is_platform_supported("NOAA-21")
@@ -163,7 +165,8 @@ def test_check_is_platform_supported_existing(caplog, mock_env_ppp_config_dir_mi
     assert expected2 in logoutput_lines[1]
 
 
-def test_check_is_platform_supported_unknown(caplog, mock_env_ppp_config_dir_missing):
+@pytest.mark.usefixtures("_mock_env_ppp_config_dir_missing")
+def test_check_is_platform_supported_unknown(caplog):
     """Test the function to check if an unknown  platform is supported on default."""
     sat = "UNKNOWN"
     with caplog.at_level(logging.INFO):
@@ -231,7 +234,8 @@ def test_get_config_path_ppp_config_set_and_pyorbital(caplog, monkeypatch):
     assert caplog.text == ""
 
 
-def test_get_config_path_pyorbital_ppp_missing(caplog, monkeypatch, mock_env_ppp_config_dir_missing):
+@pytest.mark.usefixtures("_mock_env_ppp_config_dir_missing")
+def test_get_config_path_pyorbital_ppp_missing(caplog, monkeypatch):
     """Test getting the config path.
 
     The old mpop PPP_CONFIG_PATH is not set but the PYORBITAL one is.
@@ -254,13 +258,15 @@ def test_read_platform_numbers(fake_platforms_file):
     assert res == {"NOAA-21": "54234", "NOAA-20": "43013", "UNKNOWN SATELLITE": "99999"}
 
 
-def test_get_local_tle_path_tle_env_missing(mock_env_tles_missing):
+@pytest.mark.usefixtures("_mock_env_tles_missing")
+def test_get_local_tle_path_tle_env_missing():
     """Test getting the path to local TLE files - env TLES missing."""
     res = _get_local_tle_path_from_env()
     assert res is None
 
 
-def test_get_local_tle_path(mock_env_tles, fake_local_tles_dir):
+@pytest.mark.usefixtures("_mock_env_tles")
+def test_get_local_tle_path(fake_local_tles_dir):
     """Test getting the path to local TLE files."""
     res = _get_local_tle_path_from_env()
     assert res == os.path.join(fake_local_tles_dir, "*")
@@ -640,7 +646,7 @@ class TestSQLiteTLE(unittest.TestCase):
         columns = [col.strip() for col in
                    SATID_TABLE.replace("'{}' (", "").strip(")").split(",")]
         # Platform number
-        satid = str(list(self.platforms.keys())[0])
+        satid = int(list(self.platforms.keys())[0])
 
         # Data from a platform that isn't configured
         self.db.platforms = {}

@@ -64,6 +64,7 @@ line_length = 120
 
 [tool.ruff]
 line-length = 120
+extend-exclude = ["pyorbital/tests/SGP4-VER.TLE"]
 
 [tool.ruff.lint]
 # See https://docs.astral.sh/ruff/rules/

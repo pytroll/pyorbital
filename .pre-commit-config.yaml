@@ -27,6 +27,8 @@ repos:
           - types-setuptools
           - types-PyYAML
           - types-requests
+          - types-pytz
+          - types-python-dateutil
         args: ["--python-version", "3.10", "--ignore-missing-imports"]
   - repo: https://github.com/pycqa/isort
     rev: 5.13.2

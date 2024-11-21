@@ -260,8 +260,8 @@ class TestGetObserverLook(unittest.TestCase):
 
         from pyorbital import orbital
 
-        def _xarr_conv(input):
-            return xr.DataArray(input)
+        def _xarr_conv(input_array):
+            return xr.DataArray(input_array)
         sat_lon = _xarr_conv(self.sat_lon)
         sat_lat = _xarr_conv(self.sat_lat)
         sat_alt = _xarr_conv(self.sat_alt)
@@ -281,8 +281,8 @@ class TestGetObserverLook(unittest.TestCase):
 
         from pyorbital import orbital
 
-        def _xarr_conv(input):
-            return xr.DataArray(da.from_array(input, chunks=2))
+        def _xarr_conv(input_array):
+            return xr.DataArray(da.from_array(input_array, chunks=2))
         sat_lon = _xarr_conv(self.sat_lon)
         sat_lat = _xarr_conv(self.sat_lat)
         sat_alt = _xarr_conv(self.sat_alt)
@@ -359,8 +359,8 @@ class TestGetObserverLookNadir(unittest.TestCase):
 
         from pyorbital import orbital
 
-        def _xarr_conv(input):
-            return xr.DataArray(input)
+        def _xarr_conv(input_array):
+            return xr.DataArray(input_array)
         sat_lon = _xarr_conv(self.sat_lon)
         sat_lat = _xarr_conv(self.sat_lat)
         sat_alt = _xarr_conv(self.sat_alt)
@@ -381,8 +381,8 @@ class TestGetObserverLookNadir(unittest.TestCase):
 
         from pyorbital import orbital
 
-        def _xarr_conv(input):
-            return xr.DataArray(da.from_array(input, chunks=2))
+        def _xarr_conv(input_array):
+            return xr.DataArray(da.from_array(input_array, chunks=2))
         sat_lon = _xarr_conv(self.sat_lon)
         sat_lat = _xarr_conv(self.sat_lat)
         sat_alt = _xarr_conv(self.sat_alt)
@@ -444,8 +444,6 @@ def test_get_last_an_time_wrong_input(dtime):
                   line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
                   line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
 
-    with pytest.raises(ValueError) as exec_info:
-        _ = orb.get_last_an_time(dtime)
-
     expected = "UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!"
-    assert str(exec_info.value) == expected
+    with pytest.raises(ValueError, match=expected) as exec_info:
+        _ = orb.get_last_an_time(dtime)

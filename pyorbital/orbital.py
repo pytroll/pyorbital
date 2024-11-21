@@ -170,6 +170,7 @@ class Orbital(object):
         """Calculate time of last ascending node relative to the specified time."""
         # Propagate backwards to ascending node
         dt = np.timedelta64(10, "m")
+
         t_old = np.datetime64(_get_tz_unaware_utctime(utc_time))
         t_new = t_old - dt
         pos0, vel0 = self.get_position(t_old, normalize=False)

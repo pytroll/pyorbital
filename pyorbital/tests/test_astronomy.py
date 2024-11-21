@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013, 2014, 2022 Pytroll Community
+# Copyright (c) 2013, 2014, 2022, 2024 Pytroll Community
 
 # Author(s):
 
@@ -20,6 +20,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""Unit testing the Astronomy methods and functions."""
+
+
 from datetime import datetime
 
 import dask.array as da
@@ -36,21 +39,25 @@ except ImportError:
 
 
 def _create_dask_array(input_list: list, dtype: npt.DTypeLike) -> da.Array:
+    """Create a dummy dask array for testing."""
     np_arr = np.array(input_list, dtype=dtype)
     return da.from_array(np_arr)
 
 
 def _create_xarray_numpy(input_list: list, dtype: npt.DTypeLike) -> DataArray:
+    """Create a dummy xarray DataArray for testing."""
     np_arr = np.array(input_list, dtype=dtype)
     return DataArray(np_arr)
 
 
 def _create_xarray_dask(input_list: list, dtype: npt.DTypeLike) -> DataArray:
+    """Create a dummy daskified xarray DataArray for testing."""
     dask_arr = _create_dask_array(input_list, dtype)
     return DataArray(dask_arr)
 
 
 class TestAstronomy:
+    """Testing the Astronomy class."""
 
     @pytest.mark.parametrize(
         ("dt", "exp_jdays", "exp_j2000"),

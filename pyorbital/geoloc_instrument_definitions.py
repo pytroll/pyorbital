@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013 - 2021 PyTroll Community
+# Copyright (c) 2013 - 2021, 2024 PyTroll Community
 
 # Author(s):
 
@@ -107,6 +107,7 @@ def avhrr_gac(scan_times, scan_points,
 
 
 def avhrr_all_geom(scans_nb):
+    """Get all the AVHRR scan points."""
     # we take all pixels
     scan_points = np.arange(2048)
     return avhrr(scans_nb, scan_points)
@@ -118,7 +119,7 @@ def avhrr_all_geom(scans_nb):
 
 
 def avhrr_edge_geom(scans_nb):
-    # we take only edge pixels
+    """Getting the AVHRR scan edges only."""
     scan_points = np.array([0, 2047])
     return avhrr(scans_nb, scan_points)
 
@@ -129,7 +130,7 @@ def avhrr_edge_geom(scans_nb):
 
 
 def avhrr_40_geom(scans_nb):
-    # we take only every 40th pixel
+    """Description of the AVHRR scan in terms of every 40th pixel per line."""
     scan_points = np.arange(24, 2048, 40)
     return avhrr(scans_nb, scan_points)
 
@@ -143,6 +144,7 @@ def avhrr_40_geom(scans_nb):
 def viirs(scans_nb, scan_indices=slice(0, None),
           chn_pixels=6400, scan_lines=32, scan_step=1):
     """Describe VIIRS instrument geometry, I-band by default.
+
     VIIRS scans several lines simultaneously (there are 16 detectors for each
     M-band, 32 detectors for each I-band) so the scan angles (and times) are
     two-dimensional arrays, contrary to AVHRR for example.
@@ -196,7 +198,7 @@ def viirs(scans_nb, scan_indices=slice(0, None),
 
 
 def viirs_edge_geom(scans_nb):
-    # we take only edge pixels
+    """Definition of the VIIRS scane edges."""
     scan_indices = [0, -1]
     return viirs(scans_nb, scan_indices)
 
@@ -358,7 +360,8 @@ def hirs4(scans_nb, scan_points=None):
 ################################################################
 
 def atms(scans_nb, scan_points=None):
-    """Describe ATMS instrument geometry
+    """Describe ATMS instrument geometry.
+
     See:
 
     - https://dtcenter.org/com-GSI/users/docs/presentations/2013_workshop/
@@ -507,9 +510,10 @@ def olci(scans_nb, scan_points=None):
 
 
 def ascat(scan_nb, scan_points=None):
-    """ASCAT make two scans one to the left and one to the right of the
-    sub-satellite track.
+    """Describing the ASCAT scanning geometry.
 
+    make two scans one to the left and one to the right of the sub-satellite
+    track.
     """
     if scan_points is None:
         scan_len = 42  # samples per scan

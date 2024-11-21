@@ -531,6 +531,3 @@ v0.1.0 (2011-10-03)
 - Cleanup of astronomy file. [Martin Raspaud]
 - Added a readme file. [Martin Raspaud]
 - Added astronomy.py file. [Martin Raspaud]
-
-
-

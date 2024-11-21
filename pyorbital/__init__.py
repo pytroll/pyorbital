@@ -28,4 +28,3 @@ def dt2np(utc_time):
         return np.datetime64(utc_time)
     except ValueError:
         return utc_time.astype("datetime64[ns]")
-

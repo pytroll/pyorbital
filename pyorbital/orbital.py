@@ -629,6 +629,8 @@ class _SGDP4(object):
         """Initialize class."""
         self.mode = None
 
+        _check_orbital_elements(orbit_elements)
+
         # perigee = orbit_elements.perigee
         self.eo = orbit_elements.excentricity
         self.xincl = orbit_elements.inclination
@@ -644,13 +646,6 @@ class _SGDP4(object):
         self.xn_0 = orbit_elements.mean_motion
         # A30 = -XJ3 * AE**3
 
-        if not (0 < self.eo < ECC_LIMIT_HIGH):
-            raise OrbitalError("Eccentricity out of range: %e" % self.eo)
-        elif not ((0.0035 * 2 * np.pi / XMNPDA) < self.xn_0 < (18 * 2 * np.pi / XMNPDA)):
-            raise OrbitalError("Mean motion out of range: %e" % self.xn_0)
-        elif not (0 < self.xincl < np.pi):
-            raise OrbitalError("Inclination out of range: %e" % self.xincl)
-
         if self.eo < 0:
             self.mode = self.SGDP4_ZERO_ECC
             return
@@ -658,18 +653,66 @@ class _SGDP4(object):
         self.cosIO = np.cos(self.xincl)
         self.sinIO = np.sin(self.xincl)
         theta2 = self.cosIO**2
-        theta4 = theta2 ** 2
         self.x3thm1 = 3.0 * theta2 - 1.0
         self.x1mth2 = 1.0 - theta2
         self.x7thm1 = 7.0 * theta2 - 1.0
 
+        self.xnodp = None
+        self.aodp = None
+        self.perigee = None
+        self.apogee = None
+        self.period = None
+        self._betao = None
+        self._betao2 = None
+        self._calculate_basic_orbit_params()
+
+        self._set_mode()
+
+        s4, qoms24 = self._get_s4_qoms24()
+        tsi = 1.0 / (self.aodp - s4)
+        self.eta = self.aodp * self.eo * tsi
+        eeta = self.eo * self.eta
+        coef = qoms24 * tsi**4
+
+        self.c1 = None
+        self.c2 = None
+        self.c3 = None
+        self.c4 = None
+        self.c5 = None
+        self._calculate_c_coefficients(coef, eeta, tsi)
+
+        self.xmdot = None
+        self.omgdot = None
+        self.xnodot = None
+        self._calculate_dot_products(theta2)
+
+        self.xmcof = self._calculate_xmcof(coef, eeta)
+        self.xnodcf = 3.5 * self._betao2 * self._xhdot1 * self.c1
+        self.t2cof = 1.5 * self.c1
+        self.xlcof = self._calculate_xlcof()
+        self.aycof = 0.25 * A3OVK2 * self.sinIO
+        self.cosXMO = np.cos(self.xmo)
+        self.sinXMO = np.sin(self.xmo)
+        self.delmo = (1.0 + self.eta * self.cosXMO)**3
+
+        self.d2 = None
+        self.d3 = None
+        self.d4 = None
+        self.t3cof = None
+        self.t4cof = None
+        self.t5cof = None
+        if self.mode == SGDP4_NEAR_NORM:
+            self._calculate_near_norm_parameters(tsi, s4)
+        elif self.mode == SGDP4_DEEP_NORM:
+            raise NotImplementedError("Deep space calculations not supported")
+
+    def _calculate_basic_orbit_params(self):
         a1 = (XKE / self.xn_0) ** (2. / 3)
-        betao2 = 1.0 - self.eo**2
-        betao = np.sqrt(betao2)
-        temp0 = 1.5 * CK2 * self.x3thm1 / (betao * betao2)
+        self._betao2 = 1.0 - self.eo**2
+        self._betao = np.sqrt(self._betao2)
+        temp0 = 1.5 * CK2 * self.x3thm1 / (self._betao * self._betao2)
         del1 = temp0 / (a1**2)
-        a0 = a1 * \
-            (1.0 - del1 * (1.0 / 3.0 + del1 * (1.0 + del1 * 134.0 / 81.0)))
+        a0 = a1 * (1.0 - del1 * (1.0 / 3.0 + del1 * (1.0 + del1 * 134.0 / 81.0)))
         del0 = temp0 / (a0**2)
         self.xnodp = self.xn_0 / (1.0 + del0)
         self.aodp = (a0 / (1.0 - del0))
@@ -677,6 +720,7 @@ class _SGDP4(object):
         self.apogee = (self.aodp * (1.0 + self.eo) - AE) * XKMPER
         self.period = (2 * np.pi * 1440.0 / XMNPDA) / self.xnodp
 
+    def _set_mode(self):
         if self.period >= 225:
             # Deep-Space model
             self.mode = SGDP4_DEEP_NORM
@@ -687,26 +731,10 @@ class _SGDP4(object):
             # Near-space, normal equations
             self.mode = SGDP4_NEAR_NORM
 
-        if self.perigee < 156:
-            s4 = self.perigee - 78
-            if s4 < 20:
-                s4 = 20
-
-            qoms24 = ((120 - s4) * (AE / XKMPER))**4
-            s4 = (s4 / XKMPER + AE)
-        else:
-            s4 = KS
-            qoms24 = QOMS2T
-
-        pinvsq = 1.0 / (self.aodp**2 * betao2**2)
-        tsi = 1.0 / (self.aodp - s4)
-        self.eta = self.aodp * self.eo * tsi
+    def _calculate_c_coefficients(self, coef, eeta, tsi):
         etasq = self.eta**2
-        eeta = self.eo * self.eta
         psisq = np.abs(1.0 - etasq)
-        coef = qoms24 * tsi**4
         coef_1 = coef / psisq**3.5
-
         self.c2 = (coef_1 * self.xnodp * (self.aodp *
                                           (1.0 + 1.5 * etasq + eeta * (4.0 + etasq)) +
                                           (0.75 * CK2) * tsi / psisq * self.x3thm1 *
@@ -714,7 +742,7 @@ class _SGDP4(object):
 
         self.c1 = self.bstar * self.c2
 
-        self.c4 = (2.0 * self.xnodp * coef_1 * self.aodp * betao2 * (
+        self.c4 = (2.0 * self.xnodp * coef_1 * self.aodp * self._betao2 * (
             self.eta * (2.0 + 0.5 * etasq) + self.eo * (0.5 + 2.0 * etasq) - (2.0 * CK2) * tsi /
             (self.aodp * psisq) * (-3.0 * self.x3thm1 * (1.0 - 2.0 * eeta + etasq * (1.5 - 0.5 * eeta)) +
                                    0.75 * self.x1mth2 * (2.0 * etasq - eeta * (1.0 + etasq)) *
@@ -723,19 +751,33 @@ class _SGDP4(object):
         self.c5, self.c3, self.omgcof = 0.0, 0.0, 0.0
 
         if self.mode == SGDP4_NEAR_NORM:
-            self.c5 = (2.0 * coef_1 * self.aodp * betao2 *
+            self.c5 = (2.0 * coef_1 * self.aodp * self._betao2 *
                        (1.0 + 2.75 * (etasq + eeta) + eeta * etasq))
             if self.eo > ECC_ALL:
                 self.c3 = coef * tsi * A3OVK2 * \
                     self.xnodp * AE * self.sinIO / self.eo
             self.omgcof = self.bstar * self.c3 * np.cos(self.omegao)
 
+    def _get_s4_qoms24(self):
+        if self.perigee < 156:
+            s4 = self.perigee - 78
+            if s4 < 20:
+                s4 = 20
+
+            qoms24 = ((120 - s4) * (AE / XKMPER))**4
+            s4 = (s4 / XKMPER + AE)
+            return (s4, qoms24)
+        return (KS, QOMS2T)
+        
+    def _calculate_dot_products(self, theta2):
+        pinvsq = 1.0 / (self.aodp**2 * self._betao2**2)
         temp1 = 3.0 * CK2 * pinvsq * self.xnodp
         temp2 = temp1 * CK2 * pinvsq
         temp3 = 1.25 * CK4 * pinvsq**2 * self.xnodp
+        theta4 = theta2 ** 2
 
-        self.xmdot = (self.xnodp + (0.5 * temp1 * betao * self.x3thm1 + 0.0625 *
-                                    temp2 * betao * (13.0 - 78.0 * theta2 +
+        self.xmdot = (self.xnodp + (0.5 * temp1 * self._betao * self.x3thm1 + 0.0625 *
+                                    temp2 * self._betao * (13.0 - 78.0 * theta2 +
                                                      137.0 * theta4)))
 
         x1m5th = 1.0 - 5.0 * theta2
@@ -744,48 +786,35 @@ class _SGDP4(object):
                        (7.0 - 114.0 * theta2 + 395.0 * theta4) +
                        temp3 * (3.0 - 36.0 * theta2 + 49.0 * theta4))
 
-        xhdot1 = -temp1 * self.cosIO
-        self.xnodot = (xhdot1 + (0.5 * temp2 * (4.0 - 19.0 * theta2) +
+        self._xhdot1 = -temp1 * self.cosIO
+        self.xnodot = (self._xhdot1 + (0.5 * temp2 * (4.0 - 19.0 * theta2) +
                                  2.0 * temp3 * (3.0 - 7.0 * theta2)) * self.cosIO)
 
+    def _calculate_xmcof(self, coef, eeta):
         if self.eo > ECC_ALL:
-            self.xmcof = (-(2. / 3) * AE) * coef * self.bstar / eeta
-        else:
-            self.xmcof = 0.0
+            return (-(2. / 3) * AE) * coef * self.bstar / eeta
+        return 0.0
 
-        self.xnodcf = 3.5 * betao2 * xhdot1 * self.c1
-        self.t2cof = 1.5 * self.c1
-
+    def _calculate_xlcof(self):
         # Check for possible divide-by-zero for X/(1+cos(xincl)) when
         # calculating xlcof */
         temp0 = 1.0 + self.cosIO
         if np.abs(temp0) < EPS_COS:
             temp0 = np.sign(temp0) * EPS_COS
+        return 0.125 * A3OVK2 * self.sinIO * (3.0 + 5.0 * self.cosIO) / temp0
 
-        self.xlcof = 0.125 * A3OVK2 * self.sinIO * \
-            (3.0 + 5.0 * self.cosIO) / temp0
-
-        self.aycof = 0.25 * A3OVK2 * self.sinIO
-
-        self.cosXMO = np.cos(self.xmo)
-        self.sinXMO = np.sin(self.xmo)
-        self.delmo = (1.0 + self.eta * self.cosXMO)**3
-
-        if self.mode == SGDP4_NEAR_NORM:
-            c1sq = self.c1**2
-            self.d2 = 4.0 * self.aodp * tsi * c1sq
-            temp0 = self.d2 * tsi * self.c1 / 3.0
-            self.d3 = (17.0 * self.aodp + s4) * temp0
-            self.d4 = 0.5 * temp0 * self.aodp * tsi * \
-                (221.0 * self.aodp + 31.0 * s4) * self.c1
-            self.t3cof = self.d2 + 2.0 * c1sq
-            self.t4cof = 0.25 * \
-                (3.0 * self.d3 + self.c1 * (12.0 * self.d2 + 10.0 * c1sq))
-            self.t5cof = (0.2 * (3.0 * self.d4 + 12.0 * self.c1 * self.d3 + 6.0 * self.d2**2 +
-                                 15.0 * c1sq * (2.0 * self.d2 + c1sq)))
-
-        elif self.mode == SGDP4_DEEP_NORM:
-            raise NotImplementedError("Deep space calculations not supported")
+    def _calculate_near_norm_parameters(self, tsi, s4):
+        c1sq = self.c1**2
+        self.d2 = 4.0 * self.aodp * tsi * c1sq
+        temp0 = self.d2 * tsi * self.c1 / 3.0
+        self.d3 = (17.0 * self.aodp + s4) * temp0
+        self.d4 = 0.5 * temp0 * self.aodp * tsi * \
+            (221.0 * self.aodp + 31.0 * s4) * self.c1
+        self.t3cof = self.d2 + 2.0 * c1sq
+        self.t4cof = 0.25 * \
+            (3.0 * self.d3 + self.c1 * (12.0 * self.d2 + 10.0 * c1sq))
+        self.t5cof = (0.2 * (3.0 * self.d4 + 12.0 * self.c1 * self.d3 + 6.0 * self.d2**2 +
+                                15.0 * c1sq * (2.0 * self.d2 + c1sq)))
 
     def propagate(self, utc_time):
         kep = {}
@@ -928,6 +957,15 @@ class _SGDP4(object):
         kep["rfdotk"] = rfdotk
 
         return kep
+
+
+def _check_orbital_elements(orbit_elements):
+    if not (0 < orbit_elements.excentricity < ECC_LIMIT_HIGH):
+        raise OrbitalError("Eccentricity out of range: %e" % orbit_elements.excentricity)
+    if not ((0.0035 * 2 * np.pi / XMNPDA) < orbit_elements.original_mean_motion < (18 * 2 * np.pi / XMNPDA)):
+        raise OrbitalError("Mean motion out of range: %e" % orbit_elements.original_mean_motion)
+    if not (0 < orbit_elements.inclination < np.pi):
+        raise OrbitalError("Inclination out of range: %e" % orbit_elements.inclination)
 
 
 def _get_tz_unaware_utctime(utc_time):

@@ -63,16 +63,11 @@ class TleDownloadTimeoutError(Exception):
 def _get_config_path():
     """Get the config path for Pyorbital."""
     if "PPP_CONFIG_DIR" in os.environ and "PYORBITAL_CONFIG_PATH" not in os.environ:
-        # XXX: Swap when pyorbital 1.9 is released
-        #LOGGER.warning(
-        #    "The use of PPP_CONFIG_DIR is no longer supported!" +
-        #    " Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
-        #LOGGER.debug("Using the package default for configuration: %s", PKG_CONFIG_DIR)
-        #return PKG_CONFIG_DIR
         LOGGER.warning(
-            "The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.9!" +
+            "The use of PPP_CONFIG_DIR is no longer supported!" +
             " Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
-        pyorbital_config_path = os.getenv("PPP_CONFIG_DIR", PKG_CONFIG_DIR)
+        LOGGER.debug("Using the package default for configuration: %s", PKG_CONFIG_DIR)
+        return PKG_CONFIG_DIR
     else:
         pyorbital_config_path = os.getenv("PYORBITAL_CONFIG_PATH", PKG_CONFIG_DIR)
 

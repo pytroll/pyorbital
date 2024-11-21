@@ -90,3 +90,10 @@ max-complexity = 10
 [tool.coverage.run]
 relative_files = true
 omit = ["pyorbital/version.py"]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "error",
+    "ignore:numpy.ndarray size changed:RuntimeWarning",
+]
+

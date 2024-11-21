@@ -166,9 +166,6 @@ def read(platform, tle_file=None, line1=None, line2=None):
     """
     return Tle(platform, tle_file=tle_file, line1=line1, line2=line2)
 
-# req = urllib.request.Request('http://www.example.com')
-# with urllib.request.urlopen(req) as response:
-#     the_page = response.read()
 
 def fetch(destination):
     """Fetch TLE from internet and save it to `destination`."""

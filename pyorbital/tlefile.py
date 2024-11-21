@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2011-2023 Pytroll Community
+# Copyright (c) 2011-2024 Pytroll Community
 #
 # Author(s):
 #
@@ -25,58 +25,63 @@
 
 """Classes and functions for handling TLE files."""
 
+import datetime as dt
+import glob
 import io
 import logging
-import datetime as dt
-from urllib.request import urlopen
 import os
-import glob
+import sqlite3
+from itertools import zip_longest
+from urllib.request import urlopen
+
+#from xml.etree import ElementTree as ET
+import defusedxml.ElementTree as ET
 import numpy as np
 import requests
-import sqlite3
-from xml.etree import ElementTree as ET
-from itertools import zip_longest
 
-TLE_GROUPS = ('active',
-              'weather',
-              'resource',
-              'cubesat',
-              'stations',
-              'sarsat',
-              'noaa',
-              'amateur',
-              'engineering')
+TLE_GROUPS = ("active",
+              "weather",
+              "resource",
+              "cubesat",
+              "stations",
+              "sarsat",
+              "noaa",
+              "amateur",
+              "engineering")
 
-TLE_URLS = [f'https://celestrak.org/NORAD/elements/gp.php?GROUP={group}&FORMAT=tle'
+TLE_URLS = [f"https://celestrak.org/NORAD/elements/gp.php?GROUP={group}&FORMAT=tle"
             for group in TLE_GROUPS]
 
 
 LOGGER = logging.getLogger(__name__)
-PKG_CONFIG_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'etc')
+PKG_CONFIG_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), "etc")
+
+class TleDownloadTimeoutError(Exception):
+    """TLE download timeout exception."""
 
 
 def _check_support_limit_ppp_config_dir():
     """Check the version where PPP_CONFIG_DIR will no longer be supported."""
-    from pyorbital import version
-    return version.get_versions()['version'] >= '1.9'
+    from pyorbital import get_version
+    return get_version() >= "1.9"
 
 
 def _get_config_path():
     """Get the config path for Pyorbital."""
-    if 'PPP_CONFIG_DIR' in os.environ and 'PYORBITAL_CONFIG_PATH' not in os.environ:
+    if "PPP_CONFIG_DIR" in os.environ and "PYORBITAL_CONFIG_PATH" not in os.environ:
         if _check_support_limit_ppp_config_dir():
             LOGGER.warning(
-                'The use of PPP_CONFIG_DIR is no longer supported!' +
-                ' Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!')
-            LOGGER.debug('Using the package default for configuration: %s', PKG_CONFIG_DIR)
+                "The use of PPP_CONFIG_DIR is no longer supported!" +
+                " Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
+            LOGGER.debug("Using the package default for configuration: %s", PKG_CONFIG_DIR)
             return PKG_CONFIG_DIR
         else:
             LOGGER.warning(
-                'The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.9!' +
-                ' Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!')
-            pyorbital_config_path = os.getenv('PPP_CONFIG_DIR', PKG_CONFIG_DIR)
+                "The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.9!" +
+                " Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
+            pyorbital_config_path = os.getenv("PPP_CONFIG_DIR", PKG_CONFIG_DIR)
     else:
-        pyorbital_config_path = os.getenv('PYORBITAL_CONFIG_PATH', PKG_CONFIG_DIR)
+        pyorbital_config_path = os.getenv("PYORBITAL_CONFIG_PATH", PKG_CONFIG_DIR)
 
     LOGGER.debug("Path to the Pyorbital configuration (where e.g. platforms.txt is found): %s",
                  str(pyorbital_config_path))
@@ -89,9 +94,9 @@ def get_platforms_filepath():
     Check that the file exists or raise an error.
     """
     config_path = _get_config_path()
-    platform_file = os.path.join(config_path, 'platforms.txt')
+    platform_file = os.path.join(config_path, "platforms.txt")
     if not os.path.isfile(platform_file):
-        platform_file = os.path.join(PKG_CONFIG_DIR, 'platforms.txt')
+        platform_file = os.path.join(PKG_CONFIG_DIR, "platforms.txt")
         if not os.path.isfile(platform_file):
             raise OSError("Platform file {filepath} does not exist!".format(filepath=platform_file))
 
@@ -102,15 +107,15 @@ def read_platform_numbers(filename, in_upper=False, num_as_int=False):
     """Read platform numbers from $PYORBITAL_CONFIG_PATH/platforms.txt."""
     out_dict = {}
 
-    with open(filename, 'r') as fid:
+    with open(filename, "r") as fid:
         for row in fid:
             # skip comment lines
-            if not row.startswith('#'):
+            if not row.startswith("#"):
                 parts = row.split()
                 if len(parts) < 2:
                     continue
                 # The satellite name might have whitespace
-                platform = ' '.join(parts[:-1])
+                platform = " ".join(parts[:-1])
                 num = parts[-1]
                 if in_upper:
                     platform = platform.upper()
@@ -161,12 +166,17 @@ def read(platform, tle_file=None, line1=None, line2=None):
     """
     return Tle(platform, tle_file=tle_file, line1=line1, line2=line2)
 
+# req = urllib.request.Request('http://www.example.com')
+# with urllib.request.urlopen(req) as response:
+#     the_page = response.read()
 
 def fetch(destination):
     """Fetch TLE from internet and save it to `destination`."""
     with io.open(destination, mode="w", encoding="utf-8") as dest:
         for url in TLE_URLS:
-            response = urlopen(url)
+            if not url.lower().startswith("http"):
+                raise ValueError(f"{str(url)} is not accepted!")
+            response = urlopen(url)  # nosec
             dest.write(response.read().decode("utf-8"))
 
 
@@ -248,7 +258,7 @@ class Tle(object):
             if not tle:
                 raise KeyError("Found no TLE entry for '%s'" % self._platform)
 
-        self._line1, self._line2 = tle.split('\n')
+        self._line1, self._line2 = tle.split("\n")
 
     def _parse_tle(self):
         """Parse values from TLE data."""
@@ -272,7 +282,7 @@ class Tle(object):
         self.epoch_day = float(self._line1[20:32])
         self.epoch = \
             np.datetime64(dt.datetime.strptime(self.epoch_year, "%y") +
-                          dt.timedelta(days=self.epoch_day - 1), 'us')
+                          dt.timedelta(days=self.epoch_day - 1), "us")
         self.mean_motion_derivative = float(self._line1[33:43])
         self.mean_motion_sec_derivative = _read_tle_decimal(self._line1[44:52])
         self.bstar = _read_tle_decimal(self._line1[53:61])
@@ -295,20 +305,20 @@ class Tle(object):
         import pprint
         s_var = io.StringIO()
         d_var = dict(([(k, v) for k, v in
-                       list(self.__dict__.items()) if k[0] != '_']))
+                       list(self.__dict__.items()) if k[0] != "_"]))
         pprint.pprint(d_var, s_var)
         return s_var.getvalue()[:-1]
 
 
 def _get_local_tle_path_from_env():
     """Get the path to possible local TLE files using the environment variable."""
-    return os.environ.get('TLES')
+    return os.environ.get("TLES")
 
 
 def _get_uris_and_open_func(tle_file=None):
     """Get the uri's and the adequate file open call for the TLE files."""
     def _open(filename):
-        return io.open(filename, 'rb')
+        return io.open(filename, "rb")
 
     local_tle_path = _get_local_tle_path_from_env()
 
@@ -337,13 +347,13 @@ def _get_uris_and_open_func(tle_file=None):
     return uris, open_func
 
 
-def _get_first_tle(uris, open_func, platform=''):
+def _get_first_tle(uris, open_func, platform=""):
     return _get_tles_from_uris(uris, open_func, platform=platform, only_first=True)
 
 
-def _get_tles_from_uris(uris, open_func, platform='', only_first=True):
+def _get_tles_from_uris(uris, open_func, platform="", only_first=True):
     tles = []
-    designator = "1 " + SATELLITES.get(platform, '')
+    designator = "1 " + SATELLITES.get(platform, "")
     for url in uris:
         fid = open_func(url)
         for l_0 in fid:
@@ -375,7 +385,7 @@ def _get_tles_from_uris(uris, open_func, platform='', only_first=True):
 def _decode(itm):
     if isinstance(itm, str):
         return itm
-    return itm.decode('utf-8')
+    return itm.decode("utf-8")
 
 
 PLATFORM_NAMES_TABLE = "(satid text primary key, platform_name text)"
@@ -402,7 +412,10 @@ class Downloader(object):
                 tles[source] = []
                 failures = []
                 for uri in sources[source]:
-                    req = requests.get(uri)
+                    try:
+                        req = requests.get(uri, timeout=15)  # 15 seconds
+                    except requests.exceptions.Timeout:
+                        raise TleDownloadTimeoutError(f"Failed to make request to {str(uri)} within 15 seconds!")
                     if req.status_code == 200:
                         tles[source] += _parse_tles_for_downloader((req.text,), io.StringIO)
                     else:
@@ -410,7 +423,7 @@ class Downloader(object):
                 if len(failures) > 0:
                     logging.error(
                         "Could not fetch TLEs from %s, %d failure(s): [%s]",
-                        source, len(failures), ', '.join(failures))
+                        source, len(failures), ", ".join(failures))
                 logging.info("Downloaded %d TLEs from %s",
                              len(tles[source]), source)
         return tles
@@ -422,8 +435,8 @@ class Downloader(object):
         download_url = ("https://www.space-track.org/basicspacedata/query/"
                         "class/tle_latest/ORDINAL/1/NORAD_CAT_ID/%s/format/"
                         "tle")
-        download_url = download_url % ','.join(
-            [str(key) for key in self.config['platforms']])
+        download_url = download_url % ",".join(
+            [str(key) for key in self.config["platforms"]])
 
         user = self.config["downloaders"]["fetch_spacetrack"]["user"]
         password = self.config["downloaders"]["fetch_spacetrack"]["password"]
@@ -470,15 +483,15 @@ class Downloader(object):
 
 
 def _parse_tles_for_downloader(item, open_func):
-    return [Tle('', tle_file=io.StringIO(tle)) for tle in
-            _get_tles_from_uris(item, open_func, platform='', only_first=False)]
+    return [Tle("", tle_file=io.StringIO(tle)) for tle in
+            _get_tles_from_uris(item, open_func, platform="", only_first=False)]
 
 
 def collect_filenames(paths):
     """Collect all filenames from *paths*."""
     fnames = []
     for path in paths:
-        if '*' in path:
+        if "*" in path:
             fnames += glob.glob(path)
         else:
             if not os.path.exists(path):
@@ -494,10 +507,10 @@ def read_tles_from_mmam_xml_files(paths):
     fnames = collect_filenames(paths)
     tles = []
     for fname in fnames:
-        data = read_tle_from_mmam_xml_file(fname).split('\n')
+        data = read_tle_from_mmam_xml_file(fname).split("\n")
         for two_lines in _group_iterable_to_chunks(2, data):
-            tl_stream = io.StringIO('\n'.join(two_lines))
-            tles.append(Tle('', tle_file=tl_stream))
+            tl_stream = io.StringIO("\n".join(two_lines))
+            tles.append(Tle("", tle_file=tl_stream))
     return tles
 
 
@@ -559,7 +572,7 @@ class SQLiteTLE(object):
                              self.platforms[num], num)
         cmd = SATID_VALUES.format(num)
         epoch = tle.epoch.item().isoformat()
-        tle = '\n'.join([tle.line1, tle.line2])
+        tle = "\n".join([tle.line1, tle.line2])
         now = dt.datetime.utcnow().isoformat()
         try:
             with self.db:
@@ -572,7 +585,7 @@ class SQLiteTLE(object):
 
     def write_tle_txt(self):
         """Write TLE data to a text file."""
-        if not self.updated and not self.writer_config.get('write_always',
+        if not self.updated and not self.writer_config.get("write_always",
                                                            False):
             return
         pattern = os.path.join(self.writer_config["output_dir"],
@@ -588,9 +601,8 @@ class SQLiteTLE(object):
         for satid, platform_name in self.platforms.items():
             if self.writer_config.get("write_name", False):
                 data.append(platform_name)
-            query = ("SELECT epoch, tle FROM '%s' ORDER BY "
-                     "epoch DESC LIMIT 1" % satid)
-            epoch, tle = self.db.execute(query).fetchone()
+            query = f"SELECT epoch, tle FROM '{satid:d}' ORDER BY epoch DESC LIMIT 1"  # noseq
+            epoch, tle = self.db.execute(query).fetchone()  # nosec
             date_epoch = dt.datetime.strptime(epoch, ISO_TIME_FORMAT)
             tle_age = (
                 dt.datetime.utcnow() - date_epoch).total_seconds() / 3600.
@@ -598,8 +610,8 @@ class SQLiteTLE(object):
                          satid, platform_name, int(tle_age))
             data.append(tle)
 
-        with open(fname, 'w') as fid:
-            fid.write('\n'.join(data))
+        with open(fname, "w") as fid:
+            fid.write("\n".join(data))
 
         logging.info("Wrote %d TLEs to %s", len(data), fname)
 
@@ -612,14 +624,14 @@ def table_exists(db, name):
     """Check if the table 'name' exists in the database."""
     name = str(name)
     query = "SELECT 1 FROM sqlite_master WHERE type='table' and name=?"
-    return db.execute(query, (name,)).fetchone() is not None
+    return db.execute(query, (name,)).fetchone() is not None  # nosec
 
 
 def main():
     """Run a test TLE reading."""
-    tle_data = read('Noaa-19')
+    tle_data = read("Noaa-19")
     print(tle_data)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

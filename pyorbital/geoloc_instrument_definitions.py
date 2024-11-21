@@ -41,7 +41,6 @@ import numpy as np
 
 from pyorbital.geoloc import ScanGeometry
 
-
 ################################################################
 #
 #   AVHRR
@@ -78,7 +77,7 @@ def avhrr(scans_nb, scan_points,
 
 def avhrr_gac(scan_times, scan_points,
               scan_angle=55.37, frequency=0.5):
-    """Definition of the avhrr instrument, gac version
+    """Definition of the avhrr instrument, gac version.
 
     Source: NOAA KLM User's Guide, Appendix J
     http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
@@ -154,9 +153,8 @@ def viirs(scans_nb, scan_indices=slice(0, None),
                99 emtpy (excluded) scans
 
     """
-
     entire_width = np.arange(chn_pixels)
-    scan_points = entire_width[scan_indices].astype('int')
+    scan_points = entire_width[scan_indices].astype("int")
     scan_pixels = len(scan_points)
 
     # Initial angle 55.84 deg replaced with 56.28 deg found in
@@ -210,7 +208,7 @@ def viirs_edge_geom(scans_nb):
 ################################################################
 
 def amsua(scans_nb, scan_points=None):
-    """ Describe AMSU-A instrument geometry
+    """Describe AMSU-A instrument geometry.
 
     Parameters:
        scans_nb | int -  number of scan lines
@@ -222,7 +220,6 @@ def amsua(scans_nb, scan_points=None):
        pyorbital.geoloc.ScanGeometry object
 
     """
-
     scan_len = 30  # 30 samples per scan
     scan_rate = 8  # single scan, seconds
     scan_angle = -48.3  # swath, degrees
@@ -255,7 +252,7 @@ def amsua(scans_nb, scan_points=None):
 ################################################################
 
 def mhs(scans_nb, scan_points=None):
-    """ Describe MHS instrument geometry
+    """Describe MHS instrument geometry.
 
     See:
 
@@ -274,7 +271,6 @@ def mhs(scans_nb, scan_points=None):
        pyorbital.geoloc.ScanGeometry object
 
     """
-
     scan_len = 90  # 90 samples per scan
     scan_rate = 8 / 3.  # single scan, seconds
     scan_angle = -49.444  # swath, degrees
@@ -332,7 +328,6 @@ def hirs4(scans_nb, scan_points=None):
        pyorbital.geoloc.ScanGeometry object
 
     """
-
     scan_len = 56  # 56 samples per scan
     scan_rate = 6.4  # single scan, seconds
     scan_angle = -49.5  # swath, degrees
@@ -363,7 +358,7 @@ def hirs4(scans_nb, scan_points=None):
 ################################################################
 
 def atms(scans_nb, scan_points=None):
-    """ Describe ATMS instrument geometry
+    """Describe ATMS instrument geometry
     See:
 
     - https://dtcenter.org/com-GSI/users/docs/presentations/2013_workshop/
@@ -382,7 +377,6 @@ def atms(scans_nb, scan_points=None):
        pyorbital.geoloc.ScanGeometry object
 
     """
-
     scan_len = 96  # 96 samples per scan
     scan_rate = 8 / 3.  # single scan, seconds
     scan_angle = -52.7  # swath, degrees
@@ -413,7 +407,7 @@ def atms(scans_nb, scan_points=None):
 ################################################################
 
 def mwhs2(scans_nb, scan_points=None):
-    """Describe MWHS-2 instrument geometry
+    """Describe MWHS-2 instrument geometry.
 
     The scanning period is 2.667 s. Main beams of the antenna scan over the ob-
     serving swath (±53.35◦ from nadir) in the cross-track direction at a
@@ -434,7 +428,6 @@ def mwhs2(scans_nb, scan_points=None):
        pyorbital.geoloc.ScanGeometry object
 
     """
-
     scan_len = 98  # 98 samples per scan
     scan_rate = 8 / 3.  # single scan, seconds
     scan_angle = -53.35  # swath, degrees
@@ -485,7 +478,6 @@ def olci(scans_nb, scan_points=None):
     Source: Sentinel-3 OLCI Coverage
     https://sentinel.esa.int/web/sentinel/user-guides/sentinel-3-olci/coverage
     """
-
     if scan_points is None:
         scan_len = 4000  # samples per scan
         scan_points = np.arange(4000)
@@ -519,7 +511,6 @@ def ascat(scan_nb, scan_points=None):
     sub-satellite track.
 
     """
-
     if scan_points is None:
         scan_len = 42  # samples per scan
         scan_points = np.arange(42)

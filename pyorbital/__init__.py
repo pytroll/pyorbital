@@ -19,7 +19,7 @@
 
 import numpy as np
 
-from pyorbital import version
+from pyorbital.version import __version__  # noqa
 
 
 def dt2np(utc_time):
@@ -28,7 +28,3 @@ def dt2np(utc_time):
         return np.datetime64(utc_time)
     except ValueError:
         return utc_time.astype("datetime64[ns]")
-
-def get_version():
-    """Return the Pyorbital version tag."""
-    return version.__version__

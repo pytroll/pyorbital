@@ -10,6 +10,7 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: pyorbital/tests/SGP4-VER.TLE
       - id: end-of-file-fixer
       - id: check-yaml
         args: [--unsafe]

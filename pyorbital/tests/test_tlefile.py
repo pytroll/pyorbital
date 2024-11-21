@@ -45,12 +45,12 @@ from pyorbital.tlefile import (
     read_platform_numbers,
 )
 
-line0 = "ISS (ZARYA)"
-line1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
-line2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537"
+LINE0 = "ISS (ZARYA)"
+LINE1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
+LINE2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537"
 
-line1_2 = "1 38771U 12049A   21137.30264622  .00000000  00000+0 -49996-5 0 00017"
-line2_2 = "2 38771  98.7162 197.7716 0002383 106.1049 122.6344 14.21477797449453"
+LINE1_2 = "1 38771U 12049A   21137.30264622  .00000000  00000+0 -49996-5 0 00017"
+LINE2_2 = "2 38771  98.7162 197.7716 0002383 106.1049 122.6344 14.21477797449453"
 
 
 NOAA19_2LINES = """1 33591U 09005A   21355.91138073  .00000074  00000+0  65091-4 0  9998
@@ -65,16 +65,16 @@ tle_xml = "\n".join(
         "<message>",
         "<two-line-elements>",
         "<navigation>",
-        "<line-1>" + line1 + "</line-1>",
-        "<line-2>" + line2 + "</line-2>",
+        "<line-1>" + LINE1 + "</line-1>",
+        "<line-2>" + LINE2 + "</line-2>",
         "</navigation>",
         "</two-line-elements>",
         "</message>",
         "<message>",
         "<two-line-elements>",
         "<navigation>",
-        "<line-1>" + line1_2 + "</line-1>",
-        "<line-2>" + line2_2 + "</line-2>",
+        "<line-1>" + LINE1_2 + "</line-1>",
+        "<line-2>" + LINE2_2 + "</line-2>",
         "</navigation>",
         "</two-line-elements>",
         "</message>",
@@ -330,7 +330,7 @@ class TLETest(unittest.TestCase):
 
     def test_from_line(self):
         """Test parsing from line elements."""
-        tle = Tle("ISS (ZARYA)", line1=line1, line2=line2)
+        tle = Tle("ISS (ZARYA)", line1=LINE1, line2=LINE2)
         self.check_example(tle)
 
     def test_from_file(self):
@@ -339,7 +339,7 @@ class TLETest(unittest.TestCase):
         from tempfile import mkstemp
         filehandle, filename = mkstemp()
         try:
-            write(filehandle, "\n".join([line0, line1, line2]).encode("utf-8"))
+            write(filehandle, "\n".join([LINE0, LINE1, LINE2]).encode("utf-8"))
             close(filehandle)
             tle = Tle("ISS (ZARYA)", filename)
             self.check_example(tle)
@@ -436,8 +436,8 @@ class TestDownloader(unittest.TestCase):
         res = self.dl.fetch_plain_tle()
         assert "source_1" in res
         assert len(res["source_1"]) == 3
-        assert res["source_1"][0].line1 == line1
-        assert res["source_1"][0].line2 == line2
+        assert res["source_1"][0].line1 == LINE1
+        assert res["source_1"][0].line2 == LINE2
         assert "source_2" in res
         assert len(res["source_2"]) == 1
         assert mock.call("mocked_url_1", timeout=15) in requests.get.mock_calls
@@ -520,7 +520,7 @@ class TestDownloader(unittest.TestCase):
         mock_session.get = mock_get
         requests.Session.return_value.__enter__.return_value = mock_session
 
-        tle_text = "\n".join((line0, line1, line2))
+        tle_text = "\n".join((LINE0, LINE1, LINE2))
         self.dl.config["platforms"] = {
             25544: "ISS"
         }
@@ -532,14 +532,14 @@ class TestDownloader(unittest.TestCase):
         mock_get.return_value.text = tle_text
         res = self.dl.fetch_spacetrack()
         assert len(res) == 1
-        assert res[0].line1 == line1
-        assert res[0].line2 == line2
+        assert res[0].line1 == LINE1
+        assert res[0].line2 == LINE2
 
     def test_read_tle_files(self):
         """Test reading TLE files from a file system."""
         from tempfile import TemporaryDirectory
 
-        tle_text = "\n".join((line0, line1, line2))
+        tle_text = "\n".join((LINE0, LINE1, LINE2))
 
         save_dir = TemporaryDirectory()
         with save_dir:
@@ -557,8 +557,8 @@ class TestDownloader(unittest.TestCase):
             }
             res = self.dl.read_tle_files()
         assert len(res) == 2
-        assert res[0].line1 == line1
-        assert res[0].line2 == line2
+        assert res[0].line1 == LINE1
+        assert res[0].line2 == LINE2
 
     def test_read_xml_admin_messages(self):
         """Test reading TLE files from a file system."""
@@ -583,16 +583,16 @@ class TestDownloader(unittest.TestCase):
         # There are two sets of TLEs in the file.  And as the same file is
         # parsed twice, 4 TLE objects are returned
         assert len(res) == 4
-        assert res[0].line1 == line1
-        assert res[0].line2 == line2
-        assert res[1].line1 == line1_2
-        assert res[1].line2 == line2_2
+        assert res[0].line1 == LINE1
+        assert res[0].line2 == LINE2
+        assert res[1].line1 == LINE1_2
+        assert res[1].line2 == LINE2_2
 
 
 def _get_req_response(code):
     req = mock.MagicMock()
     req.status_code = code
-    req.text = "\n".join((line0, line1, line2))
+    req.text = "\n".join((LINE0, LINE1, LINE2))
     return req
 
 
@@ -615,7 +615,7 @@ class TestSQLiteTLE(unittest.TestCase):
             "write_always": False
         }
         self.db = SQLiteTLE(self.db_fname, self.platforms, self.writer_config)
-        self.tle = Tle("ISS", line1=line1, line2=line2)
+        self.tle = Tle("ISS", line1=LINE1, line2=LINE2)
 
     def tearDown(self):
         """Clean temporary files."""
@@ -672,7 +672,7 @@ class TestSQLiteTLE(unittest.TestCase):
         # epoch
         assert data[0][0] == "2008-09-20T12:25:40.104192"
         # TLE
-        assert data[0][1] == "\n".join((line1, line2))
+        assert data[0][1] == "\n".join((LINE1, LINE2))
         # Date when the data were added should be close to current time
         date_added = datetime.datetime.strptime(data[0][2], ISO_TIME_FORMAT)
         now = datetime.datetime.utcnow()
@@ -724,8 +724,8 @@ class TestSQLiteTLE(unittest.TestCase):
             data = fid.read().split("\n")
         assert len(data) == 3
         assert "ISS" in data[0]
-        assert data[1] == line1
-        assert data[2] == line2
+        assert data[1] == LINE1
+        assert data[2] == LINE2
 
         # Call the writing again, nothing should be written. In
         # real-life this assumes a re-run has been done without new
@@ -747,5 +747,13 @@ class TestSQLiteTLE(unittest.TestCase):
         with open(files[1], "r") as fid:
             data = fid.read().split("\n")
         assert len(data) == 2
-        assert data[0] == line1
-        assert data[1] == line2
+        assert data[0] == LINE1
+        assert data[1] == LINE2
+
+def test_tle_instance_printing():
+    """Test the print the Tle instance."""
+    tle = Tle("ISS", line1=LINE1, line2=LINE2)
+
+    expected = "{'arg_perigee': 130.536,\n 'bstar': -1.1606e-05,\n 'classification': 'U',\n 'element_number': 292,\n 'ephemeris_type': 0,\n 'epoch': np.datetime64('2008-09-20T12:25:40.104192'),\n 'epoch_day': 264.51782528,\n 'epoch_year': '08',\n 'excentricity': 0.0006703,\n 'id_launch_number': '067',\n 'id_launch_piece': 'A  ',\n 'id_launch_year': '98',\n 'inclination': 51.6416,\n 'mean_anomaly': 325.0288,\n 'mean_motion': 15.72125391,\n 'mean_motion_derivative': -2.182e-05,\n 'mean_motion_sec_derivative': 0.0,\n 'orbit': 56353,\n 'right_ascension': 247.4627,\n 'satnumber': '25544'}"  # noqa
+
+    assert str(tle) == expected

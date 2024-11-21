@@ -99,7 +99,7 @@
 #                       # check error code 4
 1 33333U 05037B   05333.02012661  .25992681  00000-0  24476-3 0  1534
 2 33333  96.4736 157.9986 9950000 244.0492 110.6523  4.00004038 10708      0.0       150.0          5.00
-#                       # try and check error code 2 but this 
+#                       # try and check error code 2 but this
 1 33334U 78066F   06174.85818871  .00000620  00000-0  10000-3 0  6809
 2 33334  68.4714 236.1303 5602877 123.7484 302.5767  0.00001000 67521      0.0      1440.0         1.00
 #                       # try to check error code 3 looks like ep never goes below zero, tied close to ecc

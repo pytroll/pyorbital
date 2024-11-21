@@ -163,7 +163,7 @@ In this release 5 pull requests were closed.
 ### Issues Closed
 
 * [Issue 63](https://github.com/pytroll/pyorbital/issues/63) - Runtime error in get_next_passes ([PR 64](https://github.com/pytroll/pyorbital/pull/64))
-* [Issue 62](https://github.com/pytroll/pyorbital/issues/62) -  can  this tool run 
+* [Issue 62](https://github.com/pytroll/pyorbital/issues/62) -  can  this tool run
 * [Issue 22](https://github.com/pytroll/pyorbital/issues/22) - get_next_passes returns max-elevation-time time not between rise & fall time ([PR 76](https://github.com/pytroll/pyorbital/pull/76))
 
 In this release 3 issues were closed.

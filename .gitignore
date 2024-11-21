@@ -39,3 +39,5 @@ nosetests.xml
 
 # rope
 .ropeproject
+
+pyorbital/version.py

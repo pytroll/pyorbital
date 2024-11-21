@@ -24,6 +24,7 @@ dependencies:
   - pytest
   - pytest-cov
   - fsspec
+  - defusedxml
   - pip
   - pip:
     - trollsift

@@ -12,4 +12,3 @@ This is the Pyorbital, a Python package for computing orbital parameters from TL
 files, and making various astronomical computations.
 
 It is part of the Pytroll project: http://pytroll.org
-

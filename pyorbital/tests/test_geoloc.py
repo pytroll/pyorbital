@@ -23,10 +23,11 @@
 """Test the geoloc module."""
 
 from datetime import datetime
+
 import numpy as np
 
 from pyorbital.geoloc import ScanGeometry, geodetic_lat, qrotate, subpoint
-from pyorbital.geoloc_instrument_definitions import avhrr, viirs, amsua, mhs, hirs4, atms, ascat
+from pyorbital.geoloc_instrument_definitions import amsua, ascat, atms, avhrr, hirs4, mhs, viirs
 
 
 class TestQuaternion:
@@ -110,8 +111,8 @@ class TestGeoloc:
         times = instrument.times(start_of_scan)
 
         assert times[0, 1] == start_of_scan
-        assert times[0, 0] == start_of_scan - np.timedelta64(100, 'ms')
-        assert times[0, 2] == start_of_scan + np.timedelta64(100, 'ms')
+        assert times[0, 0] == start_of_scan - np.timedelta64(100, "ms")
+        assert times[0, 2] == start_of_scan + np.timedelta64(100, "ms")
 
     def test_geodetic_lat(self):
         """Test the determination of the geodetic latitude."""

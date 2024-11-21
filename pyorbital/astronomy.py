@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2011, 2013
+# Copyright (c) 2011, 2013, 2024
 #
 # Author(s):
 #
@@ -36,7 +36,6 @@ back to 32-bit before being returned. In general scalar inputs will also
 produce scalar outputs.
 
 """
-import datetime
 
 import numpy as np
 
@@ -48,23 +47,20 @@ MFACTOR = 7.292115E-5
 
 
 def jdays2000(utc_time):
-    """Get the days since year 2000.
-    """
-    return _days(dt2np(utc_time) - np.datetime64('2000-01-01T12:00'))
+    """Get the days since year 2000."""
+    return _days(dt2np(utc_time) - np.datetime64("2000-01-01T12:00"))
 
 
 def jdays(utc_time):
-    """Get the julian day of *utc_time*.
-    """
+    """Get the julian day of *utc_time*."""
     return jdays2000(utc_time) + 2451545.0
 
 
 def _days(dt):
-    """Get the days (floating point) from *d_t*.
-    """
+    """Get the days (floating point) from *d_t*."""
     if hasattr(dt, "shape"):
         dt = np.asanyarray(dt, dtype=np.timedelta64)
-    return dt / np.timedelta64(1, 'D')
+    return dt / np.timedelta64(1, "D")
 
 
 def gmst(utc_time):
@@ -81,14 +77,16 @@ def gmst(utc_time):
 
 def _lmst(utc_time, longitude):
     """Local mean sidereal time, computed from *utc_time* and *longitude*.
-    In radians.
+
+    utc_time: The UTC time as a datetime.datetime  object.
+    Logitude: The longitude in radians.
+    Returns: local mean sideral time in radians.
     """
     return gmst(utc_time) + longitude
 
 
 def sun_ecliptic_longitude(utc_time):
-    """Ecliptic longitude of the sun at *utc_time*.
-    """
+    """Ecliptic longitude of the sun at *utc_time*."""
     jdate = jdays2000(utc_time) / 36525.0
     # mean anomaly, rad
     m_a = np.deg2rad(357.52910 +
@@ -105,8 +103,7 @@ def sun_ecliptic_longitude(utc_time):
 
 
 def sun_ra_dec(utc_time):
-    """Right ascension and declination of the sun at *utc_time*.
-    """
+    """Right ascension and declination of the sun at *utc_time*."""
     jdate = jdays2000(utc_time) / 36525.0
     eps = np.deg2rad(23.0 + 26.0 / 60.0 + 21.448 / 3600.0 -
                      (46.8150 * jdate + 0.00059 * jdate * jdate -
@@ -124,9 +121,12 @@ def sun_ra_dec(utc_time):
 
 
 def _local_hour_angle(utc_time, longitude, right_ascension):
-    """Hour angle at *utc_time* for the given *longitude* and
-    *right_ascension*
-    longitude in radians
+    """Derive the hour angle at *utc_time* for the given *longitude* and *right_ascension*.
+
+    utc_time: datetime.datetime instance of the UTC time
+    longitude: Longitude in radians.
+    right_ascension: The right ascension in radians.
+    Returns: Hour angle in radians.
     """
     return _lmst(utc_time, longitude) - right_ascension
 
@@ -152,9 +152,12 @@ def get_alt_az(utc_time, lon, lat):
 
 
 def cos_zen(utc_time, lon, lat):
-    """Cosine of the sun-zenith angle for *lon*, *lat* at *utc_time*.
+    """Derive the cosine of the sun-zenith angle for *lon*, *lat* at *utc_time*.
+
     utc_time: datetime.datetime instance of the UTC time
-    lon and lat in degrees.
+    lon: Longitude in degrees
+    lat: Latitude in degrees.
+    Returns: Cosine of the sun zenith angle.
     """
     lon = np.deg2rad(lon)
     lat = np.deg2rad(lat)
@@ -169,8 +172,9 @@ def cos_zen(utc_time, lon, lat):
 
 def sun_zenith_angle(utc_time, lon, lat):
     """Sun-zenith angle for *lon*, *lat* at *utc_time*.
+
     lon,lat in degrees.
-    The angle returned is given in degrees
+    The sun zenith angle returned is in degrees.
     """
     sza = np.rad2deg(np.arccos(cos_zen(utc_time, lon, lat)))
     if not isinstance(lon, float):
@@ -179,8 +183,7 @@ def sun_zenith_angle(utc_time, lon, lat):
 
 
 def sun_earth_distance_correction(utc_time):
-    """Calculate the sun earth distance correction, relative to 1 AU.
-    """
+    """Calculate the sun earth distance correction, relative to 1 AU."""
     # Computation according to
     #  https://web.archive.org/web/20150117190838/http://curious.astro.cornell.edu/question.php?number=582
     # with
@@ -208,7 +211,6 @@ def observer_position(utc_time, lon, lat, alt):
 
     http://celestrak.com/columns/v02n03/
     """
-
     lon = np.deg2rad(lon)
     lat = np.deg2rad(lat)
 

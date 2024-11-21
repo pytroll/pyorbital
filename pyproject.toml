@@ -26,6 +26,7 @@ classifiers = [
 ]
 
 [project.scripts]
+"fetch_tles.py" = "pyorbital.fetch_tles:run"
 fetch_tles = "pyorbital.fetch_tles:run"
 
 [project.urls]

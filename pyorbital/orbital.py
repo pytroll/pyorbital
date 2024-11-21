@@ -625,7 +625,7 @@ class OrbitElements(object):
 class _SGDP4(object):
     """Class for the SGDP4 computations."""
 
-    def __init__(self, orbit_elements):
+    def __init__(self, orbit_elements):  # noqa: C901
         """Initialize class."""
         self.mode = None
 

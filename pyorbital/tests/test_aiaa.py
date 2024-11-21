@@ -98,49 +98,52 @@ class AIAAIntegrationTest(unittest.TestCase):
                 if test_line.startswith("1 "):
                     line1 = test_line
                 if test_line.startswith("2 "):
-                    line2 = test_line[:69]
-                    times = str.split(test_line[69:])
-                    times = np.arange(float(times[0]),
-                                      float(times[1]) + 1,
-                                      float(times[2]))
-                    if test_name.startswith("#   SL-14 DEB"):
-                        # FIXME: we have to handle decaying satellites!
-                        test_line = f__.readline()
-                        continue
-
-                    try:
-                        o = LineOrbital("unknown", line1, line2)
-                    except NotImplementedError:
-                        test_line = f__.readline()
-                        continue
-                    except ChecksumError:
-                        assert test_line.split()[1] in ["33333", "33334", "33335"]
-                    for delay in times:
-                        try:
-                            test_time = delay.astype(
-                                "timedelta64[m]") + o.tle.epoch
-                            pos, vel = o.get_position(test_time, False)
-                            res = get_results(
-                                int(o.tle.satnumber), float(delay))
-                        except NotImplementedError:
-                            # Skipping deep-space
-                            break
-                        # except ValueError, e:
-                        #     from warnings import warn
-                        #     warn(test_name + ' ' + str(e))
-                        #     break
-
-                        delta_pos = 5e-6  # km =  5 mm
-                        delta_vel = 5e-9  # km/s = 5 um/s
-                        delta_time = 1e-3  # 1 millisecond
-                        assert abs(res[0] - pos[0]) < delta_pos
-                        assert abs(res[1] - pos[1]) < delta_pos
-                        assert abs(res[2] - pos[2]) < delta_pos
-                        assert abs(res[3] - vel[0]) < delta_vel
-                        assert abs(res[4] - vel[1]) < delta_vel
-                        assert abs(res[5] - vel[2]) < delta_vel
-                        if res[6] is not None:
-                            dt = astronomy._days(res[6] - test_time) * 24 * 60
-                            assert abs(dt) < delta_time
+                    _check_line2(f__, test_name, line1, test_line)
 
                 test_line = f__.readline()
+
+
+def _check_line2(f__, test_name: str, line1: str, test_line: str) -> None:
+    line2 = test_line[:69]
+    times_str = str.split(test_line[69:])
+    times = np.arange(float(times_str[0]),
+                      float(times_str[1]) + 1,
+                      float(times_str[2]))
+    if test_name.startswith("#   SL-14 DEB"):
+        # FIXME: we have to handle decaying satellites!
+        return
+
+    try:
+        o = LineOrbital("unknown", line1, line2)
+    except NotImplementedError:
+        return
+    except ChecksumError:
+        assert test_line.split()[1] in ["33333", "33334", "33335"]
+        return
+
+    for delay in times:
+        try:
+            test_time = delay.astype("timedelta64[m]") + o.tle.epoch
+            pos, vel = o.get_position(test_time, False)
+            res = get_results(
+                int(o.tle.satnumber), float(delay))
+        except NotImplementedError:
+            # Skipping deep-space
+            break
+        # except ValueError, e:
+        #     from warnings import warn
+        #     warn(test_name + ' ' + str(e))
+        #     break
+
+        delta_pos = 5e-6  # km =  5 mm
+        delta_vel = 5e-9  # km/s = 5 um/s
+        delta_time = 1e-3  # 1 millisecond
+        assert abs(res[0] - pos[0]) < delta_pos
+        assert abs(res[1] - pos[1]) < delta_pos
+        assert abs(res[2] - pos[2]) < delta_pos
+        assert abs(res[3] - vel[0]) < delta_vel
+        assert abs(res[4] - vel[1]) < delta_vel
+        assert abs(res[5] - vel[2]) < delta_vel
+        if res[6] is not None:
+            dt = astronomy._days(res[6] - test_time) * 24 * 60
+            assert abs(dt) < delta_time

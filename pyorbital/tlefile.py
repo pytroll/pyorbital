@@ -60,26 +60,19 @@ class TleDownloadTimeoutError(Exception):
     """TLE download timeout exception."""
 
 
-def _check_support_limit_ppp_config_dir():
-    """Check the version where PPP_CONFIG_DIR will no longer be supported."""
-    from pyorbital import get_version
-    return get_version() >= "1.9"
-
-
 def _get_config_path():
     """Get the config path for Pyorbital."""
     if "PPP_CONFIG_DIR" in os.environ and "PYORBITAL_CONFIG_PATH" not in os.environ:
-        if _check_support_limit_ppp_config_dir():
-            LOGGER.warning(
-                "The use of PPP_CONFIG_DIR is no longer supported!" +
-                " Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
-            LOGGER.debug("Using the package default for configuration: %s", PKG_CONFIG_DIR)
-            return PKG_CONFIG_DIR
-        else:
-            LOGGER.warning(
-                "The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.9!" +
-                " Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
-            pyorbital_config_path = os.getenv("PPP_CONFIG_DIR", PKG_CONFIG_DIR)
+        # XXX: Swap when pyorbital 1.9 is released
+        #LOGGER.warning(
+        #    "The use of PPP_CONFIG_DIR is no longer supported!" +
+        #    " Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
+        #LOGGER.debug("Using the package default for configuration: %s", PKG_CONFIG_DIR)
+        #return PKG_CONFIG_DIR
+        LOGGER.warning(
+            "The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.9!" +
+            " Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
+        pyorbital_config_path = os.getenv("PPP_CONFIG_DIR", PKG_CONFIG_DIR)
     else:
         pyorbital_config_path = os.getenv("PYORBITAL_CONFIG_PATH", PKG_CONFIG_DIR)
 

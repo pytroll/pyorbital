@@ -184,20 +184,18 @@ def test_check_is_platform_supported_unknown(caplog):
     assert expected3 in logoutput_lines[2]
 
 
-@patch("pyorbital.get_version",
-       return_value="1.9.1+1.some-future.dirty")
-def test_get_config_path_ppp_config_set_but_not_pyorbital_future(mock, caplog, monkeypatch):
-    """Test getting the config path."""
-    monkeypatch.setenv("SATPY_CONFIG_PATH", "/path/to/satpy/etc")
-    monkeypatch.setenv("PPP_CONFIG_DIR", "/path/to/old/mpop/config/dir")
-
-    with caplog.at_level(logging.WARNING):
-        res = _get_config_path()
-
-    log_output = ("The use of PPP_CONFIG_DIR is no longer supported! " +
-                  "Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
-    assert log_output in caplog.text
-    assert res == PKG_CONFIG_DIR
+#def test_get_config_path_ppp_config_set_but_not_pyorbital_future(mock, caplog, monkeypatch):
+#    """Test getting the config path."""
+#    monkeypatch.setenv("SATPY_CONFIG_PATH", "/path/to/satpy/etc")
+#    monkeypatch.setenv("PPP_CONFIG_DIR", "/path/to/old/mpop/config/dir")
+#
+#    with caplog.at_level(logging.WARNING):
+#        res = _get_config_path()
+#
+#    log_output = ("The use of PPP_CONFIG_DIR is no longer supported! " +
+#                  "Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
+#    assert log_output in caplog.text
+#    assert res == PKG_CONFIG_DIR
 
 
 def test_get_config_path_ppp_config_set_but_not_pyorbital_is_deprecated(caplog, monkeypatch):

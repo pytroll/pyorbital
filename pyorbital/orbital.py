@@ -768,7 +768,7 @@ class _SGDP4(object):
             s4 = (s4 / XKMPER + AE)
             return (s4, qoms24)
         return (KS, QOMS2T)
-        
+
     def _calculate_dot_products(self, theta2):
         pinvsq = 1.0 / (self.aodp**2 * self._betao2**2)
         temp1 = 3.0 * CK2 * pinvsq * self.xnodp
@@ -828,63 +828,63 @@ class _SGDP4(object):
         return self._calculate_keplerians(utc_time)
 
     def _calculate_keplerians(self, utc_time):
-        vars = {"utc_time": utc_time}
-        vars["ts"] = self._get_timedelta_in_minutes(vars)
+        params = {"utc_time": utc_time}
+        params["ts"] = self._get_timedelta_in_minutes(params)
 
-        vars["xmp"] = self.xmo + self.xmdot * vars["ts"]
-        vars["xnode"] = self.xnodeo + vars["ts"] * (self.xnodot + vars["ts"] * self.xnodcf)
+        params["xmp"] = self.xmo + self.xmdot * params["ts"]
+        params["xnode"] = self.xnodeo + params["ts"] * (self.xnodot + params["ts"] * self.xnodcf)
 
         delm = self.xmcof * \
-            ((1.0 + self.eta * np.cos(vars["xmp"]))**3 - self.delmo)
-        vars["temp0"] = vars["ts"] * self.omgcof + delm
-        vars["xmp"] += vars["temp0"]
+            ((1.0 + self.eta * np.cos(params["xmp"]))**3 - self.delmo)
+        params["temp0"] = params["ts"] * self.omgcof + delm
+        params["xmp"] += params["temp0"]
 
-        self._calculate_omega(vars)
+        self._calculate_omega(params)
 
-        vars["tempe"] = self.bstar * \
-            (self.c4 * vars["ts"] + self.c5 * (np.sin(vars["xmp"]) - self.sinXMO))
-        vars["templ"] = vars["ts"] * vars["ts"] * \
-            (self.t2cof + vars["ts"] *
-                (self.t3cof + vars["ts"] * (self.t4cof + vars["ts"] * self.t5cof)))
+        params["tempe"] = self.bstar * \
+            (self.c4 * params["ts"] + self.c5 * (np.sin(params["xmp"]) - self.sinXMO))
+        params["templ"] = params["ts"] * params["ts"] * \
+            (self.t2cof + params["ts"] *
+                (self.t3cof + params["ts"] * (self.t4cof + params["ts"] * self.t5cof)))
 
-        self._calculate_a(vars)
-        self._calculate_axn_and_ayn(vars)
-        _calculate_elsq(vars)
+        self._calculate_a(params)
+        self._calculate_axn_and_ayn(params)
+        _calculate_elsq(params)
 
-        vars["ecc"] = np.sqrt(vars["elsq"])
+        params["ecc"] = np.sqrt(params["elsq"])
 
-        self._calculate_preliminary_short_period(vars)
-        self._update_short_period(vars)
-        kep = self._collect_return_values(vars)
+        self._calculate_preliminary_short_period(params)
+        self._update_short_period(params)
+        kep = self._collect_return_values(params)
 
         return kep
 
-    def _get_timedelta_in_minutes(self, vars):
-        return (dt2np(vars["utc_time"]) - self.t_0) / np.timedelta64(1, "m")
+    def _get_timedelta_in_minutes(self, params):
+        return (dt2np(params["utc_time"]) - self.t_0) / np.timedelta64(1, "m")
 
-    def _calculate_omega(self, vars):
-        vars["omega"] = self.omegao + self.omgdot * vars["ts"] - vars["temp0"]
+    def _calculate_omega(self, params):
+        params["omega"] = self.omegao + self.omgdot * params["ts"] - params["temp0"]
 
-    def _calculate_a(self, vars):
+    def _calculate_a(self, params):
         tempa = 1.0 - \
-            (vars["ts"] *
-                (self.c1 + vars["ts"] * (self.d2 + vars["ts"] * (self.d3 + vars["ts"] * self.d4))))
-        vars["a"] = self.aodp * tempa**2
+            (params["ts"] *
+                (self.c1 + params["ts"] * (self.d2 + params["ts"] * (self.d3 + params["ts"] * self.d4))))
+        params["a"] = self.aodp * tempa**2
 
-        if np.any(vars["a"] < 1):
-            raise Exception("Satellite crashed at time %s", vars["utc_time"])
+        if np.any(params["a"] < 1):
+            raise Exception("Satellite crashed at time %s", params["utc_time"])
 
-    def _calculate_axn_and_ayn(self, vars):
-        e = self._calculate_e(vars["tempe"])
+    def _calculate_axn_and_ayn(self, params):
+        e = self._calculate_e(params["tempe"])
         beta2 = 1.0 - e**2
 
         # Long period periodics
-        sinOMG = np.sin(vars["omega"])
-        cosOMG = np.cos(vars["omega"])
+        sinOMG = np.sin(params["omega"])
+        cosOMG = np.cos(params["omega"])
 
-        vars["temp0"] = 1.0 / (vars["a"] * beta2)
-        vars["axn"] = e * cosOMG
-        vars["ayn"] = e * sinOMG + vars["temp0"] * self.aycof
+        params["temp0"] = 1.0 / (params["a"] * beta2)
+        params["axn"] = e * cosOMG
+        params["ayn"] = e * sinOMG + params["temp0"] * self.aycof
 
     def _calculate_e(self, tempe):
         e = self.eo - tempe
@@ -898,89 +898,91 @@ class _SGDP4(object):
 
         return e
 
-    def _calculate_preliminary_short_period(self, vars):
-        xl = vars["xmp"] + vars["omega"] + vars["xnode"] + self.xnodp * vars["templ"]
-        vars["xlt"] = xl + vars["temp0"] * self.xlcof * vars["axn"]
+    def _calculate_preliminary_short_period(self, params):
+        xl = params["xmp"] + params["omega"] + params["xnode"] + self.xnodp * params["templ"]
+        params["xlt"] = xl + params["temp0"] * self.xlcof * params["axn"]
 
-        self._iterate_newton_raphson(vars)
+        self._iterate_newton_raphson(params)
 
         # Short period preliminary quantities
-        vars["temp0"] = 1.0 - vars["elsq"]
-        betal = np.sqrt(vars["temp0"])
-        pl = vars["a"] * vars["temp0"]
-        r = vars["a"] * (1.0 - vars["ecosE"])
+        params["temp0"] = 1.0 - params["elsq"]
+        betal = np.sqrt(params["temp0"])
+        pl = params["a"] * params["temp0"]
+        r = params["a"] * (1.0 - params["ecosE"])
         invR = 1.0 / r
-        temp2 = vars["a"] * invR
+        temp2 = params["a"] * invR
         temp3 = 1.0 / (1.0 + betal)
-        cosu = temp2 * (vars["cosEPW"] - vars["axn"] + vars["ayn"] * vars["esinE"] * temp3)
-        sinu = temp2 * (vars["sinEPW"] - vars["ayn"] - vars["axn"] * vars["esinE"] * temp3)
+        cosu = temp2 * (params["cosEPW"] - params["axn"] + params["ayn"] * params["esinE"] * temp3)
+        sinu = temp2 * (params["sinEPW"] - params["ayn"] - params["axn"] * params["esinE"] * temp3)
 
-        vars["pl"] = pl
-        vars["r"] = r
-        vars["betal"] = betal
-        vars["invR"] = invR
-        vars["u"] = np.arctan2(sinu, cosu)
-        vars["sin2u"] = 2.0 * sinu * cosu
-        vars["cos2u"] = 2.0 * cosu**2 - 1.0
-        vars["temp0"] = 1.0 / pl
-        vars["temp1"] = CK2 * vars["temp0"]
-        vars["temp2"] = vars["temp1"] * vars["temp0"]
+        params["pl"] = pl
+        params["r"] = r
+        params["betal"] = betal
+        params["invR"] = invR
+        params["u"] = np.arctan2(sinu, cosu)
+        params["sin2u"] = 2.0 * sinu * cosu
+        params["cos2u"] = 2.0 * cosu**2 - 1.0
+        params["temp0"] = 1.0 / pl
+        params["temp1"] = CK2 * params["temp0"]
+        params["temp2"] = params["temp1"] * params["temp0"]
 
-    def _iterate_newton_raphson(self, vars):
-        epw = np.fmod(vars["xlt"] - vars["xnode"], 2 * np.pi)
+    def _iterate_newton_raphson(self, params):
+        epw = np.fmod(params["xlt"] - params["xnode"], 2 * np.pi)
         # needs a copy in case of an array
         capu = np.array(epw)
         for i in range(10):
-            vars["sinEPW"] = np.sin(epw)
-            vars["cosEPW"] = np.cos(epw)
+            params["sinEPW"] = np.sin(epw)
+            params["cosEPW"] = np.cos(epw)
 
-            vars["ecosE"] = vars["axn"] * vars["cosEPW"] + vars["ayn"] * vars["sinEPW"]
-            vars["esinE"] = vars["axn"] * vars["sinEPW"] - vars["ayn"] * vars["cosEPW"]
-            f = capu - epw + vars["esinE"]
+            params["ecosE"] = params["axn"] * params["cosEPW"] + params["ayn"] * params["sinEPW"]
+            params["esinE"] = params["axn"] * params["sinEPW"] - params["ayn"] * params["cosEPW"]
+            f = capu - epw + params["esinE"]
             if np.all(np.abs(f) < NR_EPS):
                 break
 
-            df = 1.0 - vars["ecosE"]
+            df = 1.0 - params["ecosE"]
 
             # 1st order Newton-Raphson correction.
             nr = f / df
 
             # 2nd order Newton-Raphson correction.
-            nr = np.where(np.logical_and(i == 0, np.abs(nr) > 1.25 * vars["ecc"]),
-                          np.sign(nr) * vars["ecc"],
-                          f / (df + 0.5 * vars["esinE"] * nr))
+            nr = np.where(np.logical_and(i == 0, np.abs(nr) > 1.25 * params["ecc"]),
+                          np.sign(nr) * params["ecc"],
+                          f / (df + 0.5 * params["esinE"] * nr))
             epw += nr
 
 
-    def _update_short_period(self, vars):
-        vars["rk"] = vars["r"] * (1.0 - 1.5 * vars["temp2"] * vars["betal"] * self.x3thm1) + \
-            0.5 * vars["temp1"] * self.x1mth2 * vars["cos2u"]
-        vars["uk"] = vars["u"] - 0.25 * vars["temp2"] * self.x7thm1 * vars["sin2u"]
-        vars["xnodek"] = vars["xnode"] + 1.5 * vars["temp2"] * self.cosIO * vars["sin2u"]
-        vars["xinc"] = self.xincl + 1.5 * vars["temp2"] * self.cosIO * self.sinIO * vars["cos2u"]
+    def _update_short_period(self, params):
+        params["rk"] = params["r"] * (1.0 - 1.5 * params["temp2"] * params["betal"] * self.x3thm1) + \
+            0.5 * params["temp1"] * self.x1mth2 * params["cos2u"]
+        params["uk"] = params["u"] - 0.25 * params["temp2"] * self.x7thm1 * params["sin2u"]
+        params["xnodek"] = params["xnode"] + 1.5 * params["temp2"] * self.cosIO * params["sin2u"]
+        params["xinc"] = self.xincl + 1.5 * params["temp2"] * self.cosIO * self.sinIO * params["cos2u"]
 
-        if np.any(vars["rk"] < 1):
-            raise Exception("Satellite crashed at time %s", vars["utc_time"])
+        if np.any(params["rk"] < 1):
+            raise Exception("Satellite crashed at time %s", params["utc_time"])
 
-        vars["temp0"] = np.sqrt(vars["a"])
-        temp2 = XKE / (vars["a"] * vars["temp0"])
-        vars["rdotk"] = ((XKE * vars["temp0"] * vars["esinE"] * vars["invR"] - temp2 * vars["temp1"] * self.x1mth2 * vars["sin2u"]) *
-                 (XKMPER / AE * XMNPDA / 86400.0))
-        vars["rfdotk"] = ((XKE * np.sqrt(vars["pl"]) * vars["invR"] + temp2 * vars["temp1"] *
-                   (self.x1mth2 * vars["cos2u"] + 1.5 * self.x3thm1)) *
+        params["temp0"] = np.sqrt(params["a"])
+        temp2 = XKE / (params["a"] * params["temp0"])
+        params["rdotk"] = (
+            (XKE * params["temp0"] * params["esinE"] * params["invR"] - \
+                temp2 * params["temp1"] * self.x1mth2 * params["sin2u"]) *
+            (XKMPER / AE * XMNPDA / 86400.0))
+        params["rfdotk"] = ((XKE * np.sqrt(params["pl"]) * params["invR"] + temp2 * params["temp1"] *
+                   (self.x1mth2 * params["cos2u"] + 1.5 * self.x3thm1)) *
                   (XKMPER / AE * XMNPDA / 86400.0))
 
-    def _collect_return_values(self, vars):
+    def _collect_return_values(self, params):
         kep = {}
-        kep["ecc"] = vars["ecc"]
-        kep["radius"] = vars["rk"] * XKMPER / AE
-        kep["theta"] = vars["uk"]
-        kep["eqinc"] = vars["xinc"]
-        kep["ascn"] = vars["xnodek"]
-        kep["argp"] = vars["omega"]
-        kep["smjaxs"] = vars["a"] * XKMPER / AE
-        kep["rdotk"] = vars["rdotk"]
-        kep["rfdotk"] = vars["rfdotk"]
+        kep["ecc"] = params["ecc"]
+        kep["radius"] = params["rk"] * XKMPER / AE
+        kep["theta"] = params["uk"]
+        kep["eqinc"] = params["xinc"]
+        kep["ascn"] = params["xnodek"]
+        kep["argp"] = params["omega"]
+        kep["smjaxs"] = params["a"] * XKMPER / AE
+        kep["rdotk"] = params["rdotk"]
+        kep["rfdotk"] = params["rfdotk"]
 
         return kep
 
@@ -994,11 +996,11 @@ def _check_orbital_elements(orbit_elements):
         raise OrbitalError("Inclination out of range: %e" % orbit_elements.inclination)
 
 
-def _calculate_elsq(vars):
-    vars["elsq"] = vars["axn"]**2 + vars["ayn"]**2
+def _calculate_elsq(params):
+    params["elsq"] = params["axn"]**2 + params["ayn"]**2
 
-    if np.any(vars["elsq"] >= 1):
-        raise Exception("e**2 >= 1 at %s", vars["utc_time"])
+    if np.any(params["elsq"] >= 1):
+        raise Exception("e**2 >= 1 at %s", params["utc_time"])
 
 
 def _get_tz_unaware_utctime(utc_time):

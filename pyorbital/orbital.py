@@ -965,7 +965,7 @@ class _SGDP4(object):
         params["temp0"] = np.sqrt(params["a"])
         temp2 = XKE / (params["a"] * params["temp0"])
         params["rdotk"] = (
-            (XKE * params["temp0"] * params["esinE"] * params["invR"] - \
+            (XKE * params["temp0"] * params["esinE"] * params["invR"] -
                 temp2 * params["temp1"] * self.x1mth2 * params["sin2u"]) *
             (XKMPER / AE * XMNPDA / 86400.0))
         params["rfdotk"] = ((XKE * np.sqrt(params["pl"]) * params["invR"] + temp2 * params["temp1"] *

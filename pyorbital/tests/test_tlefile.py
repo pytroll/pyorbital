@@ -30,6 +30,7 @@ import os
 import time
 import unittest
 from contextlib import suppress
+from tempfile import mkstemp
 from unittest import mock
 
 import pytest
@@ -312,42 +313,36 @@ class TLETest(unittest.TestCase):
 
     def test_from_file(self):
         """Test reading and parsing from a file."""
-        from os import close, remove, write
-        from tempfile import mkstemp
         filehandle, filename = mkstemp()
         try:
-            write(filehandle, "\n".join([LINE0, LINE1, LINE2]).encode("utf-8"))
-            close(filehandle)
+            os.write(filehandle, "\n".join([LINE0, LINE1, LINE2]).encode("utf-8"))
+            os.close(filehandle)
             tle = Tle("ISS (ZARYA)", filename)
             self.check_example(tle)
         finally:
-            remove(filename)
+            os.remove(filename)
 
     def test_from_file_with_hyphenated_platform_name(self):
         """Test reading and parsing from a file with a slightly different name."""
-        from os import close, remove, write
-        from tempfile import mkstemp
         filehandle, filename = mkstemp()
         try:
-            write(filehandle, NOAA19_3LINES.encode("utf-8"))
-            close(filehandle)
+            os.write(filehandle, NOAA19_3LINES.encode("utf-8"))
+            os.close(filehandle)
             tle = Tle("NOAA-19", filename)
             assert tle.satnumber == "33591"
         finally:
-            remove(filename)
+            os.remove(filename)
 
     def test_from_file_with_no_platform_name(self):
         """Test reading and parsing from a file with a slightly different name."""
-        from os import close, remove, write
-        from tempfile import mkstemp
         filehandle, filename = mkstemp()
         try:
-            write(filehandle, NOAA19_2LINES.encode("utf-8"))
-            close(filehandle)
+            os.write(filehandle, NOAA19_2LINES.encode("utf-8"))
+            os.close(filehandle)
             tle = Tle("NOAA-19", filename)
             assert tle.satnumber == "33591"
         finally:
-            remove(filename)
+            os.remove(filename)
 
     def test_from_mmam_xml(self):
         """Test reading from an MMAM XML file."""

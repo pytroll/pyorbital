@@ -24,7 +24,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """Classes and functions for handling TLE files."""
-
+import contextlib
 import datetime as dt
 import glob
 import io
@@ -340,31 +340,41 @@ def _get_tles_from_uris(uris, open_func, platform="", only_first=True):
     tles = []
     designator = "1 " + SATELLITES.get(platform, "")
     for url in uris:
-        fid = open_func(url)
-        for l_0 in fid:
-            tle = ""
-            l_0 = _decode(l_0)
-            if l_0.strip() == platform:
-                l_1 = _decode(next(fid))
-                l_2 = _decode(next(fid))
-                tle = l_1.strip() + "\n" + l_2.strip()
-            elif (platform in SATELLITES or not only_first) and l_0.strip().startswith(designator):
-                l_1 = l_0
-                l_2 = _decode(next(fid))
-                tle = l_1.strip() + "\n" + l_2.strip()
-                if platform:
-                    LOGGER.debug("Found platform %s, ID: %s", platform, SATELLITES[platform])
-            elif open_func == _dummy_open_stringio and l_0.startswith(designator):
-                l_1 = l_0
-                l_2 = _decode(next(fid))
-                tle = l_1.strip() + "\n" + l_2.strip()
-            if tle:
-                if only_first:
-                    return tle
-                tles.append(tle)
+        with _uri_open(url, open_func) as fid:
+            for l_0 in fid:
+                tle = ""
+                l_0 = _decode(l_0)
+                if l_0.strip() == platform:
+                    l_1 = _decode(next(fid))
+                    l_2 = _decode(next(fid))
+                    tle = l_1.strip() + "\n" + l_2.strip()
+                elif (platform in SATELLITES or not only_first) and l_0.strip().startswith(designator):
+                    l_1 = l_0
+                    l_2 = _decode(next(fid))
+                    tle = l_1.strip() + "\n" + l_2.strip()
+                    if platform:
+                        LOGGER.debug("Found platform %s, ID: %s", platform, SATELLITES[platform])
+                elif open_func == _dummy_open_stringio and l_0.startswith(designator):
+                    l_1 = l_0
+                    l_2 = _decode(next(fid))
+                    tle = l_1.strip() + "\n" + l_2.strip()
+                if tle:
+                    if only_first:
+                        return tle
+                    tles.append(tle)
     if only_first:
         return ""
     return tles
+
+
+@contextlib.contextmanager
+def _uri_open(uri, open_func):
+    file_obj = open_func(uri)
+    try:
+        yield file_obj
+    finally:
+        if hasattr(file_obj, "close"):
+            file_obj.close()
 
 
 def _decode(itm):

@@ -41,9 +41,9 @@ from pyorbital.tlefile import (
     _get_config_path,
     _get_local_tle_path_from_env,
     _get_uris_and_open_func,
+    _utcnow,
     check_is_platform_supported,
     read_platform_numbers,
-    _utcnow,
 )
 
 LINE0 = "ISS (ZARYA)"

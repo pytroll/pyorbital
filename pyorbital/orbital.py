@@ -817,144 +817,170 @@ class _SGDP4(object):
                                 15.0 * c1sq * (2.0 * self.d2 + c1sq)))
 
     def propagate(self, utc_time):
-        kep = {}
-
-        # get the time delta in minutes
-        # ts = astronomy._days(utc_time - self.t_0) * XMNPDA
-        # print utc_time.shape
-        # print self.t_0
-        utc_time = dt2np(utc_time)
-        ts = (utc_time - self.t_0) / np.timedelta64(1, "m")
-
-        em = self.eo
-        xinc = self.xincl
-
-        xmp = self.xmo + self.xmdot * ts
-        xnode = self.xnodeo + ts * (self.xnodot + ts * self.xnodcf)
-        omega = self.omegao + self.omgdot * ts
-
         if self.mode == SGDP4_ZERO_ECC:
             raise NotImplementedError("Mode SGDP4_ZERO_ECC not implemented")
         elif self.mode == SGDP4_NEAR_SIMP:
             raise NotImplementedError('Mode "Near-space, simplified equations"'
                                       ' not implemented')
-        elif self.mode == SGDP4_NEAR_NORM:
-            delm = self.xmcof * \
-                ((1.0 + self.eta * np.cos(xmp))**3 - self.delmo)
-            temp0 = ts * self.omgcof + delm
-            xmp += temp0
-            omega -= temp0
-            tempa = 1.0 - \
-                (ts *
-                 (self.c1 + ts * (self.d2 + ts * (self.d3 + ts * self.d4))))
-            tempe = self.bstar * \
-                (self.c4 * ts + self.c5 * (np.sin(xmp) - self.sinXMO))
-            templ = ts * ts * \
-                (self.t2cof + ts *
-                 (self.t3cof + ts * (self.t4cof + ts * self.t5cof)))
-            a = self.aodp * tempa**2
-            e = em - tempe
-            xl = xmp + omega + xnode + self.xnodp * templ
-
-        else:
+        elif self.mode != SGDP4_NEAR_NORM:
             raise NotImplementedError("Deep space calculations not supported")
 
-        if np.any(a < 1):
-            raise Exception("Satellite crashed at time %s", utc_time)
-        elif np.any(e < ECC_LIMIT_LOW):
+        return self._calculate_keplerians(utc_time)
+
+    def _calculate_keplerians(self, utc_time):
+        vars = {"utc_time": utc_time}
+        vars["ts"] = self._get_timedelta_in_minutes(vars)
+
+        vars["xmp"] = self.xmo + self.xmdot * vars["ts"]
+        vars["xnode"] = self.xnodeo + vars["ts"] * (self.xnodot + vars["ts"] * self.xnodcf)
+
+        delm = self.xmcof * \
+            ((1.0 + self.eta * np.cos(vars["xmp"]))**3 - self.delmo)
+        vars["temp0"] = vars["ts"] * self.omgcof + delm
+        vars["xmp"] += vars["temp0"]
+
+        self._calculate_omega(vars)
+
+        vars["tempe"] = self.bstar * \
+            (self.c4 * vars["ts"] + self.c5 * (np.sin(vars["xmp"]) - self.sinXMO))
+        vars["templ"] = vars["ts"] * vars["ts"] * \
+            (self.t2cof + vars["ts"] *
+                (self.t3cof + vars["ts"] * (self.t4cof + vars["ts"] * self.t5cof)))
+
+        self._calculate_a(vars)
+        self._calculate_axn_and_ayn(vars)
+        _calculate_elsq(vars)
+
+        vars["ecc"] = np.sqrt(vars["elsq"])
+
+        self._calculate_preliminary_short_period(vars)
+        self._update_short_period(vars)
+        kep = self._collect_return_values(vars)
+
+        return kep
+
+    def _get_timedelta_in_minutes(self, vars):
+        return (dt2np(vars["utc_time"]) - self.t_0) / np.timedelta64(1, "m")
+
+    def _calculate_omega(self, vars):
+        vars["omega"] = self.omegao + self.omgdot * vars["ts"] - vars["temp0"]
+
+    def _calculate_a(self, vars):
+        tempa = 1.0 - \
+            (vars["ts"] *
+                (self.c1 + vars["ts"] * (self.d2 + vars["ts"] * (self.d3 + vars["ts"] * self.d4))))
+        vars["a"] = self.aodp * tempa**2
+
+        if np.any(vars["a"] < 1):
+            raise Exception("Satellite crashed at time %s", vars["utc_time"])
+
+    def _calculate_axn_and_ayn(self, vars):
+        e = self._calculate_e(vars["tempe"])
+        beta2 = 1.0 - e**2
+
+        # Long period periodics
+        sinOMG = np.sin(vars["omega"])
+        cosOMG = np.cos(vars["omega"])
+
+        vars["temp0"] = 1.0 / (vars["a"] * beta2)
+        vars["axn"] = e * cosOMG
+        vars["ayn"] = e * sinOMG + vars["temp0"] * self.aycof
+
+    def _calculate_e(self, tempe):
+        e = self.eo - tempe
+
+        if np.any(e < ECC_LIMIT_LOW):
             raise ValueError("Satellite modified eccentricity too low: %s < %e"
                              % (str(e[e < ECC_LIMIT_LOW]), ECC_LIMIT_LOW))
 
         e = np.where(e < ECC_EPS, ECC_EPS, e)
         e = np.where(e > ECC_LIMIT_HIGH, ECC_LIMIT_HIGH, e)
 
-        beta2 = 1.0 - e**2
+        return e
 
-        # Long period periodics
-        sinOMG = np.sin(omega)
-        cosOMG = np.cos(omega)
+    def _calculate_preliminary_short_period(self, vars):
+        xl = vars["xmp"] + vars["omega"] + vars["xnode"] + self.xnodp * vars["templ"]
+        vars["xlt"] = xl + vars["temp0"] * self.xlcof * vars["axn"]
 
-        temp0 = 1.0 / (a * beta2)
-        axn = e * cosOMG
-        ayn = e * sinOMG + temp0 * self.aycof
-        xlt = xl + temp0 * self.xlcof * axn
+        self._iterate_newton_raphson(vars)
 
-        elsq = axn**2 + ayn**2
+        # Short period preliminary quantities
+        vars["temp0"] = 1.0 - vars["elsq"]
+        betal = np.sqrt(vars["temp0"])
+        pl = vars["a"] * vars["temp0"]
+        r = vars["a"] * (1.0 - vars["ecosE"])
+        invR = 1.0 / r
+        temp2 = vars["a"] * invR
+        temp3 = 1.0 / (1.0 + betal)
+        cosu = temp2 * (vars["cosEPW"] - vars["axn"] + vars["ayn"] * vars["esinE"] * temp3)
+        sinu = temp2 * (vars["sinEPW"] - vars["ayn"] - vars["axn"] * vars["esinE"] * temp3)
 
-        if np.any(elsq >= 1):
-            raise Exception("e**2 >= 1 at %s", utc_time)
+        vars["pl"] = pl
+        vars["r"] = r
+        vars["betal"] = betal
+        vars["invR"] = invR
+        vars["u"] = np.arctan2(sinu, cosu)
+        vars["sin2u"] = 2.0 * sinu * cosu
+        vars["cos2u"] = 2.0 * cosu**2 - 1.0
+        vars["temp0"] = 1.0 / pl
+        vars["temp1"] = CK2 * vars["temp0"]
+        vars["temp2"] = vars["temp1"] * vars["temp0"]
 
-        kep["ecc"] = np.sqrt(elsq)
-
-        epw = np.fmod(xlt - xnode, 2 * np.pi)
+    def _iterate_newton_raphson(self, vars):
+        epw = np.fmod(vars["xlt"] - vars["xnode"], 2 * np.pi)
         # needs a copy in case of an array
         capu = np.array(epw)
-        maxnr = kep["ecc"]
         for i in range(10):
-            sinEPW = np.sin(epw)
-            cosEPW = np.cos(epw)
+            vars["sinEPW"] = np.sin(epw)
+            vars["cosEPW"] = np.cos(epw)
 
-            ecosE = axn * cosEPW + ayn * sinEPW
-            esinE = axn * sinEPW - ayn * cosEPW
-            f = capu - epw + esinE
+            vars["ecosE"] = vars["axn"] * vars["cosEPW"] + vars["ayn"] * vars["sinEPW"]
+            vars["esinE"] = vars["axn"] * vars["sinEPW"] - vars["ayn"] * vars["cosEPW"]
+            f = capu - epw + vars["esinE"]
             if np.all(np.abs(f) < NR_EPS):
                 break
 
-            df = 1.0 - ecosE
+            df = 1.0 - vars["ecosE"]
 
             # 1st order Newton-Raphson correction.
             nr = f / df
 
             # 2nd order Newton-Raphson correction.
-            nr = np.where(np.logical_and(i == 0, np.abs(nr) > 1.25 * maxnr),
-                          np.sign(nr) * maxnr,
-                          f / (df + 0.5 * esinE * nr))
+            nr = np.where(np.logical_and(i == 0, np.abs(nr) > 1.25 * vars["ecc"]),
+                          np.sign(nr) * vars["ecc"],
+                          f / (df + 0.5 * vars["esinE"] * nr))
             epw += nr
 
-        # Short period preliminary quantities
-        temp0 = 1.0 - elsq
-        betal = np.sqrt(temp0)
-        pl = a * temp0
-        r = a * (1.0 - ecosE)
-        invR = 1.0 / r
-        temp2 = a * invR
-        temp3 = 1.0 / (1.0 + betal)
-        cosu = temp2 * (cosEPW - axn + ayn * esinE * temp3)
-        sinu = temp2 * (sinEPW - ayn - axn * esinE * temp3)
-        u = np.arctan2(sinu, cosu)
-        sin2u = 2.0 * sinu * cosu
-        cos2u = 2.0 * cosu**2 - 1.0
-        temp0 = 1.0 / pl
-        temp1 = CK2 * temp0
-        temp2 = temp1 * temp0
 
-        # Update for short term periodics to position terms.
+    def _update_short_period(self, vars):
+        vars["rk"] = vars["r"] * (1.0 - 1.5 * vars["temp2"] * vars["betal"] * self.x3thm1) + \
+            0.5 * vars["temp1"] * self.x1mth2 * vars["cos2u"]
+        vars["uk"] = vars["u"] - 0.25 * vars["temp2"] * self.x7thm1 * vars["sin2u"]
+        vars["xnodek"] = vars["xnode"] + 1.5 * vars["temp2"] * self.cosIO * vars["sin2u"]
+        vars["xinc"] = self.xincl + 1.5 * vars["temp2"] * self.cosIO * self.sinIO * vars["cos2u"]
 
-        rk = r * (1.0 - 1.5 * temp2 * betal * self.x3thm1) + \
-            0.5 * temp1 * self.x1mth2 * cos2u
-        uk = u - 0.25 * temp2 * self.x7thm1 * sin2u
-        xnodek = xnode + 1.5 * temp2 * self.cosIO * sin2u
-        xinck = xinc + 1.5 * temp2 * self.cosIO * self.sinIO * cos2u
+        if np.any(vars["rk"] < 1):
+            raise Exception("Satellite crashed at time %s", vars["utc_time"])
 
-        if np.any(rk < 1):
-            raise Exception("Satellite crashed at time %s", utc_time)
-
-        temp0 = np.sqrt(a)
-        temp2 = XKE / (a * temp0)
-        rdotk = ((XKE * temp0 * esinE * invR - temp2 * temp1 * self.x1mth2 * sin2u) *
+        vars["temp0"] = np.sqrt(vars["a"])
+        temp2 = XKE / (vars["a"] * vars["temp0"])
+        vars["rdotk"] = ((XKE * vars["temp0"] * vars["esinE"] * vars["invR"] - temp2 * vars["temp1"] * self.x1mth2 * vars["sin2u"]) *
                  (XKMPER / AE * XMNPDA / 86400.0))
-        rfdotk = ((XKE * np.sqrt(pl) * invR + temp2 * temp1 *
-                   (self.x1mth2 * cos2u + 1.5 * self.x3thm1)) *
+        vars["rfdotk"] = ((XKE * np.sqrt(vars["pl"]) * vars["invR"] + temp2 * vars["temp1"] *
+                   (self.x1mth2 * vars["cos2u"] + 1.5 * self.x3thm1)) *
                   (XKMPER / AE * XMNPDA / 86400.0))
 
-        kep["radius"] = rk * XKMPER / AE
-        kep["theta"] = uk
-        kep["eqinc"] = xinck
-        kep["ascn"] = xnodek
-        kep["argp"] = omega
-        kep["smjaxs"] = a * XKMPER / AE
-        kep["rdotk"] = rdotk
-        kep["rfdotk"] = rfdotk
+    def _collect_return_values(self, vars):
+        kep = {}
+        kep["ecc"] = vars["ecc"]
+        kep["radius"] = vars["rk"] * XKMPER / AE
+        kep["theta"] = vars["uk"]
+        kep["eqinc"] = vars["xinc"]
+        kep["ascn"] = vars["xnodek"]
+        kep["argp"] = vars["omega"]
+        kep["smjaxs"] = vars["a"] * XKMPER / AE
+        kep["rdotk"] = vars["rdotk"]
+        kep["rfdotk"] = vars["rfdotk"]
 
         return kep
 
@@ -966,6 +992,13 @@ def _check_orbital_elements(orbit_elements):
         raise OrbitalError("Mean motion out of range: %e" % orbit_elements.original_mean_motion)
     if not (0 < orbit_elements.inclination < np.pi):
         raise OrbitalError("Inclination out of range: %e" % orbit_elements.inclination)
+
+
+def _calculate_elsq(vars):
+    vars["elsq"] = vars["axn"]**2 + vars["ayn"]**2
+
+    if np.any(vars["elsq"] >= 1):
+        raise Exception("e**2 >= 1 at %s", vars["utc_time"])
 
 
 def _get_tz_unaware_utctime(utc_time):

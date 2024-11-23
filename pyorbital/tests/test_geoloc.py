@@ -303,6 +303,6 @@ class TestGeolocDefs:
         self.assertTrue(np.allclose(geom.fovs,
                                     expected_fovs, rtol=1e-2, atol=1e-2))
 
-        with self.assertRaises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             slstr(1, [0, 1], is_nadir=False)
 

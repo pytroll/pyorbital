@@ -20,27 +20,18 @@
 """Test TLE file reading, TLE downloading and stroging TLEs to database."""
 
 
-from pyorbital.tlefile import Tle
-from pyorbital import tlefile
-from pyorbital.tlefile import (_get_config_path,
-                               read_platform_numbers,
-                               _get_local_tle_path_from_env,
-                               _get_uris_and_open_func,
-                               check_is_platform_supported,
-                               PKG_CONFIG_DIR)
-
-import logging
 import datetime
-import pytest
+import logging
+import os
+import time
 import unittest
 from contextlib import suppress
-from unittest import mock
-import os
-from contextlib import suppress
-import time
 from pathlib import Path
+from unittest import mock
 
+import pytest
 
+from pyorbital import tlefile
 from pyorbital.tlefile import (
     PKG_CONFIG_DIR,
     Tle,
@@ -58,7 +49,7 @@ LINE1_2 = "1 38771U 12049A   21137.30264622  .00000000  00000+0 -49996-5 0 00017
 LINE2_2 = "2 38771  98.7162 197.7716 0002383 106.1049 122.6344 14.21477797449453"
 
 def _write_fake_platforms_txt_file(platforms_filename) -> None:
-    with open(platforms_filename, 'w') as platforms_file:
+    with open(platforms_filename, "w") as platforms_file:
         platforms_file.write("""NOAA-18 28654
 NOAA-19 33591
 NOAA-20 43013
@@ -88,17 +79,17 @@ ISS (ZARYA)
 @pytest.fixture
 def fake_platforms_txt_file(tmp_path: Path) -> Path:
     """Make fake platforms.txt file."""
-    filename = tmp_path / 'platforms.txt'
+    filename = tmp_path / "platforms.txt"
     _write_fake_platforms_txt_file(filename)
-    yield filename
+    return filename
 
 
 @pytest.fixture
 def fake_tlefile(tmp_path: Path) -> Path:
     """Make fake tle file."""
-    filename = tmp_path / 'sometlefile.txt'
+    filename = tmp_path / "sometlefile.txt"
     _write_fake_tle_file(filename)
-    yield filename
+    return filename
 
 
 
@@ -137,11 +128,11 @@ def test_read_tlefile_standard_platform_name(monkeypatch, fake_platforms_txt_fil
     Use Oscar naming matching name in platforms.txt.
     """
     path_to_platforms_txt_file = fake_platforms_txt_file.parent
-    monkeypatch.setenv('PPP_CONFIG_DIR', str(path_to_platforms_txt_file))
+    monkeypatch.setenv("PPP_CONFIG_DIR", str(path_to_platforms_txt_file))
 
-    tle_n21 = tlefile.read('NOAA-21', str(fake_tlefile))
-    assert tle_n21.line1 == '1 54234U 22150A   23045.56664999  .00000332  00000+0  17829-3 0  9993'
-    assert tle_n21.line2 == '2 54234  98.7059 345.5113 0001226  81.6523 278.4792 14.19543871 13653'
+    tle_n21 = tlefile.read("NOAA-21", str(fake_tlefile))
+    assert tle_n21.line1 == "1 54234U 22150A   23045.56664999  .00000332  00000+0  17829-3 0  9993"
+    assert tle_n21.line2 == "2 54234  98.7059 345.5113 0001226  81.6523 278.4792 14.19543871 13653"
 
 
 def test_read_tlefile_non_standard_platform_name(monkeypatch, fake_platforms_txt_file, fake_tlefile):
@@ -150,12 +141,12 @@ def test_read_tlefile_non_standard_platform_name(monkeypatch, fake_platforms_txt
     Use naming matching what is in the TLE files, but non-standard (non Oscar) naming.
     """
     path_to_platforms_txt_file = fake_platforms_txt_file.parent
-    monkeypatch.setenv('PPP_CONFIG_DIR', str(path_to_platforms_txt_file))
+    monkeypatch.setenv("PPP_CONFIG_DIR", str(path_to_platforms_txt_file))
 
-    tle_n20 = tlefile.read('NOAA 20', str(fake_tlefile))
+    tle_n20 = tlefile.read("NOAA 20", str(fake_tlefile))
 
-    assert tle_n20.line1 == '1 43013U 17073A   23045.54907786  .00000253  00000+0  14081-3 0  9995'
-    assert tle_n20.line2 == '2 43013  98.7419 345.5839 0001610  80.3742 279.7616 14.19558274271576'
+    assert tle_n20.line1 == "1 43013U 17073A   23045.54907786  .00000253  00000+0  14081-3 0  9995"
+    assert tle_n20.line2 == "2 43013  98.7419 345.5839 0001610  80.3742 279.7616 14.19558274271576"
 
 
 @pytest.mark.parametrize("sat_name, expected",
@@ -181,7 +172,7 @@ def test_read_tlefile_non_standard_platform_name_matching_start_of_name_in_tlefi
     Use non-standard naming matching only the beginning of what is in the TLE files.
     """
     path_to_platforms_txt_file = fake_platforms_txt_file.parent
-    monkeypatch.setenv('PPP_CONFIG_DIR', str(path_to_platforms_txt_file))
+    monkeypatch.setenv("PPP_CONFIG_DIR", str(path_to_platforms_txt_file))
 
     with pytest.raises(KeyError) as exc_info:
         with caplog.at_level(logging.DEBUG):

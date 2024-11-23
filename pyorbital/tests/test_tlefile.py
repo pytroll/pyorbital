@@ -149,7 +149,7 @@ def test_read_tlefile_non_standard_platform_name(monkeypatch, fake_platforms_txt
     assert tle_n20.line2 == "2 43013  98.7419 345.5839 0001610  80.3742 279.7616 14.19558274271576"
 
 
-@pytest.mark.parametrize("sat_name, expected",
+@pytest.mark.parametrize(("sat_name" ,"expected"),
                          [("NOAA 21",
                            "NOAA 21 (JPSS-2)"),
                           ("NOAA 2",

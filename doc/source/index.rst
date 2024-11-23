@@ -1,8 +1,3 @@
-.. pyorbital documentation master file, created by
-   sphinx-quickstart on Mon Oct  3 08:48:29 2011.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 Pyorbital
 =========
 
@@ -20,7 +15,7 @@ the conda-forge conda channel. To install from PyPI in an existing environment:
 .. code-block:: bash
 
    pip install pyorbital
-   
+
 Or in an existing conda-based environment:
 
 .. code-block:: bash
@@ -36,7 +31,7 @@ from the latest in-development version on GitHub you can run:
 .. code-block:: bash
 
    pip install git+https://github.com/pytroll/pyorbital.git
-    
+
 However, if you instead want to edit the source code and see the changes reflected
 when you run the code you can clone the git repository and install it in
 "editable" mode:
@@ -84,18 +79,23 @@ Pyorbital has a module for parsing NORAD TLE-files
     >>> tle.inclination
     99.043499999999995
 
-If no path is provided pyorbital first tries to read any local TLE files in the
-directory given by the environment variable :envvar:`TLES`. If this variable is not
-set Pyorbital will try get the earth observation TLE files over the internet
+If no path is provided pyorbital first tries to read any local TLE files defined by the
+environment variable :envvar:`TLES` giving a glob pattern that can be used to retrieve all relevant files:
+
+.. code::
+
+   TLES=/path/to/tle_files/*/tle*txt
+
+If this variable is not set Pyorbital will try get the earth observation TLE files over the internet
 from `celestrak`_. Note this downloading only happens if no
 specific TLE file is provided or if the :envvar:`TLES` environment variable is not set.
 
 
 TLE download and database
-~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The historical TLE files can be requested from
-`celestrak <https://celestrak.com/NORAD/archives/request.php>`_.
+`celestrak's request page <https://celestrak.com/NORAD/archives/request.php>`_.
 
 There is also a script, ``fetch_tles.py``, that can be used to collect
 TLE data from several locations. The currently supported locations
@@ -184,9 +184,9 @@ The astronomy module enables computation of certain parameters of interest for s
    for instance. Also, it may not be sustainable in a production environment.
 
    However, it is possible to let Pyorbital look for the necessary and more
-   optimal TLE data locally, by specifying the directory where such local TLE
-   files are located. If the TLES environment variable is set to point at an
-   existing local directory Pyorbital will first search for the needed TLEs
+   optimal TLE data locally, by specifying locations where such local TLE
+   files are located. If the TLES environment variable is set to a glob pattern to
+   local locations, Pyorbital will first search for the needed TLEs
    there. This can both be useful in an operational setup where access to the
    internet is restricted, and when processing old/historic satellite data.
 
@@ -197,21 +197,21 @@ API
 ---
 
 Orbital computations
-~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^
 
 .. automodule:: pyorbital.orbital
    :members:
    :undoc-members:
 
 TLE handling
-~~~~~~~~~~~~
+^^^^^^^^^^^^
 
 .. automodule:: pyorbital.tlefile
    :members:
    :undoc-members:
 
 Astronomical computations
-~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. automodule:: pyorbital.astronomy
    :members:

@@ -25,7 +25,7 @@
 from datetime import datetime
 
 import numpy as np
-
+import pytest
 from pyorbital.geoloc import ScanGeometry, geodetic_lat, qrotate, subpoint
 from pyorbital.geoloc_instrument_definitions import avhrr, viirs, amsua, mhs, hirs4, atms, ascat, slstr
 

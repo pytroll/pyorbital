@@ -15,7 +15,7 @@ the conda-forge conda channel. To install from PyPI in an existing environment:
 .. code-block:: bash
 
    pip install pyorbital
-   
+
 Or in an existing conda-based environment:
 
 .. code-block:: bash
@@ -31,7 +31,7 @@ from the latest in-development version on GitHub you can run:
 .. code-block:: bash
 
    pip install git+https://github.com/pytroll/pyorbital.git
-    
+
 However, if you instead want to edit the source code and see the changes reflected
 when you run the code you can clone the git repository and install it in
 "editable" mode:

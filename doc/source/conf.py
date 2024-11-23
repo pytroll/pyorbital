@@ -12,16 +12,17 @@
 # serve to show the default.
 """Configurations for sphinx based documentation."""
 
-import sys
+import datetime as dt
 import os
+import sys
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
-sys.path.insert(0, os.path.abspath('../../'))
-sys.path.insert(0, os.path.abspath('../../pyorbital'))
-from pyorbital import __version__  # noqa
+sys.path.insert(0, os.path.abspath("../../"))
+sys.path.insert(0, os.path.abspath("../../pyorbital"))
+from pyorbital.version import __version__  # noqa
 
 # -- General configuration -----------------------------------------------------
 
@@ -30,30 +31,32 @@ from pyorbital import __version__  # noqa
 
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.doctest', 'sphinx.ext.coverage', 'sphinx.ext.napoleon']
+extensions = ["sphinx.ext.autodoc", "sphinx.ext.doctest", "sphinx.ext.coverage", "sphinx.ext.napoleon"]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['.templates']
+templates_path = [".templates"]
 
 # The suffix of source filenames.
-source_suffix = '.rst'
+source_suffix = ".rst"
 
 # The encoding of source files.
 # #source_encoding = 'utf-8-sig'
 
 # The master toctree document.
-master_doc = 'index'
+master_doc = "index"
 
 # General information about the project.
-project = u'pyorbital'
-copyright = u'2012-2023, The Pytroll crew'
+project = u"pyorbital"
+copyright = u"2012, 2024-{}, The PyTroll Team".format(dt.datetime.utcnow().strftime("%Y"))  # noqa: A001
+
+
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
 # The short X.Y version.
-version = __version__.split('+')[0]
+version = __version__.split("+")[0]
 # The full version, including alpha/beta/rc tags.
 release = __version__
 
@@ -69,7 +72,7 @@ release = __version__
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = []
+# exclude_patterns = []
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 # #default_role = None
@@ -86,7 +89,7 @@ exclude_patterns = []
 # show_authors = False
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'sphinx'
+pygments_style = "sphinx"
 
 # A list of ignored prefixes for module index sorting.
 # #modindex_common_prefix = []
@@ -180,7 +183,7 @@ html_js_files = [
 # #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'pyorbitaldoc'
+htmlhelp_basename = "pyorbitaldoc"
 
 
 # -- Options for LaTeX output --------------------------------------------------
@@ -194,8 +197,8 @@ htmlhelp_basename = 'pyorbitaldoc'
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-    ('index', 'pyorbital.tex', u'pyorbital Documentation',
-     u'The Pytroll crew', 'manual'),
+    ("index", "pyorbital.tex", u"pyorbital Documentation",
+     u"The Pytroll crew", "manual"),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -227,6 +230,6 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'pyorbital', u'pyorbital Documentation',
-     [u'The Pytroll crew'], 1)
+    ("index", "pyorbital", u"pyorbital Documentation",
+     [u"The Pytroll crew"], 1)
 ]

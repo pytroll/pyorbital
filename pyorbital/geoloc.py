@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2011 - 2019 Pytroll Community
+# Copyright (c) 2011 - 2019, 2024 Pytroll Community
 
 # Author(s):
 
@@ -21,8 +21,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Module to compute geolocalization of a satellite scene.
-"""
+"""Module to compute geolocalization of a satellite scene."""
 
 # TODO:
 # - Attitude correction
@@ -31,13 +30,13 @@
 # - test !!!
 
 from __future__ import print_function
+
 import numpy as np
 
 # DIRTY STUFF. Needed the get_lonlatalt function to work on pos directly if
 # we want to print out lonlats in the end.
 from pyorbital import astronomy
-from pyorbital.orbital import XKMPER, F
-from pyorbital.orbital import Orbital
+from pyorbital.orbital import XKMPER, F, Orbital
 
 A = 6378.137  # WGS84 Equatorial radius (km)
 B = 6356.75231414  # km, GRS80
@@ -45,6 +44,7 @@ B = 6356.75231414  # km, GRS80
 
 
 def geodetic_lat(point, a=A, b=B):
+    """Get the Geodetic latitude of a point."""
     x, y, z = point
     r = np.sqrt(x * x + y * y)
     geoc_lat = np.arctan2(z, r)
@@ -84,8 +84,9 @@ class ScanGeometry(object):
     """
 
     def __init__(self, fovs, times, attitude=(0, 0, 0)):
+        """Initialize the class."""
         self.fovs = np.array(fovs)
-        self._times = np.array(times) * np.timedelta64(1000000000, 'ns')
+        self._times = np.array(times) * np.timedelta64(1000000000, "ns")
         self.attitude = attitude
 
     def vectors(self, pos, vel, roll=0.0, pitch=0.0, yaw=0.0):
@@ -120,6 +121,7 @@ class ScanGeometry(object):
         return qrotate(xy_rotated, nadir, yaw)
 
     def times(self, start_of_scan):
+        """Return an array with the times of each scan line."""
         # tds = [timedelta(seconds=i) for i in self._times]
         # tds = self._times.astype('timedelta64[us]')
         try:
@@ -129,12 +131,15 @@ class ScanGeometry(object):
 
 
 class Quaternion(object):
+    """Some class, that I don't know what is doing..."""
 
     def __init__(self, scalar, vector):
+        """Initialize the class."""
         self.__x, self.__y, self.__z = vector.reshape((3, -1))
         self.__w = scalar.ravel()
 
     def rotation_matrix(self):
+        """Get the rotation matrix."""
         x, y, z, w = self.__x, self.__y, self.__z, self.__w
         zero = np.zeros_like(x)
         return np.array(
@@ -240,27 +245,28 @@ def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0)):
 
 
 def norm(v):
+    """Return the norm of the vector *v*."""
     return np.sqrt(np.dot(v, v.conj()))
 
 
 def mnorm(m, axis=None):
-    """norm of a matrix of vectors stacked along the *axis* dimension."""
+    """Norm of a matrix of vectors stacked along the *axis* dimension."""
     if axis is None:
         axis = np.ndim(m) - 1
     return np.sqrt((m**2).sum(axis))
 
 
 def vnorm(m):
-    """norms of a matrix of column vectors."""
+    """Norms of a matrix of column vectors."""
     return np.sqrt((m**2).sum(0))
 
 
 def hnorm(m):
-    """norms of a matrix of row vectors."""
+    """Norms of a matrix of row vectors."""
     return np.sqrt((m**2).sum(1))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # NOAA 18 (from the 2011-10-12, 16:55 utc)
     # 1 28654U 05018A   11284.35271227  .00000478  00000-0  28778-3 0  9246
     # 2 28654  99.0096 235.8581 0014859 135.4286 224.8087 14.11526826329313

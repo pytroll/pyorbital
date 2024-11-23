@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2011-2023 Pytroll Community
+# Copyright (c) 2011-2024 Pytroll Community
 #
 #
 # This program is free software: you can redistribute it and/or modify
@@ -342,9 +342,6 @@ def _get_tles_from_uris(uris, open_func, platform='', only_first=True):
         for l_0 in fid:
             tle = ""
             l_0 = _decode(l_0)
-            # This will make the all the tests pass, but not prety!
-            # So, should the new test case that fails added in a draft PR, Feb 15, 2023, be removed?
-            # if l_0.strip() == platform or l_0.startswith(platform) and 'NOAA' in platform:
             if l_0.strip() == platform:
                 l_1 = _decode(next(fid))
                 l_2 = _decode(next(fid))
@@ -359,6 +356,8 @@ def _get_tles_from_uris(uris, open_func, platform='', only_first=True):
                 l_1 = l_0
                 l_2 = _decode(next(fid))
                 tle = l_1.strip() + "\n" + l_2.strip()
+            elif l_0.startswith(platform) and platform not in _satellites:
+                LOGGER.debug("Found a possible match: %s?", str(l_0.strip()))
             if tle:
                 if only_first:
                     return tle

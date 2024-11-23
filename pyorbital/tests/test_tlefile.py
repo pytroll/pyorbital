@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2014-2023 Pytroll Community
+# Copyright (c) 2014-2024 Pytroll Community
 #
 #
 # This program is free software: you can redistribute it and/or modify
@@ -141,7 +141,7 @@ def test_read_tlefile_non_standard_platform_name(monkeypatch, fake_platforms_txt
     Use naming matching what is in the TLE files, but non-standard (non Oscar) naming.
     """
     path_to_platforms_txt_file = fake_platforms_txt_file.parent
-    monkeypatch.setenv('PPP_CONFIG_DIR', path_to_platforms_txt_file)
+    monkeypatch.setenv('PPP_CONFIG_DIR', str(path_to_platforms_txt_file))
 
     tle_n20 = tlefile.read('NOAA 20', str(fake_tlefile))
 
@@ -149,7 +149,22 @@ def test_read_tlefile_non_standard_platform_name(monkeypatch, fake_platforms_txt
     assert tle_n20.line2 == '2 43013  98.7419 345.5839 0001610  80.3742 279.7616 14.19558274271576'
 
 
-def test_read_tlefile_non_standard_platform_name_matching_start_of_name_in_tlefile(monkeypatch,
+@pytest.mark.parametrize("sat_name, expected",
+                         [("NOAA 21",
+                           "NOAA 21 (JPSS-2)"),
+                          ("NOAA 2",
+                           "NOAA 21 (JPSS-2)"),
+                          ("NOAA 2",
+                           "NOAA 20"),
+                          ("NOAA",
+                           "NOAA 21 (JPSS-2)"),
+                          ("N",
+                           "NOAA 21 (JPSS-2)")
+                          ]
+                         )
+def test_read_tlefile_non_standard_platform_name_matching_start_of_name_in_tlefile(sat_name, expected,
+                                                                                   caplog,
+                                                                                   monkeypatch,
                                                                                    fake_platforms_txt_file,
                                                                                    fake_tlefile):
     """Test create a tle-object by reading tle data from file.
@@ -157,11 +172,14 @@ def test_read_tlefile_non_standard_platform_name_matching_start_of_name_in_tlefi
     Use non-standard naming matching only the beginning of what is in the TLE files.
     """
     path_to_platforms_txt_file = fake_platforms_txt_file.parent
-    monkeypatch.setenv('PPP_CONFIG_DIR', path_to_platforms_txt_file)
-    with pytest.raises(KeyError) as exc_info:
-        _ = tlefile.read('NOAA 21', str(fake_tlefile))
+    monkeypatch.setenv('PPP_CONFIG_DIR', str(path_to_platforms_txt_file))
 
-    assert str(exc_info.value) == '"Found no TLE entry for \'NOAA 21\'"'
+    with pytest.raises(KeyError) as exc_info:
+        with caplog.at_level(logging.DEBUG):
+            _ = tlefile.read(sat_name, str(fake_tlefile))
+
+    assert f"Found a possible match: {expected}?" in caplog.text
+    assert str(exc_info.value) == f'"Found no TLE entry for \'{sat_name}\'"'
 
 
 @pytest.fixture

@@ -1,0 +1,25 @@
+name: readthedocs
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - dask
+  - dask-image
+  - defusedxml
+  - numba
+  - numpy
+  - scipy
+  - requests
+  - pytest
+  - pyproj
+  - setuptools
+  - setuptools_scm
+  - sphinx
+  - sphinx_rtd_theme
+  - sphinxcontrib-apidoc
+  - trollsift
+  - xarray
+  - pip:
+    - graphviz
+    - ..  # relative path to the pyorbital project

@@ -19,12 +19,12 @@ dependencies:
   - coverage
   - codecov
   - behave
-  - mock
   - zarr
   - geoviews
   - pytest
   - pytest-cov
   - fsspec
+  - defusedxml
   - pip
   - pip:
     - trollsift

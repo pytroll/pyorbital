@@ -54,7 +54,8 @@ from pyorbital.tlefile import (
 LINE0 = "ISS (ZARYA)"
 LINE1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
 LINE2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537"
-
+LINE1_2 = "1 38771U 12049A   21137.30264622  .00000000  00000+0 -49996-5 0 00017"
+LINE2_2 = "2 38771  98.7162 197.7716 0002383 106.1049 122.6344 14.21477797449453"
 
 def _write_fake_platforms_txt_file(platforms_filename) -> None:
     with open(platforms_filename, 'w') as platforms_file:

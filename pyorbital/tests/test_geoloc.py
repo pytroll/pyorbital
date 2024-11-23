@@ -300,8 +300,7 @@ class TestGeolocDefs:
         expected_fovs = np.array([
             np.tile(np.array([[0.8115781, -0.38571776]]), [1, 1]),
             np.tile(np.array([[0., 0.]]), [1, 1])], dtype=np.float64)
-        self.assertTrue(np.allclose(geom.fovs,
-                                    expected_fovs, rtol=1e-2, atol=1e-2))
+        np.testing.assert_allclose(geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2))
 
         with pytest.raises(NotImplementedError):
             slstr(1, [0, 1], is_nadir=False)

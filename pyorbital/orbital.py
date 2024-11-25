@@ -588,38 +588,28 @@ class OrbitElements(object):
             np.pi * 2 / XMNPDA ** 3
         self.bstar = tle.bstar * AE
 
-        n_0 = self.mean_motion
-        k_e = XKE
-        k_2 = CK2
-        i_0 = self.inclination
-        e_0 = self.excentricity
+        self.original_mean_motion = None
+        self.semi_major_axis = None
+        self._calculate_mean_motion_and_semi_major_axis()
 
-        a_1 = (k_e / n_0) ** (2.0 / 3)
-        delta_1 = ((3 / 2.0) * (k_2 / a_1**2) * ((3 * np.cos(i_0)**2 - 1) /
-                                                 (1 - e_0**2)**(2.0 / 3)))
-
-        a_0 = a_1 * (1 - delta_1 / 3 - delta_1**2 - (134.0 / 81) * delta_1**3)
-
-        delta_0 = ((3 / 2.0) * (k_2 / a_0**2) * ((3 * np.cos(i_0)**2 - 1) /
-                                                 (1 - e_0**2)**(2.0 / 3)))
-
-        # original mean motion
-        n_0pp = n_0 / (1 + delta_0)
-        self.original_mean_motion = n_0pp
-
-        # semi major axis
-        a_0pp = a_0 / (1 - delta_0)
-        self.semi_major_axis = a_0pp
-
-        self.period = np.pi * 2 / n_0pp
-
-        self.perigee = (a_0pp * (1 - e_0) / AE - AE) * XKMPER
-
+        self.period = np.pi * 2 / self.original_mean_motion
+        self.perigee = (self.semi_major_axis * (1 - self.excentricity) / AE - AE) * XKMPER
         self.right_ascension_lon = (self.right_ascension
                                     - astronomy.gmst(self.epoch))
 
         if self.right_ascension_lon > np.pi:
             self.right_ascension_lon -= 2 * np.pi
+
+    def _calculate_mean_motion_and_semi_major_axis(self):
+        a_1 = (XKE / self.mean_motion) ** (2.0 / 3)
+        delta_1 = ((3 / 2.0) * (CK2 / a_1**2) * ((3 * np.cos(self.inclination)**2 - 1) /
+                                                 (1 - self.excentricity**2)**(2.0 / 3)))
+        a_0 = a_1 * (1 - delta_1 / 3 - delta_1**2 - (134.0 / 81) * delta_1**3)
+        delta_0 = ((3 / 2.0) * (CK2 / a_0**2) * ((3 * np.cos(self.inclination)**2 - 1) /
+                                                 (1 - self.excentricity**2)**(2.0 / 3)))
+
+        self.original_mean_motion = self.mean_motion / (1 + delta_0)
+        self.semi_major_axis = a_0 / (1 - delta_0)
 
 
 class _SGDP4(object):

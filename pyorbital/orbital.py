@@ -631,20 +631,15 @@ class _SGDP4(object):
 
         _check_orbital_elements(orbit_elements)
 
-        # perigee = orbit_elements.perigee
         self.eo = orbit_elements.excentricity
         self.xincl = orbit_elements.inclination
         self.xno = orbit_elements.original_mean_motion
-        # k_2 = CK2
-        # k_4 = CK4
-        # k_e = XKE
         self.bstar = orbit_elements.bstar
         self.omegao = orbit_elements.arg_perigee
         self.xmo = orbit_elements.mean_anomaly
         self.xnodeo = orbit_elements.right_ascension
         self.t_0 = orbit_elements.epoch
         self.xn_0 = orbit_elements.mean_motion
-        # A30 = -XJ3 * AE**3
 
         if self.eo < 0:
             self.mode = self.SGDP4_ZERO_ECC

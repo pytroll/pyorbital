@@ -906,23 +906,19 @@ class _SGDP4(object):
 
         # Short period preliminary quantities
         params["temp0"] = 1.0 - params["elsq"]
-        betal = np.sqrt(params["temp0"])
-        pl = params["a"] * params["temp0"]
-        r = params["a"] * (1.0 - params["ecosE"])
-        invR = 1.0 / r
-        temp2 = params["a"] * invR
-        temp3 = 1.0 / (1.0 + betal)
+        params["betal"] = np.sqrt(params["temp0"])
+        params["pl"] = params["a"] * params["temp0"]
+        params["r"] = params["a"] * (1.0 - params["ecosE"])
+        params["invR"] = 1.0 / params["r"]
+        temp2 = params["a"] * params["invR"]
+        temp3 = 1.0 / (1.0 + params["betal"])
         cosu = temp2 * (params["cosEPW"] - params["axn"] + params["ayn"] * params["esinE"] * temp3)
         sinu = temp2 * (params["sinEPW"] - params["ayn"] - params["axn"] * params["esinE"] * temp3)
 
-        params["pl"] = pl
-        params["r"] = r
-        params["betal"] = betal
-        params["invR"] = invR
         params["u"] = np.arctan2(sinu, cosu)
         params["sin2u"] = 2.0 * sinu * cosu
         params["cos2u"] = 2.0 * cosu**2 - 1.0
-        params["temp0"] = 1.0 / pl
+        params["temp0"] = 1.0 / params["pl"]
         params["temp1"] = CK2 * params["temp0"]
         params["temp2"] = params["temp1"] * params["temp0"]
 

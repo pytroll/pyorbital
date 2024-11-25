@@ -334,37 +334,27 @@ def _get_first_tle(uris, open_func, platform=""):
     return _get_tles_from_uris(uris, open_func, platform=platform, only_first=True)
 
 
-def _create_tle_from_two_lines(l_1, l_2):
-    """From line1 and line2 create the TLE string."""
-    return l_1.strip() + "\n" + l_2.strip()
-
-
 def _get_tles_from_uris(uris, open_func, platform="", only_first=True):
-    """Get TLEs from a list of URIs."""
     tles = []
-    _satellites = read_platform_numbers(get_platforms_filepath(), in_upper=True, num_as_int=False)
-
-    designator = "1 " + _satellites.get(platform, "")
     for url in uris:
-        fid = open_func(url)
-        for l_0 in fid:
-            tle = None
-            l_0 = _decode(l_0)
-            if l_0.strip() == platform:
-                tle = _create_tle_from_two_lines(_decode(next(fid)), _decode(next(fid)))
-            elif l_0.startswith(designator):
-                if (platform in _satellites or not only_first) or open_func == _dummy_open_stringio:
-                    tle = _create_tle_from_two_lines(l_0, _decode(next(fid)))
-                    if platform:
-                        LOGGER.debug("Found platform %s, ID: %s", platform, _satellites[platform])
-            elif l_0.startswith(platform) and platform not in _satellites:
-                LOGGER.debug("Found a possible match: %s?", str(l_0.strip()))
-            if tle:
-                if only_first:
-                    return tle
-                tles.append(tle)
+        tles += _get_tles_from_url(url, open_func, platform, only_first)
     if only_first:
+        if tles:
+            return tles[0]
         return ""
+    return tles
+
+
+def _get_tles_from_url(url, open_func, platform, only_first):
+    fid = open_func(url)
+    open_is_dummy = open_func == _dummy_open_stringio
+    tles = []
+    for l_0 in fid:
+        tle = _decode_lines(fid, l_0, platform, only_first, open_is_dummy=open_is_dummy)
+        if tle:
+            if only_first:
+                return [tle]
+            tles.append(tle)
     return tles
 
 
@@ -372,6 +362,32 @@ def _decode(itm):
     if isinstance(itm, str):
         return itm
     return itm.decode("utf-8")
+
+
+def _decode_lines(fid, l_0, platform, only_first, open_is_dummy=False):
+    designator = "1 " + SATELLITES.get(platform, "")
+    tle = ""
+    l_0 = _decode(l_0)
+    if l_0.strip() == platform:
+        l_1 = _decode(next(fid))
+        l_2 = _decode(next(fid))
+        tle = _merge_tle_from_two_lines(l_1, l_2)
+    elif l_0.strip().startswith(designator):
+        if (platform in SATELLITES or not only_first) or open_is_dummy:
+            l_1 = l_0
+            l_2 = _decode(next(fid))
+            tle = _merge_tle_from_two_lines(l_1, l_2)
+            if platform:
+                LOGGER.debug("Found platform %s, ID: %s", platform, SATELLITES[platform])
+    elif l_0.startswith(platform) and platform not in SATELLITES:
+        LOGGER.debug("Found a possible match: %s?", str(l_0.strip()))
+
+    return tle
+
+
+def _merge_tle_from_two_lines(l_1, l_2):
+    """Merge line1 and line2 to fulle TLE string."""
+    return l_1.strip() + "\n" + l_2.strip()
 
 
 PLATFORM_NAMES_TABLE = "(satid text primary key, platform_name text)"

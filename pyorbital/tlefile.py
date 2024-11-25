@@ -334,7 +334,13 @@ def _get_first_tle(uris, open_func, platform=""):
     return _get_tles_from_uris(uris, open_func, platform=platform, only_first=True)
 
 
+def _create_tle_from_two_lines(l_1, l_2):
+    """From line1 and line2 create the TLE string."""
+    return l_1.strip() + "\n" + l_2.strip()
+
+
 def _get_tles_from_uris(uris, open_func, platform="", only_first=True):
+    """Get TLEs from a list of URIs."""
     tles = []
     _satellites = read_platform_numbers(get_platforms_filepath(), in_upper=True, num_as_int=False)
 
@@ -342,22 +348,15 @@ def _get_tles_from_uris(uris, open_func, platform="", only_first=True):
     for url in uris:
         fid = open_func(url)
         for l_0 in fid:
-            tle = ""
+            tle = None
             l_0 = _decode(l_0)
             if l_0.strip() == platform:
-                l_1 = _decode(next(fid))
-                l_2 = _decode(next(fid))
-                tle = l_1.strip() + "\n" + l_2.strip()
-            elif (platform in _satellites or not only_first) and l_0.strip().startswith(designator):
-                l_1 = l_0
-                l_2 = _decode(next(fid))
-                tle = l_1.strip() + "\n" + l_2.strip()
-                if platform:
-                    LOGGER.debug("Found platform %s, ID: %s", platform, _satellites[platform])
-            elif open_func == _dummy_open_stringio and l_0.startswith(designator):
-                l_1 = l_0
-                l_2 = _decode(next(fid))
-                tle = l_1.strip() + "\n" + l_2.strip()
+                tle = _create_tle_from_two_lines(_decode(next(fid)), _decode(next(fid)))
+            elif l_0.startswith(designator):
+                if (platform in _satellites or not only_first) or open_func == _dummy_open_stringio:
+                    tle = _create_tle_from_two_lines(l_0, _decode(next(fid)))
+                    if platform:
+                        LOGGER.debug("Found platform %s, ID: %s", platform, _satellites[platform])
             elif l_0.startswith(platform) and platform not in _satellites:
                 LOGGER.debug("Found a possible match: %s?", str(l_0.strip()))
             if tle:

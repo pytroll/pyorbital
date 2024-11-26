@@ -562,7 +562,7 @@ def slstr(scans_nb, scan_points=None, is_nadir=True):
 
     if scan_points is None:
         scan_len = 3000  # samples per scan
-        scan_points = np.arange(3000)
+        scan_points = np.arange(scan_len)
     else:
         scan_len = len(scan_points)
     scan_angle_west = 46.5  # swath, degrees

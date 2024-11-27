@@ -550,19 +550,16 @@ def ascat(scan_nb, scan_points=None):
     return ScanGeometry(inst, times)
 
 
-def slstr(scans_nb, scan_points=None, is_nadir=True):
-    """Definition of the SLSTR instrument Nadir swath.
+def slstr_nadir(scans_nb, scan_points=None):
+    """Definition of the SLSTR instrument nadir swath.
 
     Source: Sentinel-3 SLSTR Coverage
     https://sentinel.esa.int/web/sentinel/user-guides/Sentinel-3-slstr/coverage
     """
 
-    if not is_nadir:
-        raise NotImplementedError("SLSTR is only implemented for Nadir view.")
-
     if scan_points is None:
         scan_len = 3000  # samples per scan
-        scan_points = np.arange(3000)
+        scan_points = np.arange(scan_len)
     else:
         scan_len = len(scan_points)
     scan_angle_west = 46.5  # swath, degrees

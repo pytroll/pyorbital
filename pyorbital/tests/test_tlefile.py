@@ -3,10 +3,6 @@
 #
 # Copyright (c) 2014-2024 Pytroll Community
 #
-# Author(s):
-#
-#   Martin Raspaud <martin.raspaud@smhi.se>
-#   Panu Lahtinen <panu.lahtinen@fmi.fi>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,26 +26,61 @@ import os
 import time
 import unittest
 from contextlib import suppress
+from pathlib import Path
 from unittest import mock
 
 import pytest
 
-from pyorbital.tlefile import (
-    PKG_CONFIG_DIR,
-    Tle,
-    _get_config_path,
-    _get_local_tle_path_from_env,
-    _get_uris_and_open_func,
-    check_is_platform_supported,
-    read_platform_numbers,
-)
-
 LINE0 = "ISS (ZARYA)"
 LINE1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
 LINE2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537"
-
 LINE1_2 = "1 38771U 12049A   21137.30264622  .00000000  00000+0 -49996-5 0 00017"
 LINE2_2 = "2 38771  98.7162 197.7716 0002383 106.1049 122.6344 14.21477797449453"
+
+def _write_fake_platforms_txt_file(platforms_filename) -> None:
+    with open(platforms_filename, "w") as platforms_file:
+        platforms_file.write("""NOAA-18 28654
+NOAA-19 33591
+NOAA-20 43013
+NOAA-21 54234
+# ISS 25544
+""")
+
+
+# NOAA 18
+# 1 28654U 05018A   23045.48509621  .00000446  00000+0  26330-3 0  9998
+# 2 28654  98.9223 120.4228 0014233  11.3574 348.7916 14.12862494914152
+
+def _write_fake_tle_file(tlefilename: Path) -> None:
+    with open(tlefilename, "w") as tle_file:
+        tle_file.write("""NOAA 20
+1 43013U 17073A   23045.54907786  .00000253  00000+0  14081-3 0  9995
+2 43013  98.7419 345.5839 0001610  80.3742 279.7616 14.19558274271576
+NOAA 21 (JPSS-2)
+1 54234U 22150A   23045.56664999  .00000332  00000+0  17829-3 0  9993
+2 54234  98.7059 345.5113 0001226  81.6523 278.4792 14.19543871 13653
+ISS (ZARYA)
+1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927
+2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537
+""")
+
+
+@pytest.fixture
+def fake_platforms_txt_file(tmp_path: Path) -> Path:
+    """Make fake platforms.txt file."""
+    filename = tmp_path / "platforms.txt"
+    _write_fake_platforms_txt_file(filename)
+    return filename
+
+
+@pytest.fixture
+def fake_tlefile(tmp_path: Path) -> Path:
+    """Make fake tle file."""
+    filename = tmp_path / "sometlefile.txt"
+    _write_fake_tle_file(filename)
+    return filename
+
+
 
 
 NOAA19_2LINES = """1 33591U 09005A   21355.91138073  .00000074  00000+0  65091-4 0  9998
@@ -78,6 +109,72 @@ tle_xml = "\n".join(
         "</two-line-elements>",
         "</message>",
         "</multi-mission-administrative-message>"))
+
+
+def test_read_tlefile_standard_platform_name(monkeypatch, fake_platforms_txt_file, fake_tlefile):
+    """Test create a tle-object by reading tle data from file.
+
+    Use Oscar naming matching name in platforms.txt.
+    """
+    from pyorbital import tlefile
+
+    path_to_platforms_txt_file = fake_platforms_txt_file.parent
+    monkeypatch.setenv("PYORBITAL_CONFIG_PATH", str(path_to_platforms_txt_file))
+
+    tle_n21 = tlefile.read("NOAA-21", str(fake_tlefile))
+    assert tle_n21.line1 == "1 54234U 22150A   23045.56664999  .00000332  00000+0  17829-3 0  9993"
+    assert tle_n21.line2 == "2 54234  98.7059 345.5113 0001226  81.6523 278.4792 14.19543871 13653"
+
+
+def test_read_tlefile_non_standard_platform_name(monkeypatch, fake_platforms_txt_file, fake_tlefile):
+    """Test create a tle-object by reading tle data from file.
+
+    Use naming matching what is in the TLE files, but non-standard (non Oscar) naming.
+    """
+    from pyorbital import tlefile
+
+    path_to_platforms_txt_file = fake_platforms_txt_file.parent
+    monkeypatch.setenv("PYORBITAL_CONFIG_PATH", str(path_to_platforms_txt_file))
+
+    tle_n20 = tlefile.read("NOAA 20", str(fake_tlefile))
+
+    assert tle_n20.line1 == "1 43013U 17073A   23045.54907786  .00000253  00000+0  14081-3 0  9995"
+    assert tle_n20.line2 == "2 43013  98.7419 345.5839 0001610  80.3742 279.7616 14.19558274271576"
+
+
+@pytest.mark.parametrize(("sat_name" ,"expected"),
+                         [("NOAA 21",
+                           "NOAA 21 (JPSS-2)"),
+                          ("NOAA 2",
+                           "NOAA 21 (JPSS-2)"),
+                          ("NOAA 2",
+                           "NOAA 20"),
+                          ("NOAA",
+                           "NOAA 21 (JPSS-2)"),
+                          ("N",
+                           "NOAA 21 (JPSS-2)")
+                          ]
+                         )
+def test_read_tlefile_non_standard_platform_name_matching_start_of_name_in_tlefile(sat_name, expected,
+                                                                                   caplog,
+                                                                                   monkeypatch,
+                                                                                   fake_platforms_txt_file,
+                                                                                   fake_tlefile):
+    """Test create a tle-object by reading tle data from file.
+
+    Use non-standard naming matching only the beginning of what is in the TLE files.
+    """
+    from pyorbital import tlefile
+
+    path_to_platforms_txt_file = fake_platforms_txt_file.parent
+    monkeypatch.setenv("PYORBITAL_CONFIG_PATH", str(path_to_platforms_txt_file))
+
+    with pytest.raises(KeyError) as exc_info:
+        with caplog.at_level(logging.DEBUG):
+            _ = tlefile.read(sat_name, str(fake_tlefile))
+
+    assert f"Found a possible match: {expected}?" in caplog.text
+    assert str(exc_info.value) == f'"Found no TLE entry for \'{sat_name}\'"'
 
 
 @pytest.fixture
@@ -142,6 +239,8 @@ def _mock_env_tles(monkeypatch, fake_local_tles_dir):
 @pytest.mark.usefixtures("_mock_env_ppp_config_dir_missing")
 def test_get_config_path_no_env_defined(caplog):
     """Test getting the config path."""
+    from pyorbital.tlefile import PKG_CONFIG_DIR, _get_config_path
+
     with caplog.at_level(logging.WARNING):
         res = _get_config_path()
 
@@ -152,6 +251,8 @@ def test_get_config_path_no_env_defined(caplog):
 @pytest.mark.usefixtures("_mock_env_ppp_config_dir_missing")
 def test_check_is_platform_supported_existing(caplog):
     """Test the function to check if an existing platform is supported on default."""
+    from pyorbital.tlefile import PKG_CONFIG_DIR, check_is_platform_supported
+
     with caplog.at_level(logging.INFO):
         check_is_platform_supported("NOAA-21")
 
@@ -167,6 +268,8 @@ def test_check_is_platform_supported_existing(caplog):
 @pytest.mark.usefixtures("_mock_env_ppp_config_dir_missing")
 def test_check_is_platform_supported_unknown(caplog):
     """Test the function to check if an unknown  platform is supported on default."""
+    from pyorbital.tlefile import PKG_CONFIG_DIR, check_is_platform_supported
+
     sat = "UNKNOWN"
     with caplog.at_level(logging.INFO):
         check_is_platform_supported(sat)
@@ -204,6 +307,8 @@ def test_get_config_path_ppp_config_set_but_not_pyorbital_is_deprecated(caplog, 
     set but the deprecated (old) Satpy/MPOP one is set.
 
     """
+    from pyorbital.tlefile import _get_config_path
+
     monkeypatch.setenv("SATPY_CONFIG_PATH", "/path/to/satpy/etc")
     monkeypatch.setenv("PPP_CONFIG_DIR", "/path/to/old/mpop/config/dir")
 
@@ -220,6 +325,8 @@ def test_get_config_path_ppp_config_set_but_not_pyorbital_is_deprecated(caplog, 
 
 def test_get_config_path_ppp_config_set_and_pyorbital(caplog, monkeypatch):
     """Test getting the config path."""
+    from pyorbital.tlefile import _get_config_path
+
     pyorbital_config_dir = "/path/to/pyorbital/config/dir"
     monkeypatch.setenv("PYORBITAL_CONFIG_PATH", pyorbital_config_dir)
     monkeypatch.setenv("PPP_CONFIG_DIR", "/path/to/old/mpop/config/dir")
@@ -237,6 +344,8 @@ def test_get_config_path_pyorbital_ppp_missing(caplog, monkeypatch):
 
     The old mpop PPP_CONFIG_PATH is not set but the PYORBITAL one is.
     """
+    from pyorbital.tlefile import _get_config_path
+
     pyorbital_config_dir = "/path/to/pyorbital/config/dir"
     monkeypatch.setenv("PYORBITAL_CONFIG_PATH", pyorbital_config_dir)
 
@@ -251,6 +360,8 @@ def test_get_config_path_pyorbital_ppp_missing(caplog, monkeypatch):
 
 def test_read_platform_numbers(fake_platforms_file):
     """Test reading the platform names and associated catalougue numbers."""
+    from pyorbital.tlefile import read_platform_numbers
+
     res = read_platform_numbers(str(fake_platforms_file))
     assert res == {"NOAA-21": "54234", "NOAA-20": "43013", "UNKNOWN SATELLITE": "99999"}
 
@@ -258,6 +369,8 @@ def test_read_platform_numbers(fake_platforms_file):
 @pytest.mark.usefixtures("_mock_env_tles_missing")
 def test_get_local_tle_path_tle_env_missing():
     """Test getting the path to local TLE files - env TLES missing."""
+    from pyorbital.tlefile import _get_local_tle_path_from_env
+
     res = _get_local_tle_path_from_env()
     assert res is None
 
@@ -265,6 +378,8 @@ def test_get_local_tle_path_tle_env_missing():
 @pytest.mark.usefixtures("_mock_env_tles")
 def test_get_local_tle_path(fake_local_tles_dir):
     """Test getting the path to local TLE files."""
+    from pyorbital.tlefile import _get_local_tle_path_from_env
+
     res = _get_local_tle_path_from_env()
     assert res == os.path.join(fake_local_tles_dir, "*")
 
@@ -276,7 +391,10 @@ def test_get_uris_and_open_func_using_tles_env(caplog, fake_local_tles_dir, monk
     """
     from collections.abc import Sequence
 
+    from pyorbital.tlefile import _get_uris_and_open_func
+
     monkeypatch.setenv("TLES", str(os.path.join(fake_local_tles_dir, "*")))
+
     with caplog.at_level(logging.DEBUG):
         uris, _ = _get_uris_and_open_func()
 
@@ -327,6 +445,8 @@ class TLETest(unittest.TestCase):
 
     def test_from_line(self):
         """Test parsing from line elements."""
+        from pyorbital.tlefile import Tle
+
         tle = Tle("ISS (ZARYA)", line1=LINE1, line2=LINE2)
         self.check_example(tle)
 
@@ -334,6 +454,9 @@ class TLETest(unittest.TestCase):
         """Test reading and parsing from a file."""
         from os import close, remove, write
         from tempfile import mkstemp
+
+        from pyorbital.tlefile import Tle
+
         filehandle, filename = mkstemp()
         try:
             write(filehandle, "\n".join([LINE0, LINE1, LINE2]).encode("utf-8"))
@@ -347,6 +470,9 @@ class TLETest(unittest.TestCase):
         """Test reading and parsing from a file with a slightly different name."""
         from os import close, remove, write
         from tempfile import mkstemp
+
+        from pyorbital.tlefile import Tle
+
         filehandle, filename = mkstemp()
         try:
             write(filehandle, NOAA19_3LINES.encode("utf-8"))
@@ -360,6 +486,9 @@ class TLETest(unittest.TestCase):
         """Test reading and parsing from a file with a slightly different name."""
         from os import close, remove, write
         from tempfile import mkstemp
+
+        from pyorbital.tlefile import Tle
+
         filehandle, filename = mkstemp()
         try:
             write(filehandle, NOAA19_2LINES.encode("utf-8"))
@@ -372,6 +501,8 @@ class TLETest(unittest.TestCase):
     def test_from_mmam_xml(self):
         """Test reading from an MMAM XML file."""
         from tempfile import TemporaryDirectory
+
+        from pyorbital.tlefile import Tle
 
         save_dir = TemporaryDirectory()
         with save_dir:
@@ -543,6 +674,7 @@ class TestDownloader(unittest.TestCase):
             fname = os.path.join(save_dir.name, "tle_20200129_1600.txt")
             with open(fname, "w") as fid:
                 fid.write(tle_text)
+
             # Add a non-existent file, it shouldn't cause a crash
             nonexistent = os.path.join(save_dir.name, "not_here.txt")
             # Use a wildcard to collect files (passed to glob)
@@ -749,6 +881,8 @@ class TestSQLiteTLE(unittest.TestCase):
 
 def test_tle_instance_printing():
     """Test the print the Tle instance."""
+    from pyorbital.tlefile import Tle
+
     tle = Tle("ISS", line1=LINE1, line2=LINE2)
 
     expected = "{'arg_perigee': 130.536,\n 'bstar': -1.1606e-05,\n 'classification': 'U',\n 'element_number': 292,\n 'ephemeris_type': 0,\n 'epoch': np.datetime64('2008-09-20T12:25:40.104192'),\n 'epoch_day': 264.51782528,\n 'epoch_year': '08',\n 'excentricity': 0.0006703,\n 'id_launch_number': '067',\n 'id_launch_piece': 'A  ',\n 'id_launch_year': '98',\n 'inclination': 51.6416,\n 'mean_anomaly': 325.0288,\n 'mean_motion': 15.72125391,\n 'mean_motion_derivative': -2.182e-05,\n 'mean_motion_sec_derivative': 0.0,\n 'orbit': 56353,\n 'right_ascension': 247.4627,\n 'satnumber': '25544'}"  # noqa

@@ -22,10 +22,9 @@
 
 """Test the geoloc module."""
 
-from datetime import datetime
 
 import numpy as np
-import pytest
+from datetime import datetime
 from pyorbital.geoloc import ScanGeometry, geodetic_lat, qrotate, subpoint
 from pyorbital.geoloc_instrument_definitions import avhrr, viirs, amsua, mhs, hirs4, atms, ascat, slstr_nadir
 
@@ -293,8 +292,7 @@ class TestGeolocDefs:
             geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2)
 
     def test_slstr_nadir(self):
-        """Test the definition of the slstr instrument nadir view flying on Sentinel-3
-        """
+        """Test the definition of the slstr instrument nadir view flying on Sentinel-3."""
         geom = slstr_nadir(1, [0, 1])
 
         expected_fovs = np.array([

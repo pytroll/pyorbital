@@ -22,12 +22,13 @@
 
 """Test the geoloc module."""
 
+
 from datetime import datetime
 
 import numpy as np
 
 from pyorbital.geoloc import ScanGeometry, geodetic_lat, qrotate, subpoint
-from pyorbital.geoloc_instrument_definitions import amsua, ascat, atms, avhrr, hirs4, mhs, viirs
+from pyorbital.geoloc_instrument_definitions import amsua, ascat, atms, avhrr, hirs4, mhs, slstr_nadir, viirs
 
 
 class TestQuaternion:
@@ -291,3 +292,16 @@ class TestGeolocDefs:
         geom = ascat(1, np.array([0, -1]))
         np.testing.assert_allclose(
             geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2)
+
+    def test_slstr_nadir(self):
+        """Test the definition of the slstr instrument nadir view flying on Sentinel-3."""
+        geom = slstr_nadir(1, [0, 1])
+
+        expected_fovs = np.array([
+            np.tile(np.array([[0.8115781, -0.38571776]]), [1, 1]),
+            np.tile(np.array([[0., 0.]]), [1, 1])], dtype=np.float64)
+        np.testing.assert_allclose(geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2)
+
+        geom = slstr_nadir(1, None)
+
+        np.testing.assert_equal(geom.fovs.size, 6000)

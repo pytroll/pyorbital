@@ -23,10 +23,12 @@
 """Test the geoloc module."""
 
 
-import numpy as np
 from datetime import datetime
+
+import numpy as np
+
 from pyorbital.geoloc import ScanGeometry, geodetic_lat, qrotate, subpoint
-from pyorbital.geoloc_instrument_definitions import avhrr, viirs, amsua, mhs, hirs4, atms, ascat, slstr_nadir
+from pyorbital.geoloc_instrument_definitions import amsua, ascat, atms, avhrr, hirs4, mhs, slstr_nadir, viirs
 
 
 class TestQuaternion:

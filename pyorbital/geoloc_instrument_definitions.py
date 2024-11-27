@@ -552,10 +552,10 @@ def ascat(scan_nb, scan_points=None):
 
 def slstr_nadir(scans_nb, scan_points=None):
     """Definition of the SLSTR instrument nadir swath.
+
     Source: Sentinel-3 SLSTR Coverage
     https://sentinel.esa.int/web/sentinel/user-guides/Sentinel-3-slstr/coverage
     """
-
     if scan_points is None:
         scan_len = 3000  # samples per scan
         scan_points = np.arange(scan_len)

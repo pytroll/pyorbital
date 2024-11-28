@@ -804,9 +804,6 @@ class _SGDP4(object):
     def propagate(self, utc_time):
         if self.mode == SGDP4_ZERO_ECC:
             raise NotImplementedError("Mode SGDP4_ZERO_ECC not implemented")
-        elif self.mode == SGDP4_NEAR_SIMP:
-            raise NotImplementedError('Mode "Near-space, simplified equations"'
-                                      ' not implemented')
         elif self.mode != SGDP4_NEAR_NORM:
             raise NotImplementedError("Deep space calculations not supported")
 
@@ -825,12 +822,8 @@ class _SGDP4(object):
         params["xmp"] += params["temp0"]
 
         self._calculate_omega(params)
-
-        params["tempe"] = self.bstar * \
-            (self.c4 * params["ts"] + self.c5 * (np.sin(params["xmp"]) - self.sinXMO))
-        params["templ"] = params["ts"] * params["ts"] * \
-            (self.t2cof + params["ts"] *
-                (self.t3cof + params["ts"] * (self.t4cof + params["ts"] * self.t5cof)))
+        self._calculate_tempe(params)
+        self._calculate_templ(params)
 
         self._calculate_a(params)
         self._calculate_axn_and_ayn(params)
@@ -850,10 +843,28 @@ class _SGDP4(object):
     def _calculate_omega(self, params):
         params["omega"] = self.omegao + self.omgdot * params["ts"] - params["temp0"]
 
+    def _calculate_tempe(self, params):
+        if self.mode == SGDP4_NEAR_SIMP:
+            params["tempe"] = self.bstar * params["ts"] * self.c4
+        else:
+            params["tempe"] = self.bstar * \
+                (self.c4 * params["ts"] + self.c5 * (np.sin(params["xmp"]) - self.sinXMO))
+
+    def _calculate_templ(self, params):
+        if self.mode == SGDP4_NEAR_SIMP:
+            params["templ"] = params["ts"] * params["ts"] * self.t2cof
+        else:
+            params["templ"] = params["ts"] * params["ts"] * \
+            (self.t2cof + params["ts"] *
+                (self.t3cof + params["ts"] * (self.t4cof + params["ts"] * self.t5cof)))
+
     def _calculate_a(self, params):
-        tempa = 1.0 - \
-            (params["ts"] *
-                (self.c1 + params["ts"] * (self.d2 + params["ts"] * (self.d3 + params["ts"] * self.d4))))
+        if self.mode == SGDP4_NEAR_SIMP:
+            tempa = 1.0 - params["ts"] * self.c1
+        else:
+            tempa = 1.0 - \
+                (params["ts"] *
+                 (self.c1 + params["ts"] * (self.d2 + params["ts"] * (self.d3 + params["ts"] * self.d4))))
         params["a"] = self.aodp * tempa**2
 
         if np.any(params["a"] < 1):

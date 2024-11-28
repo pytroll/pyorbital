@@ -548,3 +548,29 @@ def ascat(scan_nb, scan_points=None):
                      [np.int32(scan_nb), 1]) + np.expand_dims(offset, 1))
 
     return ScanGeometry(inst, times)
+
+
+def slstr_nadir(scans_nb, scan_points=None):
+    """Definition of the SLSTR instrument nadir swath.
+
+    Source: Sentinel-3 SLSTR Coverage
+    https://sentinel.esa.int/web/sentinel/user-guides/Sentinel-3-slstr/coverage
+    """
+    if scan_points is None:
+        scan_len = 3000  # samples per scan
+        scan_points = np.arange(scan_len)
+    else:
+        scan_len = len(scan_points)
+    scan_angle_west = 46.5  # swath, degrees
+    scan_angle_east = -22.1  # swath, degrees
+
+    # build the slstr instrument scan line angles
+    scanline_angles = np.linspace(np.deg2rad(scan_angle_west),
+                                  np.deg2rad(scan_angle_east), scan_len)
+    inst = np.vstack((scanline_angles, np.zeros(scan_len,)))
+
+    inst = np.tile(inst[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
+
+    times = np.tile(np.zeros_like(scanline_angles), [np.int32(scans_nb), 1])
+
+    return ScanGeometry(inst, times)

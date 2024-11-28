@@ -3,12 +3,6 @@
 #
 # Copyright (c) 2011-2024 Pytroll Community
 #
-# Author(s):
-#
-#   Esben S. Nielsen <esn@dmi.dk>
-#   Martin Raspaud <martin.raspaud@smhi.se>
-#   Panu Lahtinen <panu.lahtinen@fmi.fi>
-#   Will Evonosky <william.evonosky@gmail.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,7 +16,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 """Classes and functions for handling TLE files."""
 import contextlib
 import datetime as dt
@@ -34,7 +27,6 @@ import sqlite3
 from itertools import zip_longest
 from urllib.request import urlopen
 
-#from xml.etree import ElementTree as ET
 import defusedxml.ElementTree as ET
 import numpy as np
 import requests
@@ -338,31 +330,11 @@ def _get_first_tle(uris, open_func, platform=""):
 
 def _get_tles_from_uris(uris, open_func, platform="", only_first=True):
     tles = []
-    designator = "1 " + SATELLITES.get(platform, "")
     for url in uris:
-        with _uri_open(url, open_func) as fid:
-            for l_0 in fid:
-                tle = ""
-                l_0 = _decode(l_0)
-                if l_0.strip() == platform:
-                    l_1 = _decode(next(fid))
-                    l_2 = _decode(next(fid))
-                    tle = l_1.strip() + "\n" + l_2.strip()
-                elif (platform in SATELLITES or not only_first) and l_0.strip().startswith(designator):
-                    l_1 = l_0
-                    l_2 = _decode(next(fid))
-                    tle = l_1.strip() + "\n" + l_2.strip()
-                    if platform:
-                        LOGGER.debug("Found platform %s, ID: %s", platform, SATELLITES[platform])
-                elif open_func == _dummy_open_stringio and l_0.startswith(designator):
-                    l_1 = l_0
-                    l_2 = _decode(next(fid))
-                    tle = l_1.strip() + "\n" + l_2.strip()
-                if tle:
-                    if only_first:
-                        return tle
-                    tles.append(tle)
+        tles += _get_tles_from_url(url, open_func, platform, only_first)
     if only_first:
+        if tles:
+            return tles[0]
         return ""
     return tles
 
@@ -377,10 +349,49 @@ def _uri_open(uri, open_func):
             file_obj.close()
 
 
+def _get_tles_from_url(url, open_func, platform, only_first):
+    with _uri_open(url, open_func) as fid:
+        open_is_dummy = open_func == _dummy_open_stringio
+        tles = []
+        for l_0 in fid:
+            tle = _decode_lines(fid, l_0, platform, only_first, open_is_dummy=open_is_dummy)
+            if tle:
+                if only_first:
+                    return [tle]
+                tles.append(tle)
+        return tles
+
+
 def _decode(itm):
     if isinstance(itm, str):
         return itm
     return itm.decode("utf-8")
+
+
+def _decode_lines(fid, l_0, platform, only_first, open_is_dummy=False):
+    designator = "1 " + SATELLITES.get(platform, "")
+    tle = ""
+    l_0 = _decode(l_0)
+    if l_0.strip() == platform:
+        l_1 = _decode(next(fid))
+        l_2 = _decode(next(fid))
+        tle = _merge_tle_from_two_lines(l_1, l_2)
+    elif l_0.strip().startswith(designator):
+        if (platform in SATELLITES or not only_first) or open_is_dummy:
+            l_1 = l_0
+            l_2 = _decode(next(fid))
+            tle = _merge_tle_from_two_lines(l_1, l_2)
+            if platform:
+                LOGGER.debug("Found platform %s, ID: %s", platform, SATELLITES[platform])
+    elif l_0.startswith(platform) and platform not in SATELLITES:
+        LOGGER.debug("Found a possible match: %s?", str(l_0.strip()))
+
+    return tle
+
+
+def _merge_tle_from_two_lines(l_1, l_2):
+    """Merge line1 and line2 to fulle TLE string."""
+    return l_1.strip() + "\n" + l_2.strip()
 
 
 PLATFORM_NAMES_TABLE = "(satid text primary key, platform_name text)"
@@ -497,8 +508,10 @@ def collect_filenames(paths):
 
 
 def read_tles_from_mmam_xml_files(paths):
-    """Read TLEs from EUMETSAT MMAM XML files."""
-    # Collect filenames
+    """Read TLE data from a list of MMAM XMl file (EUMETSAT).
+
+    MMAM = Multi-Mission Administration Message
+    """
     fnames = collect_filenames(paths)
     tles = []
     for fname in fnames:
@@ -510,7 +523,7 @@ def read_tles_from_mmam_xml_files(paths):
 
 
 def read_tle_from_mmam_xml_file(fname):
-    """Read TLEs from a EUMETSAT MMAM XML file."""
+    """Read TLE data from MMAM XMl file (EUMETSAT)."""
     tree = ET.parse(fname)
     root = tree.getroot()
     data = []

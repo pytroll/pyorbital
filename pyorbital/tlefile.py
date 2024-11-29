@@ -17,8 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """Classes and functions for handling TLE files."""
-
-
+import contextlib
 import datetime as dt
 import glob
 import io
@@ -56,16 +55,11 @@ class TleDownloadTimeoutError(Exception):
 def _get_config_path():
     """Get the config path for Pyorbital."""
     if "PPP_CONFIG_DIR" in os.environ and "PYORBITAL_CONFIG_PATH" not in os.environ:
-        # XXX: Swap when pyorbital 1.9 is released
-        #LOGGER.warning(
-        #    "The use of PPP_CONFIG_DIR is no longer supported!" +
-        #    " Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
-        #LOGGER.debug("Using the package default for configuration: %s", PKG_CONFIG_DIR)
-        #return PKG_CONFIG_DIR
         LOGGER.warning(
-            "The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.9!" +
+            "The use of PPP_CONFIG_DIR is no longer supported!" +
             " Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
-        pyorbital_config_path = os.getenv("PPP_CONFIG_DIR", PKG_CONFIG_DIR)
+        LOGGER.debug("Using the package default for configuration: %s", PKG_CONFIG_DIR)
+        return PKG_CONFIG_DIR
     else:
         pyorbital_config_path = os.getenv("PYORBITAL_CONFIG_PATH", PKG_CONFIG_DIR)
 
@@ -345,17 +339,27 @@ def _get_tles_from_uris(uris, open_func, platform="", only_first=True):
     return tles
 
 
+@contextlib.contextmanager
+def _uri_open(uri, open_func):
+    file_obj = open_func(uri)
+    try:
+        yield file_obj
+    finally:
+        if hasattr(file_obj, "close"):
+            file_obj.close()
+
+
 def _get_tles_from_url(url, open_func, platform, only_first):
-    fid = open_func(url)
-    open_is_dummy = open_func == _dummy_open_stringio
-    tles = []
-    for l_0 in fid:
-        tle = _decode_lines(fid, l_0, platform, only_first, open_is_dummy=open_is_dummy)
-        if tle:
-            if only_first:
-                return [tle]
-            tles.append(tle)
-    return tles
+    with _uri_open(url, open_func) as fid:
+        open_is_dummy = open_func == _dummy_open_stringio
+        tles = []
+        for l_0 in fid:
+            tle = _decode_lines(fid, l_0, platform, only_first, open_is_dummy=open_is_dummy)
+            if tle:
+                if only_first:
+                    return [tle]
+                tles.append(tle)
+        return tles
 
 
 def _decode(itm):
@@ -577,7 +581,7 @@ class SQLiteTLE(object):
         cmd = SATID_VALUES.format(num)
         epoch = tle.epoch.item().isoformat()
         tle = "\n".join([tle.line1, tle.line2])
-        now = dt.datetime.utcnow().isoformat()
+        now = _utcnow().isoformat()
         try:
             with self.db:
                 self.db.execute(cmd, (epoch, tle, now, source))
@@ -594,7 +598,7 @@ class SQLiteTLE(object):
             return
         pattern = os.path.join(self.writer_config["output_dir"],
                                self.writer_config["filename_pattern"])
-        now = dt.datetime.utcnow()
+        now = _utcnow()
         fname = now.strftime(pattern)
         out_dir = os.path.dirname(fname)
         if not os.path.exists(out_dir):
@@ -608,8 +612,7 @@ class SQLiteTLE(object):
             query = f"SELECT epoch, tle FROM '{satid:d}' ORDER BY epoch DESC LIMIT 1"  # nosec
             epoch, tle = self.db.execute(query).fetchone()  # nosec
             date_epoch = dt.datetime.strptime(epoch, ISO_TIME_FORMAT)
-            tle_age = (
-                dt.datetime.utcnow() - date_epoch).total_seconds() / 3600.
+            tle_age = (_utcnow() - date_epoch).total_seconds() / 3600.
             logging.info("Latest TLE for '%s' (%s) is %d hours old.",
                          satid, platform_name, int(tle_age))
             data.append(tle)
@@ -630,6 +633,9 @@ def table_exists(db, name):
     query = "SELECT 1 FROM sqlite_master WHERE type='table' and name=?"
     return db.execute(query, (name,)).fetchone() is not None  # nosec
 
+
+def _utcnow():
+    return dt.datetime.now(tz=dt.timezone.utc).replace(tzinfo=None)
 
 def main():
     """Run a test TLE reading."""

@@ -27,6 +27,7 @@ import time
 import unittest
 from contextlib import suppress
 from pathlib import Path
+from tempfile import mkstemp
 from unittest import mock
 
 import pytest
@@ -286,28 +287,9 @@ def test_check_is_platform_supported_unknown(caplog):
     assert expected3 in logoutput_lines[2]
 
 
-#def test_get_config_path_ppp_config_set_but_not_pyorbital_future(mock, caplog, monkeypatch):
-#    """Test getting the config path."""
-#    monkeypatch.setenv("SATPY_CONFIG_PATH", "/path/to/satpy/etc")
-#    monkeypatch.setenv("PPP_CONFIG_DIR", "/path/to/old/mpop/config/dir")
-#
-#    with caplog.at_level(logging.WARNING):
-#        res = _get_config_path()
-#
-#    log_output = ("The use of PPP_CONFIG_DIR is no longer supported! " +
-#                  "Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
-#    assert log_output in caplog.text
-#    assert res == PKG_CONFIG_DIR
-
-
-def test_get_config_path_ppp_config_set_but_not_pyorbital_is_deprecated(caplog, monkeypatch):
-    """Test getting the config path.
-
-    Here the case is tested when the new Pyorbital environment variable is not
-    set but the deprecated (old) Satpy/MPOP one is set.
-
-    """
-    from pyorbital.tlefile import _get_config_path
+def test_get_config_path_ppp_config_set_but_not_pyorbital_future(caplog, monkeypatch):
+    """Test getting the config path."""
+    from pyorbital.tlefile import PKG_CONFIG_DIR, _get_config_path
 
     monkeypatch.setenv("SATPY_CONFIG_PATH", "/path/to/satpy/etc")
     monkeypatch.setenv("PPP_CONFIG_DIR", "/path/to/old/mpop/config/dir")
@@ -315,12 +297,10 @@ def test_get_config_path_ppp_config_set_but_not_pyorbital_is_deprecated(caplog, 
     with caplog.at_level(logging.WARNING):
         res = _get_config_path()
 
-    assert res == "/path/to/old/mpop/config/dir"
-
-    log_output = ("The use of PPP_CONFIG_DIR is deprecated and will be removed in version 1.9!" +
-                  " Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
-
+    log_output = ("The use of PPP_CONFIG_DIR is no longer supported! " +
+                  "Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
     assert log_output in caplog.text
+    assert res == PKG_CONFIG_DIR
 
 
 def test_get_config_path_ppp_config_set_and_pyorbital(caplog, monkeypatch):
@@ -452,51 +432,42 @@ class TLETest(unittest.TestCase):
 
     def test_from_file(self):
         """Test reading and parsing from a file."""
-        from os import close, remove, write
-        from tempfile import mkstemp
-
         from pyorbital.tlefile import Tle
 
         filehandle, filename = mkstemp()
         try:
-            write(filehandle, "\n".join([LINE0, LINE1, LINE2]).encode("utf-8"))
-            close(filehandle)
+            os.write(filehandle, "\n".join([LINE0, LINE1, LINE2]).encode("utf-8"))
+            os.close(filehandle)
             tle = Tle("ISS (ZARYA)", filename)
             self.check_example(tle)
         finally:
-            remove(filename)
+            os.remove(filename)
 
     def test_from_file_with_hyphenated_platform_name(self):
         """Test reading and parsing from a file with a slightly different name."""
-        from os import close, remove, write
-        from tempfile import mkstemp
-
         from pyorbital.tlefile import Tle
 
         filehandle, filename = mkstemp()
         try:
-            write(filehandle, NOAA19_3LINES.encode("utf-8"))
-            close(filehandle)
+            os.write(filehandle, NOAA19_3LINES.encode("utf-8"))
+            os.close(filehandle)
             tle = Tle("NOAA-19", filename)
             assert tle.satnumber == "33591"
         finally:
-            remove(filename)
+            os.remove(filename)
 
     def test_from_file_with_no_platform_name(self):
         """Test reading and parsing from a file with a slightly different name."""
-        from os import close, remove, write
-        from tempfile import mkstemp
-
         from pyorbital.tlefile import Tle
 
         filehandle, filename = mkstemp()
         try:
-            write(filehandle, NOAA19_2LINES.encode("utf-8"))
-            close(filehandle)
+            os.write(filehandle, NOAA19_2LINES.encode("utf-8"))
+            os.close(filehandle)
             tle = Tle("NOAA-19", filename)
             assert tle.satnumber == "33591"
         finally:
-            remove(filename)
+            os.remove(filename)
 
     def test_from_mmam_xml(self):
         """Test reading from an MMAM XML file."""
@@ -769,7 +740,7 @@ class TestSQLiteTLE(unittest.TestCase):
 
     def test_update_db(self):
         """Test updating database with new data."""
-        from pyorbital.tlefile import ISO_TIME_FORMAT, SATID_TABLE, table_exists
+        from pyorbital.tlefile import ISO_TIME_FORMAT, SATID_TABLE, _utcnow, table_exists
 
         # Get the column names
         columns = [col.strip() for col in
@@ -804,7 +775,7 @@ class TestSQLiteTLE(unittest.TestCase):
         assert data[0][1] == "\n".join((LINE1, LINE2))
         # Date when the data were added should be close to current time
         date_added = datetime.datetime.strptime(data[0][2], ISO_TIME_FORMAT)
-        now = datetime.datetime.utcnow()
+        now = _utcnow()
         assert (now - date_added).total_seconds() < 1.0
         # Source of the data
         assert data[0][3] == "foo"

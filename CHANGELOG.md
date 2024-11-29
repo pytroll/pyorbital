@@ -1,3 +1,31 @@
+## Version 1.9.0 (2024/11/29)
+
+### Issues Closed
+
+* [Issue 160](https://github.com/pytroll/pyorbital/issues/160) - SENTINEL-2 TLE files ([PR 161](https://github.com/pytroll/pyorbital/pull/161) by [@simonrp84](https://github.com/simonrp84))
+* [Issue 119](https://github.com/pytroll/pyorbital/issues/119) - tlefile.py seem to use satellite name rather than the international designator number ([PR 118](https://github.com/pytroll/pyorbital/pull/118) by [@adybbroe](https://github.com/adybbroe))
+* [Issue 80](https://github.com/pytroll/pyorbital/issues/80) - NotImplementedError: Mode "Near-space, simplified equations" not implemented ([PR 124](https://github.com/pytroll/pyorbital/pull/124) by [@JonathanMaes](https://github.com/JonathanMaes))
+
+In this release 3 issues were closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 159](https://github.com/pytroll/pyorbital/pull/159) - Bugfix use of datetime.datetime objects in call to `get_last_an_time`
+
+#### Features added
+
+* [PR 171](https://github.com/pytroll/pyorbital/pull/171) - Refactor _SGDB4 class
+* [PR 169](https://github.com/pytroll/pyorbital/pull/169) - Switch to use pyproject.toml instead of setup.py, and skip versioneer
+* [PR 161](https://github.com/pytroll/pyorbital/pull/161) - Add new platforms and clarify help message for `check_platform` ([160](https://github.com/pytroll/pyorbital/issues/160))
+* [PR 146](https://github.com/pytroll/pyorbital/pull/146) - Update CI to use Python 3.10 - 3.12 and plain Miniforge
+* [PR 124](https://github.com/pytroll/pyorbital/pull/124) - Implement SGDP4_NEAR_SIMP propagation ([80](https://github.com/pytroll/pyorbital/issues/80))
+* [PR 118](https://github.com/pytroll/pyorbital/pull/118) - Refactor and improve tests concerning the TLE file handling ([119](https://github.com/pytroll/pyorbital/issues/119))
+* [PR 98](https://github.com/pytroll/pyorbital/pull/98) - Add slstr ([81](https://github.com/pytroll/pyorbital/issues/81))
+
+In this release 8 pull requests were closed.
+
 ## Version 1.8.3 (2024/06/25)
 
 ### Issues Closed

@@ -588,8 +588,8 @@ class OrbitElements(object):
             np.pi * 2 / XMNPDA ** 3
         self.bstar = tle.bstar * AE
 
-        self.original_mean_motion = None
-        self.semi_major_axis = None
+        self.original_mean_motion, self.semi_major_axis = \
+            self._calculate_mean_motion_and_semi_major_axis()
         self._calculate_mean_motion_and_semi_major_axis()
 
         self.period = np.pi * 2 / self.original_mean_motion
@@ -608,8 +608,7 @@ class OrbitElements(object):
         delta_0 = ((3 / 2.0) * (CK2 / a_0**2) * ((3 * np.cos(self.inclination)**2 - 1) /
                                                  (1 - self.excentricity**2)**(2.0 / 3)))
 
-        self.original_mean_motion = self.mean_motion / (1 + delta_0)
-        self.semi_major_axis = a_0 / (1 - delta_0)
+        return (self.mean_motion / (1 + delta_0), a_0 / (1 - delta_0))
 
 
 class _SGDP4(object):

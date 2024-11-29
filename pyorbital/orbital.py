@@ -611,8 +611,8 @@ class OrbitElements(object):
         return (self.mean_motion / (1 + delta_0), a_0 / (1 - delta_0))
 
 
-class _SGDP4(object):
-    """Class for the SGDP4 computations."""
+class _SGDP4Base:
+    """Helper class for the SGDP4 computations."""
 
     def __init__(self, orbit_elements):
         """Initialize class."""
@@ -800,89 +800,316 @@ class _SGDP4(object):
         self.t5cof = (0.2 * (3.0 * self.d4 + 12.0 * self.c1 * self.d3 + 6.0 * self.d2**2 +
                                 15.0 * c1sq * (2.0 * self.d2 + c1sq)))
 
+
+class _SGDP4:
+    """Class for SGDP4 computations."""
+
+    def __init__(self, orbital_elements):
+        self._params = _SGDP4Base(orbital_elements)
+
+    @property
+    def eo(self):
+        return self._params.eo
+
+    @property
+    def xincl(self):
+        return self._params.xincl
+
+    @property
+    def xno(self):
+        return self._params.xno
+
+    @property
+    def bstar(self):
+        return self._params.bstar
+
+    @property
+    def omegao(self):
+        return self._params.omegao
+
+    @property
+    def xmo(self):
+        return self._params.xmo
+
+    @property
+    def xnodeo(self):
+        return self._params.xnodeo
+
+    @property
+    def t_0(self):
+        return self._params.t_0
+
+    @property
+    def xn_0(self):
+        return self._params.xn_0
+
+    @property
+    def mode(self):
+        return self._params.mode
+
+    @property
+    def cosIO(self):
+        return self._params.cosIO
+
+    @property
+    def sinIO(self):
+        return self._params.sinIO
+
+    @property
+    def x3thm1(self):
+        return self._params.x3thm1
+
+    @property
+    def x1mth2(self):
+        return self._params.x1mth2
+
+    @property
+    def x7thm1(self):
+        return self._params.x7thm1
+
+    @property
+    def xnodp(self):
+        return self._params.xnodp
+
+    @property
+    def aodp(self):
+        return self._params.aodp
+
+    @property
+    def perigee(self):
+        return self._params.perigee
+
+    @property
+    def apogee(self):
+        return self._params.apogee
+
+    @property
+    def period(self):
+        return self._params.period
+
+    @property
+    def eta(self):
+        return self._params.eta
+
+    @property
+    def c1(self):
+        return self._params.c1
+
+    @property
+    def c2(self):
+        return self._params.c2
+
+    @property
+    def c3(self):
+        return self._params.c3
+
+    @property
+    def c4(self):
+        return self._params.c4
+
+    @property
+    def c5(self):
+        return self._params.c5
+
+    @property
+    def xmdot(self):
+        return self._params.xmdot
+
+    @property
+    def omgdot(self):
+        return self._params.omgdot
+
+    @property
+    def xnodot(self):
+        return self._params.xnodot
+
+    @property
+    def xmcof(self):
+        return self._params.xmcof
+
+    @property
+    def xnodcf(self):
+        return self._params.xnodcf
+
+    @property
+    def t2cof(self):
+        return self._params.t2cof
+
+    @property
+    def xlcof(self):
+        return self._params.xlcof
+
+    @property
+    def aycof(self):
+        return self._params.aycof
+
+    @property
+    def cosXMO(self):
+        return self._params.cosXMO
+
+    @property
+    def sinXMO(self):
+        return self._params.sinXMO
+
+    @property
+    def delmo(self):
+        return self._params.delmo
+
+    @property
+    def d2(self):
+        return self._params.d2
+
+    @property
+    def d3(self):
+        return self._params.d3
+
+    @property
+    def d4(self):
+        return self._params.d4
+
+    @property
+    def t3cof(self):
+        return self._params.t3cof
+
+    @property
+    def t4cof(self):
+        return self._params.t4cof
+
+    @property
+    def t5cof(self):
+        return self._params.t5cof
+
+
     def propagate(self, utc_time):
         if self.mode == SGDP4_ZERO_ECC:
             raise NotImplementedError("Mode SGDP4_ZERO_ECC not implemented")
         elif self.mode != SGDP4_NEAR_NORM:
             raise NotImplementedError("Deep space calculations not supported")
 
-        return self._calculate_keplerians(utc_time)
+        kep = _Keplerians(self._params)
+        return kep.calculate(utc_time)
 
-    def _calculate_keplerians(self, utc_time):
-        params = {"utc_time": utc_time}
-        params["ts"] = self._get_timedelta_in_minutes(params)
 
-        params["xmp"] = self.xmo + self.xmdot * params["ts"]
-        params["xnode"] = self.xnodeo + params["ts"] * (self.xnodot + params["ts"] * self.xnodcf)
+class _Keplerians:
+    """Class for computing Keplerian parameters."""
 
-        delm = self.xmcof * \
-            ((1.0 + self.eta * np.cos(params["xmp"]))**3 - self.delmo)
-        params["temp0"] = params["ts"] * self.omgcof + delm
-        params["xmp"] += params["temp0"]
+    def __init__(self, params):
+        """Initialize the class."""
+        self._params = params
+        self.ecc = None
+        self.radius = None
+        self.theta = None
+        self.eqinc = None
+        self.ascn = None
+        self.argp = None
+        self.smjaxs = None
+        self.rdotk = None
+        self.rfdotk = None
+        self.omega = None
 
-        self._calculate_omega(params)
-        self._calculate_tempe(params)
-        self._calculate_templ(params)
+        self._utc_time = None
+        self._ts = None
+        self._xmp = None
+        self._xnode = None
+        self._temp0 = None
+        self._elsq = None
+        self._tempe = None
+        self._templ = None
+        self._a = None
+        self._axn = None
+        self._ayn = None
+        self._xlt = None
+        self._betal = None
+        self._pl = None
+        self._r = None
+        self._ecosE = None
+        self._invR = None
+        self._cosEPW = None
+        self._esinE = None
+        self._sinEPW = None
+        self._u = None
+        self._sin2u = None
+        self._cos2u = None
+        self._temp1 = None
+        self._temp2 = None
 
-        self._calculate_a(params)
-        self._calculate_axn_and_ayn(params)
-        _calculate_elsq(params)
+    def calculate(self, utc_time):
+        """Calculate Keplerians and return them as a dict."""
+        self._utc_time = utc_time
+        self._get_timedelta_in_minutes()
 
-        params["ecc"] = np.sqrt(params["elsq"])
+        self._xmp = self._params.xmo + self._params.xmdot * self._ts
+        self._xnode = self._params.xnodeo + self._ts * (self._params.xnodot + self._ts * self._params.xnodcf)
 
-        self._calculate_preliminary_short_period(params)
-        self._update_short_period(params)
-        kep = self._collect_return_values(params)
+        delm = self._params.xmcof * \
+            ((1.0 + self._params.eta * np.cos(self._xmp))**3 - self._params.delmo)
+        self._temp0 = self._ts * self._params.omgcof + delm
+        self._xmp += self._temp0
+
+        self._calculate_omega()
+        self._calculate_tempe()
+        self._calculate_templ()
+
+        self._calculate_a()
+        self._calculate_axn_and_ayn()
+        self._elsq = _calculate_elsq(self._axn, self._ayn, self._utc_time)
+
+        self.ecc = np.sqrt(self._elsq)
+
+        self._calculate_preliminary_short_period()
+        self._update_short_period()
+        kep = self._collect_return_values()
 
         return kep
 
-    def _get_timedelta_in_minutes(self, params):
-        return (dt2np(params["utc_time"]) - self.t_0) / np.timedelta64(1, "m")
+    def _get_timedelta_in_minutes(self):
+        self._ts = (dt2np(self._utc_time) - self._params.t_0) / np.timedelta64(1, "m")
 
-    def _calculate_omega(self, params):
-        params["omega"] = self.omegao + self.omgdot * params["ts"] - params["temp0"]
+    def _calculate_omega(self):
+        self.omega = self._params.omegao + self._params.omgdot * self._ts - self._temp0
 
-    def _calculate_tempe(self, params):
-        if self.mode == SGDP4_NEAR_SIMP:
-            params["tempe"] = self.bstar * params["ts"] * self.c4
+    def _calculate_tempe(self):
+        if self._params.mode == SGDP4_NEAR_SIMP:
+            self._tempe = self._params.bstar * self._ts * self._params.c4
         else:
-            params["tempe"] = self.bstar * \
-                (self.c4 * params["ts"] + self.c5 * (np.sin(params["xmp"]) - self.sinXMO))
+            self._tempe = self._params.bstar * \
+                (self._params.c4 * self._ts + self._params.c5 * (np.sin(self._xmp) - self._params.sinXMO))
 
-    def _calculate_templ(self, params):
-        if self.mode == SGDP4_NEAR_SIMP:
-            params["templ"] = params["ts"] * params["ts"] * self.t2cof
+    def _calculate_templ(self):
+        if self._params.mode == SGDP4_NEAR_SIMP:
+            self._templ = self._ts * self._ts * self._params.t2cof
         else:
-            params["templ"] = params["ts"] * params["ts"] * \
-            (self.t2cof + params["ts"] *
-                (self.t3cof + params["ts"] * (self.t4cof + params["ts"] * self.t5cof)))
+            self._templ = self._ts * self._ts * \
+            (self._params.t2cof + self._ts *
+                (self._params.t3cof + self._ts * (self._params.t4cof + self._ts * self._params.t5cof)))
 
-    def _calculate_a(self, params):
-        if self.mode == SGDP4_NEAR_SIMP:
-            tempa = 1.0 - params["ts"] * self.c1
+    def _calculate_a(self):
+        if self._params.mode == SGDP4_NEAR_SIMP:
+            tempa = 1.0 - self._ts * self._params.c1
         else:
             tempa = 1.0 - \
-                (params["ts"] *
-                 (self.c1 + params["ts"] * (self.d2 + params["ts"] * (self.d3 + params["ts"] * self.d4))))
-        params["a"] = self.aodp * tempa**2
+                (self._ts *
+                 (self._params.c1 + self._ts * (self._params.d2 + self._ts *
+                  (self._params.d3 + self._ts * self._params.d4))))
+        self._a = self._params.aodp * tempa**2
 
-        if np.any(params["a"] < 1):
-            raise Exception("Satellite crashed at time %s", params["utc_time"])
+        if np.any(self._a < 1):
+            raise Exception("Satellite crashed at time %s", self._utc_time)
 
-    def _calculate_axn_and_ayn(self, params):
-        e = self._calculate_e(params["tempe"])
+    def _calculate_axn_and_ayn(self):
+        e = self._calculate_e(self._tempe)
         beta2 = 1.0 - e**2
 
         # Long period periodics
-        sinOMG = np.sin(params["omega"])
-        cosOMG = np.cos(params["omega"])
+        sinOMG = np.sin(self.omega)
+        cosOMG = np.cos(self.omega)
 
-        params["temp0"] = 1.0 / (params["a"] * beta2)
-        params["axn"] = e * cosOMG
-        params["ayn"] = e * sinOMG + params["temp0"] * self.aycof
+        self._temp0 = 1.0 / (self._a * beta2)
+        self._axn = e * cosOMG
+        self._ayn = e * sinOMG + self._temp0 * self._params.aycof
 
     def _calculate_e(self, tempe):
-        e = self.eo - tempe
+        e = self._params.eo - tempe
 
         if np.any(e < ECC_LIMIT_LOW):
             raise ValueError("Satellite modified eccentricity too low: %s < %e"
@@ -893,87 +1120,87 @@ class _SGDP4(object):
 
         return e
 
-    def _calculate_preliminary_short_period(self, params):
-        xl = params["xmp"] + params["omega"] + params["xnode"] + self.xnodp * params["templ"]
-        params["xlt"] = xl + params["temp0"] * self.xlcof * params["axn"]
+    def _calculate_preliminary_short_period(self):
+        xl = self._xmp + self.omega + self._xnode + self._params.xnodp * self._templ
+        self._xlt = xl + self._temp0 * self._params.xlcof * self._axn
 
-        self._iterate_newton_raphson(params)
+        self._iterate_newton_raphson()
 
         # Short period preliminary quantities
-        params["temp0"] = 1.0 - params["elsq"]
-        params["betal"] = np.sqrt(params["temp0"])
-        params["pl"] = params["a"] * params["temp0"]
-        params["r"] = params["a"] * (1.0 - params["ecosE"])
-        params["invR"] = 1.0 / params["r"]
-        temp2 = params["a"] * params["invR"]
-        temp3 = 1.0 / (1.0 + params["betal"])
-        cosu = temp2 * (params["cosEPW"] - params["axn"] + params["ayn"] * params["esinE"] * temp3)
-        sinu = temp2 * (params["sinEPW"] - params["ayn"] - params["axn"] * params["esinE"] * temp3)
+        self._temp0 = 1.0 - self._elsq
+        self._betal = np.sqrt(self._temp0)
+        self._pl = self._a * self._temp0
+        self._r = self._a * (1.0 - self._ecosE)
+        self._invR = 1.0 / self._r
+        temp2 = self._a * self._invR
+        temp3 = 1.0 / (1.0 + self._betal)
+        cosu = temp2 * (self._cosEPW - self._axn + self._ayn * self._esinE * temp3)
+        sinu = temp2 * (self._sinEPW - self._ayn - self._axn * self._esinE * temp3)
 
-        params["u"] = np.arctan2(sinu, cosu)
-        params["sin2u"] = 2.0 * sinu * cosu
-        params["cos2u"] = 2.0 * cosu**2 - 1.0
-        params["temp0"] = 1.0 / params["pl"]
-        params["temp1"] = CK2 * params["temp0"]
-        params["temp2"] = params["temp1"] * params["temp0"]
+        self._u = np.arctan2(sinu, cosu)
+        self._sin2u = 2.0 * sinu * cosu
+        self._cos2u = 2.0 * cosu**2 - 1.0
+        self._temp0 = 1.0 / self._pl
+        self._temp1 = CK2 * self._temp0
+        self._temp2 = self._temp1 * self._temp0
 
-    def _iterate_newton_raphson(self, params):
-        epw = np.fmod(params["xlt"] - params["xnode"], 2 * np.pi)
+    def _iterate_newton_raphson(self):
+        epw = np.fmod(self._xlt - self._xnode, 2 * np.pi)
         # needs a copy in case of an array
         capu = np.array(epw)
         for i in range(10):
-            params["sinEPW"] = np.sin(epw)
-            params["cosEPW"] = np.cos(epw)
+            self._sinEPW = np.sin(epw)
+            self._cosEPW = np.cos(epw)
 
-            params["ecosE"] = params["axn"] * params["cosEPW"] + params["ayn"] * params["sinEPW"]
-            params["esinE"] = params["axn"] * params["sinEPW"] - params["ayn"] * params["cosEPW"]
-            f = capu - epw + params["esinE"]
+            self._ecosE = self._axn * self._cosEPW + self._ayn * self._sinEPW
+            self._esinE = self._axn * self._sinEPW - self._ayn * self._cosEPW
+            f = capu - epw + self._esinE
             if np.all(np.abs(f) < NR_EPS):
                 break
 
-            df = 1.0 - params["ecosE"]
+            df = 1.0 - self._ecosE
 
             # 1st order Newton-Raphson correction.
             nr = f / df
 
             # 2nd order Newton-Raphson correction.
-            nr = np.where(np.logical_and(i == 0, np.abs(nr) > 1.25 * params["ecc"]),
-                          np.sign(nr) * params["ecc"],
-                          f / (df + 0.5 * params["esinE"] * nr))
+            nr = np.where(np.logical_and(i == 0, np.abs(nr) > 1.25 * self.ecc),
+                          np.sign(nr) * self.ecc,
+                          f / (df + 0.5 * self._esinE * nr))
             epw += nr
 
 
-    def _update_short_period(self, params):
-        params["rk"] = params["r"] * (1.0 - 1.5 * params["temp2"] * params["betal"] * self.x3thm1) + \
-            0.5 * params["temp1"] * self.x1mth2 * params["cos2u"]
-        params["uk"] = params["u"] - 0.25 * params["temp2"] * self.x7thm1 * params["sin2u"]
-        params["xnodek"] = params["xnode"] + 1.5 * params["temp2"] * self.cosIO * params["sin2u"]
-        params["xinc"] = self.xincl + 1.5 * params["temp2"] * self.cosIO * self.sinIO * params["cos2u"]
+    def _update_short_period(self):
+        self.rk = self._r * (1.0 - 1.5 * self._temp2 * self._betal * self._params.x3thm1) + \
+            0.5 * self._temp1 * self._params.x1mth2 * self._cos2u
+        self.uk = self._u - 0.25 * self._temp2 * self._params.x7thm1 * self._sin2u
+        self.xnodek = self._xnode + 1.5 * self._temp2 * self._params.cosIO * self._sin2u
+        self.xinc = self._params.xincl + 1.5 * self._temp2 * self._params.cosIO * self._params.sinIO * self._cos2u
 
-        if np.any(params["rk"] < 1):
-            raise Exception("Satellite crashed at time %s", params["utc_time"])
+        if np.any(self.rk < 1):
+            raise Exception("Satellite crashed at time %s", self._utc_time)
 
-        params["temp0"] = np.sqrt(params["a"])
-        temp2 = XKE / (params["a"] * params["temp0"])
-        params["rdotk"] = (
-            (XKE * params["temp0"] * params["esinE"] * params["invR"] -
-                temp2 * params["temp1"] * self.x1mth2 * params["sin2u"]) *
+        self._temp0 = np.sqrt(self._a)
+        temp2 = XKE / (self._a * self._temp0)
+        self.rdotk = (
+            (XKE * self._temp0 * self._esinE * self._invR -
+                temp2 * self._temp1 * self._params.x1mth2 * self._sin2u) *
             (XKMPER / AE * XMNPDA / 86400.0))
-        params["rfdotk"] = ((XKE * np.sqrt(params["pl"]) * params["invR"] + temp2 * params["temp1"] *
-                   (self.x1mth2 * params["cos2u"] + 1.5 * self.x3thm1)) *
+        self.rfdotk = ((XKE * np.sqrt(self._pl) * self._invR + temp2 * self._temp1 *
+                   (self._params.x1mth2 * self._cos2u + 1.5 * self._params.x3thm1)) *
                   (XKMPER / AE * XMNPDA / 86400.0))
 
-    def _collect_return_values(self, params):
+    def _collect_return_values(self):
         kep = {}
-        kep["ecc"] = params["ecc"]
-        kep["radius"] = params["rk"] * XKMPER / AE
-        kep["theta"] = params["uk"]
-        kep["eqinc"] = params["xinc"]
-        kep["ascn"] = params["xnodek"]
-        kep["argp"] = params["omega"]
-        kep["smjaxs"] = params["a"] * XKMPER / AE
-        kep["rdotk"] = params["rdotk"]
-        kep["rfdotk"] = params["rfdotk"]
+        kep["ecc"] = self.ecc
+        kep["radius"] = self.rk * XKMPER / AE
+        kep["theta"] = self.uk
+        kep["eqinc"] = self.xinc
+        kep["ascn"] = self.xnodek
+        kep["argp"] = self.omega
+        kep["smjaxs"] = self._a * XKMPER / AE
+        kep["rdotk"] = self.rdotk
+        kep["rfdotk"] = self.rfdotk
 
         return kep
 
@@ -987,11 +1214,13 @@ def _check_orbital_elements(orbit_elements):
         raise OrbitalError("Inclination out of range: %e" % orbit_elements.inclination)
 
 
-def _calculate_elsq(params):
-    params["elsq"] = params["axn"]**2 + params["ayn"]**2
+def _calculate_elsq(axn, ayn, utc_time):
+    elsq = axn**2 + ayn**2
 
-    if np.any(params["elsq"] >= 1):
-        raise Exception("e**2 >= 1 at %s", params["utc_time"])
+    if np.any(elsq >= 1):
+        raise Exception("e**2 >= 1 at %s", utc_time)
+
+    return elsq
 
 
 def _get_tz_unaware_utctime(utc_time):

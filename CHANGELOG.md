@@ -1,3 +1,17 @@
+## Version 1.9.1 (2024/11/29)
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 172](https://github.com/pytroll/pyorbital/pull/172) - Update CI build action to work without setup.py
+
+#### Features added
+
+* [PR 170](https://github.com/pytroll/pyorbital/pull/170) - Deprecate PPP_CONFIG_DIR for specifying config path
+
+In this release 2 pull requests were closed.
+
 ## Version 1.9.0 (2024/11/29)
 
 ### Issues Closed

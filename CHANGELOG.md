@@ -1,3 +1,14 @@
+## Version 1.9.2 (2024/12/12)
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 175](https://github.com/pytroll/pyorbital/pull/175) - Remove pytz dependency
+
+In this release 1 pull request was closed.
+
+
 ## Version 1.9.1 (2024/11/29)
 
 ### Pull Requests Merged

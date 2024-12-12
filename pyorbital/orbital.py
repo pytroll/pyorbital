@@ -26,11 +26,10 @@
 
 import logging
 import warnings
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import partial
 
 import numpy as np
-import pytz
 from scipy import optimize
 
 from pyorbital import astronomy, dt2np, tlefile
@@ -1230,7 +1229,7 @@ def _get_tz_unaware_utctime(utc_time):
     UTC, or a timezone aware datetime object in UTC.
     """
     if isinstance(utc_time, datetime):
-        if utc_time.tzinfo and utc_time.tzinfo != pytz.utc:
+        if utc_time.tzinfo and utc_time.tzinfo != timezone.utc:
             raise ValueError("UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!")
         return utc_time.replace(tzinfo=None)
 

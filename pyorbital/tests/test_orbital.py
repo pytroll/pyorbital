@@ -23,12 +23,11 @@
 """Test the geoloc orbital."""
 
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 import numpy as np
 import pytest
-import pytz
 
 from pyorbital import orbital
 
@@ -415,7 +414,7 @@ class TestRegressions(unittest.TestCase):
 
 @pytest.mark.parametrize("dtime",
                          [datetime(2024, 6, 25, 11, 0, 18),
-                          datetime(2024, 6, 25, 11, 5, 0, 0, pytz.UTC),
+                          datetime(2024, 6, 25, 11, 5, 0, 0, timezone.utc),
                           np.datetime64("2024-06-25T11:10:00.000000")
                           ]
                          )
@@ -432,7 +431,7 @@ def test_get_last_an_time_scalar_input(dtime):
 
 
 @pytest.mark.parametrize("dtime",
-                         [datetime(2024, 6, 25, 11, 5, 0, 0, pytz.timezone("Europe/Stockholm")),
+                         [datetime(2024, 6, 25, 11, 5, 0, 0, timezone(timedelta(hours=1))),
                           ]
                          )
 def test_get_last_an_time_wrong_input(dtime):

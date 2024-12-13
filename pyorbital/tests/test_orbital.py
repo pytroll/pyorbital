@@ -22,8 +22,8 @@
 
 """Test the geoloc orbital."""
 
+import datetime as dt
 import unittest
-from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 import numpy as np
@@ -44,7 +44,7 @@ class Test(unittest.TestCase):
                                     "-.00000112  00000-0 -32693-4 0   772",
                               line2="2 37849  98.7026 317.8811 0001845  "
                                     "92.4533 267.6830 14.19582686 11574")
-        dobj = datetime(2012, 1, 18, 8, 4, 19)
+        dobj = dt.datetime(2012, 1, 18, 8, 4, 19)
         orbnum = sat.get_orbit_number(dobj)
         assert orbnum == 1163
 
@@ -55,7 +55,7 @@ class Test(unittest.TestCase):
                                     ".00021906  00000-0  28403-3 0  8652",
                               line2="2 25544  51.6361  13.7980 0004256  "
                                     "35.6671  59.2566 15.58778559250029")
-        d = datetime(2003, 3, 23, 0, 3, 22)
+        d = dt.datetime(2003, 3, 23, 0, 3, 22)
         lon, lat, alt = sat.get_lonlatalt(d)
         expected_lon = -68.199894472013213
         expected_lat = 23.159747677881075
@@ -71,7 +71,7 @@ class Test(unittest.TestCase):
                                     ".00021906  00000-0  28403-3 0  8652",
                               line2="2 25544  51.6361  13.7980 0004256  "
                                     "35.6671  59.2566 15.58778559250029")
-        d = datetime(2003, 3, 23, 0, 3, 22)
+        d = dt.datetime(2003, 3, 23, 0, 3, 22)
         az, el = sat.get_observer_look(d, -84.39733, 33.775867, 0)
         expected_az = 122.45169655331965
         expected_el = 1.9800219611255456
@@ -85,7 +85,7 @@ class Test(unittest.TestCase):
                                     ".00000092  00000-0  62081-4 0  5221",
                               line2="2 29499  98.6804 312.6735 0001758 "
                                     "111.9178 248.2152 14.21501774254058")
-        d = datetime(2011, 9, 14, 5, 30)
+        d = dt.datetime(2011, 9, 14, 5, 30)
         assert sat.get_orbit_number(d) == 25437
 
     def test_orbit_num_non_an(self):
@@ -105,8 +105,8 @@ class Test(unittest.TestCase):
                                     ".00000048  00000-0  43679-4 0  4334",
                               line2="2 37849  98.7444   1.0588 0001264  "
                                     "63.8791 102.8546 14.19528338 69643")
-        t1 = datetime(2013, 3, 2, 22, 2, 25)
-        t2 = datetime(2013, 3, 2, 22, 2, 26)
+        t1 = dt.datetime(2013, 3, 2, 22, 2, 25)
+        t2 = dt.datetime(2013, 3, 2, 22, 2, 26)
         on1 = sat.get_orbit_number(t1)
         on2 = sat.get_orbit_number(t2)
         assert on1 == 6973
@@ -125,9 +125,9 @@ class Test(unittest.TestCase):
                 "89.8714 270.2713 14.34246429 90794"
 
         orb = orbital.Orbital("IRIDIUM 7 [+]", line1=line1, line2=line2)
-        d = datetime(2018, 3, 7, 3, 30, 15)
+        d = dt.datetime(2018, 3, 7, 3, 30, 15)
         res = orb.get_next_passes(d, 1, 170.556, -43.368, 0.5, horizon=40)
-        assert abs(res[0][2] - datetime(2018, 3, 7, 3, 48, 13, 178439)) < timedelta(seconds=0.01)
+        assert abs(res[0][2] - dt.datetime(2018, 3, 7, 3, 48, 13, 178439)) < dt.timedelta(seconds=0.01)
 
     def test_get_next_passes_tricky(self):
         """Check issue #34 for reference."""
@@ -138,12 +138,12 @@ class Test(unittest.TestCase):
             "157.6344 202.5362 15.23132245036381"
 
         orb = orbital.Orbital("LEMUR-2-BROWNCOW", line1=line1, line2=line2)
-        d = datetime(2018, 9, 8)
+        d = dt.datetime(2018, 9, 8)
 
         res = orb.get_next_passes(d, 72, -8.174163, 51.953319, 0.05, horizon=5)
 
-        assert abs(res[0][2] - datetime(2018, 9, 8, 9, 5, 46, 375248)) < timedelta(seconds=0.01)
-        assert abs(res[-1][2] - datetime(2018, 9, 10, 22, 15, 3, 143469)) < timedelta(seconds=0.01)
+        assert abs(res[0][2] - dt.datetime(2018, 9, 8, 9, 5, 46, 375248)) < dt.timedelta(seconds=0.01)
+        assert abs(res[-1][2] - dt.datetime(2018, 9, 10, 22, 15, 3, 143469)) < dt.timedelta(seconds=0.01)
 
         assert len(res) == 15
 
@@ -153,7 +153,7 @@ class Test(unittest.TestCase):
         line2 = "2 28654  99.0035 147.6583 0014816 159.4931 200.6838 14.12591533816498"
 
         orb = orbital.Orbital("NOAA 18", line1=line1, line2=line2)
-        t = datetime(2021, 3, 9, 22)
+        t = dt.datetime(2021, 3, 9, 22)
         next_passes = orb.get_next_passes(t, 1, -15.6335, 27.762, 0.)
         rise, fall, max_elevation = next_passes[0]
         assert rise < max_elevation < fall
@@ -167,7 +167,7 @@ class Test(unittest.TestCase):
                                     ".00000017  00000-0  27793-4 0  9819",
                               line2="2 29499  98.6639 121.6164 0001449  "
                                     "71.9056  43.3132 14.21510544330271")
-        assert sat.utc2local(datetime(2009, 7, 1, 12)) == datetime(2009, 7, 1, 9)
+        assert sat.utc2local(dt.datetime(2009, 7, 1, 12)) == dt.datetime(2009, 7, 1, 9)
 
     @mock.patch("pyorbital.orbital.Orbital.utc2local")
     @mock.patch("pyorbital.orbital.Orbital.get_orbit_number")
@@ -187,21 +187,21 @@ class Test(unittest.TestCase):
                                     "71.9056  43.3132 14.21510544330271")
 
         # Ascending node
-        res = sat.get_equatorial_crossing_time(tstart=datetime(2009, 7, 1, 12),
-                                               tend=datetime(2009, 7, 1, 13))
-        exp = datetime(2009, 7, 1, 12, 38, 12)
-        assert res - exp < timedelta(seconds=0.01)
+        res = sat.get_equatorial_crossing_time(tstart=dt.datetime(2009, 7, 1, 12),
+                                               tend=dt.datetime(2009, 7, 1, 13))
+        exp = dt.datetime(2009, 7, 1, 12, 38, 12)
+        assert res - exp < dt.timedelta(seconds=0.01)
 
         # Descending node
-        res = sat.get_equatorial_crossing_time(tstart=datetime(2009, 7, 1, 12),
-                                               tend=datetime(2009, 7, 1, 14, 0),
+        res = sat.get_equatorial_crossing_time(tstart=dt.datetime(2009, 7, 1, 12),
+                                               tend=dt.datetime(2009, 7, 1, 14, 0),
                                                node="descending")
-        exp = datetime(2009, 7, 1, 13, 38, 12)
-        assert res - exp < timedelta(seconds=0.01)
+        exp = dt.datetime(2009, 7, 1, 13, 38, 12)
+        assert res - exp < dt.timedelta(seconds=0.01)
 
         # Conversion to local time
-        res = sat.get_equatorial_crossing_time(tstart=datetime(2009, 7, 1, 12),
-                                               tend=datetime(2009, 7, 1, 14),
+        res = sat.get_equatorial_crossing_time(tstart=dt.datetime(2009, 7, 1, 12),
+                                               tend=dt.datetime(2009, 7, 1, 14),
                                                local_time=True)
         assert res == "local_time"
 
@@ -211,7 +211,7 @@ class TestGetObserverLook(unittest.TestCase):
 
     def setUp(self):
         """Set up the test environment."""
-        self.t = datetime(2018, 1, 1, 0, 0, 0)
+        self.t = dt.datetime(2018, 1, 1, 0, 0, 0)
         self.sat_lon = np.array([[-89.5, -89.4, -89.5, -89.4],
                                  [-89.3, -89.2, -89.3, -89.2]])
         self.sat_lat = np.array([[45.5, 45.4, 45.5, 45.4],
@@ -315,7 +315,7 @@ class TestGetObserverLookNadir(unittest.TestCase):
           2 error for xarray with numpy
         """
         rng = np.random.RandomState(125)
-        self.t = datetime(2018, 1, 1, 0, 0, 0)
+        self.t = dt.datetime(2018, 1, 1, 0, 0, 0)
         self.sat_lon = 360 * rng.rand(100) - 180
         self.sat_lat = 180 * rng.rand(100) - 90
         self.sat_alt = rng.rand(100) + 850
@@ -408,13 +408,13 @@ class TestRegressions(unittest.TestCase):
         orb = Orbital("Suomi-NPP",
                       line1="1 37849U 11061A   19292.84582509  .00000011  00000-0  25668-4 0  9997",
                       line2="2 37849  98.7092 229.3263 0000715  98.5313 290.6262 14.19554485413345")
-        orb.get_next_passes(datetime(2019, 10, 21, 16, 0, 0), 12, 123.29736, -13.93763, 0)
+        orb.get_next_passes(dt.datetime(2019, 10, 21, 16, 0, 0), 12, 123.29736, -13.93763, 0)
         warnings.filterwarnings("default")
 
 
 @pytest.mark.parametrize("dtime",
-                         [datetime(2024, 6, 25, 11, 0, 18),
-                          datetime(2024, 6, 25, 11, 5, 0, 0, timezone.utc),
+                         [dt.datetime(2024, 6, 25, 11, 0, 18),
+                          dt.datetime(2024, 6, 25, 11, 5, 0, 0, dt.timezone.utc),
                           np.datetime64("2024-06-25T11:10:00.000000")
                           ]
                          )
@@ -431,7 +431,7 @@ def test_get_last_an_time_scalar_input(dtime):
 
 
 @pytest.mark.parametrize("dtime",
-                         [datetime(2024, 6, 25, 11, 5, 0, 0, timezone(timedelta(hours=1))),
+                         [dt.datetime(2024, 6, 25, 11, 5, 0, 0, dt.timezone(dt.timedelta(hours=1))),
                           ]
                          )
 def test_get_last_an_time_wrong_input(dtime):

@@ -22,7 +22,7 @@
 
 """Simple usage for geoloc."""
 
-from datetime import datetime
+import datetime as dt
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -35,7 +35,7 @@ tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
 tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
 
 # Choosing a specific time, this should be relatively close to the issue date of the TLE
-t = datetime(2012, 12, 12, 4, 16, 1, 575000)
+t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
 # this is the number of full scan rotations
 scans_nb = 10
 # we take only every 40th point for plotting clarity

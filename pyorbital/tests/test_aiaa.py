@@ -26,9 +26,9 @@
 # TODO: right formal unit tests.
 from __future__ import print_function, with_statement
 
+import datetime as dt
 import os
 import unittest
-from datetime import datetime
 
 import numpy as np
 
@@ -63,7 +63,7 @@ def get_results(satnumber, delay):
                 if delay == 0:
                     utc_time = None
                 else:
-                    utc_time = datetime.strptime(sline[-1], "%H:%M:%S.%f")
+                    utc_time = dt.datetime.strptime(sline[-1], "%H:%M:%S.%f")
                     utc_time = utc_time.replace(year=int(sline[-4]),
                                                 month=int(sline[-3]),
                                                 day=int(sline[-2]))

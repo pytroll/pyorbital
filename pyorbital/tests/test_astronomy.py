@@ -23,7 +23,7 @@
 """Unit testing the Astronomy methods and functions."""
 
 
-from datetime import datetime
+import datetime as dt
 
 import dask.array as da
 import numpy as np
@@ -60,16 +60,16 @@ class TestAstronomy:
     """Testing the Astronomy class."""
 
     @pytest.mark.parametrize(
-        ("dt", "exp_jdays", "exp_j2000"),
+        ("dat", "exp_jdays", "exp_j2000"),
         [
-            (datetime(2000, 1, 1, 12, 0), 2451545.0, 0),
-            (datetime(2009, 10, 8, 14, 30), 2455113.1041666665, 3568.1041666666665),
+            (dt.datetime(2000, 1, 1, 12, 0), 2451545.0, 0),
+            (dt.datetime(2009, 10, 8, 14, 30), 2455113.1041666665, 3568.1041666666665),
         ]
     )
-    def test_jdays(self, dt, exp_jdays, exp_j2000):
+    def test_jdays(self, dat, exp_jdays, exp_j2000):
         """Test julian day functions."""
-        assert astr.jdays(dt) == exp_jdays
-        assert astr.jdays2000(dt) == exp_j2000
+        assert astr.jdays(dat) == exp_jdays
+        assert astr.jdays2000(dat) == exp_j2000
 
     @pytest.mark.parametrize(
         ("lon", "lat", "exp_theta"),
@@ -98,7 +98,7 @@ class TestAstronomy:
         if array_construct is None and dtype is not None:
             pytest.skip(reason="Xarray dependency unavailable")
 
-        time_slot = datetime(2011, 9, 23, 12, 0)
+        time_slot = dt.datetime(2011, 9, 23, 12, 0)
         abs_tolerance = 1e-8
         if dtype is not None:
             lon = array_construct([lon], dtype=dtype)
@@ -117,7 +117,7 @@ class TestAstronomy:
 
     def test_sun_earth_distance_correction(self):
         """Test the sun-earth distance correction."""
-        utc_time = datetime(2022, 6, 15, 12, 0, 0)
+        utc_time = dt.datetime(2022, 6, 15, 12, 0, 0)
         corr = astr.sun_earth_distance_correction(utc_time)
         corr_exp = 1.0156952156742332
         assert corr == pytest.approx(corr_exp, abs=1e-8)

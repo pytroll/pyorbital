@@ -114,10 +114,10 @@ Computing satellite position
 The orbital module enables computation of satellite position and velocity at a specific time:
 
     >>> from pyorbital.orbital import Orbital
-    >>> from datetime import datetime
+    >>> import datetime as dt
     >>> # Use current TLEs from the internet:
     >>> orb = Orbital("Suomi NPP")
-    >>> now = datetime.utcnow()
+    >>> now = dt.datetime.now(dt.timezone.utc)
     >>> # Get normalized position and velocity of the satellite:
     >>> orb.get_position(now)
     (array([-0.20015267,  0.09001458,  1.10686756]),
@@ -131,9 +131,9 @@ Use actual TLEs to increase accuracy
 ------------------------------------
 
     >>> from pyorbital.orbital import Orbital
-    >>> from datetime import datetime
+    >>> import datetime as dt
     >>> orb = Orbital("Suomi NPP")
-    >>> dtobj = datetime(2015,2,7,3,0)
+    >>> dtobj = dt.datetime(2015,2,7,3,0)
     >>> orb.get_lonlatalt(dtobj)
     (152.11564698762811, 20.475251739329622, 829.37355785502211)
 
@@ -158,8 +158,8 @@ Computing astronomical parameters
 The astronomy module enables computation of certain parameters of interest for satellite remote sensing for instance the Sun-zenith angle:
 
     >>> from pyorbital import astronomy
-    >>> from datetime import datetime
-    >>> utc_time = datetime(2012, 5, 15, 15, 45)
+    >>> import datetime as dt
+    >>> utc_time = dt.datetime(2012, 5, 15, 15, 45)
     >>> lon, lat = 12, 56
     >>> astronomy.sun_zenith_angle(utc_time, lon, lat)
     62.685986438071602

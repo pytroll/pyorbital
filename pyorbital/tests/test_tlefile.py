@@ -20,7 +20,7 @@
 """Test TLE file reading, TLE downloading and stroging TLEs to database."""
 
 
-import datetime
+import datetime as dt
 import logging
 import os
 import time
@@ -405,8 +405,8 @@ class TLETest(unittest.TestCase):
         assert tle.id_launch_piece.strip() == "A"
         assert tle.epoch_year == "08"
         assert tle.epoch_day == 264.51782528
-        epoch = (datetime.datetime(2008, 1, 1)
-                 + datetime.timedelta(days=264.51782528 - 1))
+        epoch = (dt.datetime(2008, 1, 1)
+                 + dt.timedelta(days=264.51782528 - 1))
         assert tle.epoch == epoch
         assert tle.mean_motion_derivative == -2.182e-05
         assert tle.mean_motion_sec_derivative == 0.0
@@ -774,7 +774,7 @@ class TestSQLiteTLE(unittest.TestCase):
         # TLE
         assert data[0][1] == "\n".join((LINE1, LINE2))
         # Date when the data were added should be close to current time
-        date_added = datetime.datetime.strptime(data[0][2], ISO_TIME_FORMAT)
+        date_added = dt.datetime.strptime(data[0][2], ISO_TIME_FORMAT)
         now = _utcnow()
         assert (now - date_added).total_seconds() < 1.0
         # Source of the data
@@ -786,7 +786,7 @@ class TestSQLiteTLE(unittest.TestCase):
         res = self.db.db.execute(f"select * from '{satid:d}'")  # noseq
         data = res.fetchall()
         assert len(data) == 1
-        date_added2 = datetime.datetime.strptime(data[0][2], ISO_TIME_FORMAT)
+        date_added2 = dt.datetime.strptime(data[0][2], ISO_TIME_FORMAT)
         assert date_added == date_added2
         # Source of the data
         assert data[0][3] == "foo"

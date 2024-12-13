@@ -274,8 +274,8 @@ if __name__ == "__main__":
     noaa18_tle1 = "1 28654U 05018A   11284.35271227  .00000478  00000-0  28778-3 0  9246"
     noaa18_tle2 = "2 28654  99.0096 235.8581 0014859 135.4286 224.8087 14.11526826329313"
 
-    from datetime import datetime
-    t = datetime(2011, 10, 12, 13, 45)
+    import datetime as dt
+    t = dt.datetime(2011, 10, 12, 13, 45)
 
     # edge and centre of an avhrr scanline
     # sgeom = ScanGeometry([(-0.9664123687741623, 0),

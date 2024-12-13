@@ -23,7 +23,7 @@
 """Test the geoloc module."""
 
 
-from datetime import datetime
+import datetime as dt
 
 import numpy as np
 
@@ -108,7 +108,7 @@ class TestGeoloc:
 
         # Test times
 
-        start_of_scan = np.datetime64(datetime(2014, 1, 8, 11, 30))
+        start_of_scan = np.datetime64(dt.datetime(2014, 1, 8, 11, 30))
         times = instrument.times(start_of_scan)
 
         assert times[0, 1] == start_of_scan

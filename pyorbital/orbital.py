@@ -24,9 +24,9 @@
 
 """Module for computing the orbital parameters of satellites."""
 
+import datetime as dt
 import logging
 import warnings
-from datetime import datetime, timedelta, timezone
 from functools import partial
 
 import numpy as np
@@ -353,7 +353,7 @@ class Orbital(object):
 
         """
         # every minute
-        times = utc_time + np.array([timedelta(minutes=minutes)
+        times = utc_time + np.array([dt.timedelta(minutes=minutes)
                                      for minutes in range(length * 60)])
         elev = self.get_observer_look(times, lon, lat, alt)[1] - horizon
         zcs = np.where(np.diff(np.sign(elev)))[0]
@@ -364,7 +364,7 @@ class Orbital(object):
         elev_inv_func = partial(self._elevation_inv, utc_time, lon, lat, alt, horizon)
         for guess in zcs:
             horizon_mins = _get_root(elev_func, guess, guess + 1.0, tol=tol / 60.0)
-            horizon_time = utc_time + timedelta(minutes=horizon_mins)
+            horizon_time = utc_time + dt.timedelta(minutes=horizon_mins)
             if elev[guess] < 0:
                 risetime = horizon_time
                 risemins = horizon_mins
@@ -377,7 +377,7 @@ class Orbital(object):
                 int_end = min(len(elev), int(np.ceil(fallmins) + 1))
                 middle = int_start + np.argmax(elev[int_start:int_end])
                 highest = utc_time + \
-                    timedelta(minutes=_get_max_parab(
+                    dt.timedelta(minutes=_get_max_parab(
                         elev_inv_func,
                         max(risemins, middle - 1), min(fallmins, middle + 1),
                         tol=tol / 60.0
@@ -401,14 +401,14 @@ class Orbital(object):
         if "precision" in kwargs:
             precision = kwargs["precision"]
         else:
-            precision = timedelta(seconds=0.001)
+            precision = dt.timedelta(seconds=0.001)
         if "max_iterations" in kwargs:
             nmax_iter = kwargs["max_iterations"]
         else:
             nmax_iter = 100
 
         sec_step = 0.5
-        t_step = timedelta(seconds=sec_step / 2.0)
+        t_step = dt.timedelta(seconds=sec_step / 2.0)
 
         # Local derivative:
         def fprime(timex):
@@ -418,7 +418,7 @@ class Orbital(object):
                                          obslon, obslat, 0.0)[1]
             return el0, (abs(el1) - abs(el0)) / sec_step
 
-        tx0 = utc_time - timedelta(seconds=1.0)
+        tx0 = utc_time - dt.timedelta(seconds=1.0)
         tx1 = utc_time
         idx = 0
         # eps = 500.
@@ -431,11 +431,11 @@ class Orbital(object):
             # var_scale = np.abs(np.sin(fpr[0] * np.pi/180.))
             # var_scale = np.sqrt(var_scale)
             var_scale = np.abs(fpr[0])
-            tx1 = tx0 - timedelta(seconds=(eps * var_scale * fpr[1]))
+            tx1 = tx0 - dt.timedelta(seconds=(eps * var_scale * fpr[1]))
             idx = idx + 1
             # print idx, tx0, tx1, var_scale, fpr
             if abs(tx1 - utc_time) < precision and idx < 2:
-                tx1 = tx1 + timedelta(seconds=1.0)
+                tx1 = tx1 + dt.timedelta(seconds=1.0)
 
         if abs(tx1 - tx0) <= precision and idx < nmax_iter:
             return tx1
@@ -445,7 +445,7 @@ class Orbital(object):
     def utc2local(self, utc_time):
         """Convert UTC to local time."""
         lon, _, _ = self.get_lonlatalt(utc_time)
-        return utc_time + timedelta(hours=lon * 24 / 360.0)
+        return utc_time + dt.timedelta(hours=lon * 24 / 360.0)
 
     def get_equatorial_crossing_time(self, tstart, tend, node="ascending", local_time=False,
                                      rtol=1E-9):
@@ -502,7 +502,7 @@ class Orbital(object):
         except ValueError:
             # Bisection did not converge
             return None
-        tcross = np.datetime64(int(tcross), time_unit).astype(datetime)
+        tcross = np.datetime64(int(tcross), time_unit).astype(dt.datetime)
 
         # Convert UTC to local time
         if local_time:
@@ -514,7 +514,7 @@ class Orbital(object):
     def _elevation(self, utc_time, lon, lat, alt, horizon, minutes):
         """Compute the elevation."""
         return self.get_observer_look(utc_time +
-                                      timedelta(minutes=np.float64(minutes)),
+                                      dt.timedelta(minutes=np.float64(minutes)),
                                       lon, lat, alt)[1] - horizon
 
 
@@ -1228,8 +1228,8 @@ def _get_tz_unaware_utctime(utc_time):
     The input *utc_time* is either a timezone unaware object assumed to be in
     UTC, or a timezone aware datetime object in UTC.
     """
-    if isinstance(utc_time, datetime):
-        if utc_time.tzinfo and utc_time.tzinfo != timezone.utc:
+    if isinstance(utc_time, dt.datetime):
+        if utc_time.tzinfo and utc_time.tzinfo != dt.timezone.utc:
             raise ValueError("UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!")
         return utc_time.replace(tzinfo=None)
 
@@ -1275,11 +1275,11 @@ if __name__ == "__main__":
     obs_alt = 0.02
     o = Orbital(satellite="METOP-B")
 
-    t_start = datetime.now()
-    t_stop = t_start + timedelta(minutes=20)
+    t_start = dt.datetime.now()
+    t_stop = t_start + dt.timedelta(minutes=20)
     t = t_start
     while t < t_stop:
-        t += timedelta(seconds=15)
+        t += dt.timedelta(seconds=15)
         lon, lat, alt = o.get_lonlatalt(t)
         lon, lat = np.rad2deg((lon, lat))
         az, el = o.get_observer_look(t, obs_lon, obs_lat, obs_alt)

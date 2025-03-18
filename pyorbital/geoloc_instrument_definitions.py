@@ -88,9 +88,15 @@ def avhrr_gac(scan_times, scan_points,
     except TypeError:
         offset = np.arange(scan_times) * frequency
     scans_nb = len(offset)
+    # The AVHRR swath is +/- 55.4 degrees, which puts the outermost FOV at
+    #   55.4 * 1023.5 / 1024 = 55.373
+    # GAC pixels are the average of four FOVs with sampling: ..1111.2222.----.NNNN..
+    # so we need to reduce the scan_angle by a factor (1023.5 - 3.5) / 1023.5
+    # to calculate the GAC pixel centres
+    gac_adjust = (1023.5 - 3.5) / 1023.5
 
     avhrr_inst = np.vstack(((scan_points / 204 - 1)
-                            * np.deg2rad(-scan_angle),
+                            * np.deg2rad(-scan_angle * gac_adjust),
                             np.zeros((len(scan_points),))))
 
     avhrr_inst = np.tile(

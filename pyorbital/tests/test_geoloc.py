@@ -168,6 +168,14 @@ class TestGeolocDefs:
         np.testing.assert_allclose(np.rad2deg(avh.fovs[0]),
                                    np.array([[10, 0, -10]]))
 
+        # Check that the avhrr definition will accept scantimes
+        avh = avhrr([dt.datetime(2000,1,1,0,0,0), dt.datetime(2000,1,1,0,1,0)],
+                    np.array([0, 2047]))
+        times = avh.times(dt.datetime(2001,1,1))
+        expected = (np.array([[0,51175000],[60000000000, 60051175000]]).astype('timedelta64[ns]')
+                    + np.datetime64('2001-01-01'))
+        np.testing.assert_equal(times, expected)
+
         # This is perhaps a bit odd, to require avhrr to accept floats for
         # the number of scans? FIXME!
         avh = avhrr(1.1, np.array([0, 1023.5, 2047]), 10)

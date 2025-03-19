@@ -48,13 +48,25 @@ from pyorbital.geoloc import ScanGeometry
 ################################################################
 
 
-def avhrr(scans_nb, scan_points,
+def avhrr(scan_times, scan_points,
           scan_angle=55.37, frequency=1 / 6.0, apply_offset=True):
     """Definition of the avhrr instrument.
 
     Source: NOAA KLM User's Guide, Appendix J
     http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
+
+    :scan_times: Number of scanlines (int) or array of Observation times (datetime object)
+    :scan_points: Across track pixel positions
+    :scan_angle: Maximum scan angle of the outermost FOV
+    :frequency: Time between scans (used when number of scanlines is passed)
+    :lon: Longitude of observer position on ground in degrees east
     """
+    try:
+        offset = np.array([(t - scan_times[0]).seconds +
+                           (t - scan_times[0]).microseconds / 1000000.0 for t in scan_times])
+    except TypeError:
+        offset = np.arange(np.int32(scan_times)) * frequency
+    scans_nb = len(offset)
     # build the avhrr instrument (scan angles)
     avhrr_inst = np.vstack(((scan_points / 1023.5 - 1)
                             * np.deg2rad(-scan_angle),
@@ -69,7 +81,6 @@ def avhrr(scans_nb, scan_points,
 
     times = np.tile(scan_points * 0.000025, [np.int32(scans_nb), 1])
     if apply_offset:
-        offset = np.arange(np.int32(scans_nb)) * frequency
         times += np.expand_dims(offset, 1)
 
     return ScanGeometry(avhrr_inst, times)
@@ -81,6 +92,12 @@ def avhrr_gac(scan_times, scan_points,
 
     Source: NOAA KLM User's Guide, Appendix J
     http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
+
+    :scan_times: Number of scanlines (int) or array of Observation times (datetime object)
+    :scan_points: Across track pixel positions
+    :scan_angle: Maximum scan angle of the outermost FOV
+    :frequency: Time between scans (used when number of scanlines is passed)
+    :lon: Longitude of observer position on ground in degrees east
     """
     try:
         offset = np.array([(t - scan_times[0]).seconds +

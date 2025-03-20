@@ -28,7 +28,7 @@ import datetime as dt
 import numpy as np
 
 from pyorbital.geoloc import ScanGeometry, geodetic_lat, qrotate, subpoint
-from pyorbital.geoloc_instrument_definitions import amsua, ascat, atms, avhrr, hirs4, mhs, slstr_nadir, viirs
+from pyorbital.geoloc_instrument_definitions import amsua, ascat, atms, avhrr, hirs4, mhs, slstr_nadir, viirs, avhrr_from_times, avhrr_gac_from_times
 
 
 class TestQuaternion:
@@ -168,19 +168,55 @@ class TestGeolocDefs:
         np.testing.assert_allclose(np.rad2deg(avh.fovs[0]),
                                    np.array([[10, 0, -10]]))
 
-        # Check that the avhrr definition will accept scantimes
-        avh = avhrr([dt.datetime(2000,1,1,0,0,0), dt.datetime(2000,1,1,0,1,0)],
-                    np.array([0, 2047]))
-        times = avh.times(dt.datetime(2001,1,1))
-        expected = (np.array([[0,51175000],[60000000000, 60051175000]]).astype('timedelta64[ns]')
-                    + np.datetime64('2001-01-01'))
-        np.testing.assert_equal(times, expected)
-
         # This is perhaps a bit odd, to require avhrr to accept floats for
         # the number of scans? FIXME!
         avh = avhrr(1.1, np.array([0, 1023.5, 2047]), 10)
         np.testing.assert_allclose(np.rad2deg(avh.fovs[0]),
                                    np.array([[10, 0, -10]]))
+
+    def test_avhrr_from_times(self):
+        avh = avhrr_from_times(1, [0, 1023.5, 2047])
+        result = np.rad2deg(avh.fovs[0])
+        expected = np.array([[55.37, 0, -55.37]])
+        np.testing.assert_allclose(result, expected, rtol=1e-7, atol=1e-7)
+        result = avh.times(dt.date(2000,1,1))
+        expected = ((np.array([[0, 1023.5, 2047]]) * 25000).astype('timedelta64[ns]')
+                    + np.datetime64('2000-01-01T00:00:01'))
+        np.testing.assert_equal(result, expected)
+
+        avh = avhrr_from_times(1000, np.array([0, 1023.5, 2047]), 10)
+        np.testing.assert_allclose(np.rad2deg(avh.fovs[0]),
+                                   np.array([[10, 0, -10]]))
+
+        avh = avhrr_from_times([dt.datetime(2000,1,1,0,0,0), dt.datetime(2000,1,1,0,1,0)],
+                    [0, 2047])
+        times = avh.times(dt.datetime(2001,1,1))
+        expected = (np.array([[0,51175000],[60000000000, 60051175000]]).astype('timedelta64[ns]')
+                    + np.datetime64('2001-01-01'))
+        np.testing.assert_equal(times, expected)
+
+
+    def test_avhrr_gac_from_times(self):
+        avh = avhrr_gac_from_times(0, [0, 204, 408])
+        result = np.rad2deg(avh.fovs[0])
+        expected = np.array([[55.180655, 0, -55.180655]])
+        np.testing.assert_allclose(result, expected, rtol=1e-7, atol=1e-7)
+        result = avh.times(dt.date(2000,1,1))
+        expected = ((np.array([[0, 204, 408]]) * 125000).astype('timedelta64[ns]')
+                    + np.datetime64('2000-01-01T00:00:00'))
+        np.testing.assert_equal(result, expected)
+
+        avh = avhrr_gac_from_times(1000, np.array([0, 204, 408]), 10)
+        np.testing.assert_allclose(np.rad2deg(avh.fovs[0]),
+                                   np.array([[9.965804, 0, -9.965804]]))
+
+        avh = avhrr_gac_from_times([dt.datetime(2000,1,1,0,0,0), dt.datetime(2000,1,1,0,1,0)],
+                    [0, 408])
+        times = avh.times(dt.datetime(2001,1,1))
+        expected = (np.array([[0,51000000],[60000000000, 60051000000]]).astype('timedelta64[ns]')
+                    + np.datetime64('2001-01-01'))
+        np.testing.assert_equal(times, expected)
+
 
     def test_viirs(self):
         """Test the definition of the viirs instrument."""

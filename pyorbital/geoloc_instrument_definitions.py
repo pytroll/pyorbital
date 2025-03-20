@@ -48,25 +48,13 @@ from pyorbital.geoloc import ScanGeometry
 ################################################################
 
 
-def avhrr(scan_times, scan_points,
+def avhrr(scans_nb, scan_points,
           scan_angle=55.37, frequency=1 / 6.0, apply_offset=True):
     """Definition of the avhrr instrument.
 
     Source: NOAA KLM User's Guide, Appendix J
     http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
-
-    :scan_times: Number of scanlines (int) or array of Observation times (datetime object)
-    :scan_points: Across track pixel positions
-    :scan_angle: Maximum scan angle of the outermost FOV
-    :frequency: Time between scans (used when number of scanlines is passed)
-    :lon: Longitude of observer position on ground in degrees east
     """
-    try:
-        offset = np.array([(t - scan_times[0]).seconds +
-                           (t - scan_times[0]).microseconds / 1000000.0 for t in scan_times])
-    except TypeError:
-        offset = np.arange(np.int32(scan_times)) * frequency
-    scans_nb = len(offset)
     # build the avhrr instrument (scan angles)
     avhrr_inst = np.vstack(((scan_points / 1023.5 - 1)
                             * np.deg2rad(-scan_angle),
@@ -81,6 +69,7 @@ def avhrr(scan_times, scan_points,
 
     times = np.tile(scan_points * 0.000025, [np.int32(scans_nb), 1])
     if apply_offset:
+        offset = np.arange(np.int32(scans_nb)) * frequency
         times += np.expand_dims(offset, 1)
 
     return ScanGeometry(avhrr_inst, times)
@@ -92,12 +81,6 @@ def avhrr_gac(scan_times, scan_points,
 
     Source: NOAA KLM User's Guide, Appendix J
     http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
-
-    :scan_times: Number of scanlines (int) or array of Observation times (datetime object)
-    :scan_points: Across track pixel positions
-    :scan_angle: Maximum scan angle of the outermost FOV
-    :frequency: Time between scans (used when number of scanlines is passed)
-    :lon: Longitude of observer position on ground in degrees east
     """
     try:
         offset = np.array([(t - scan_times[0]).seconds +
@@ -105,16 +88,102 @@ def avhrr_gac(scan_times, scan_points,
     except TypeError:
         offset = np.arange(scan_times) * frequency
     scans_nb = len(offset)
+
+    avhrr_inst = np.vstack(((scan_points / 1023.5 - 1)
+                            * np.deg2rad(-scan_angle),
+                            np.zeros((len(scan_points),))))
+
+    avhrr_inst = np.tile(
+        avhrr_inst[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
+    # building the corresponding times array
+    times = (np.tile(scan_points * 0.000025, [scans_nb, 1])
+             + np.expand_dims(offset, 1))
+    return ScanGeometry(avhrr_inst, times)
+
+
+def _calc_time_offsets(times):
+    """Convert array of times or offsets to number of seconds as
+    required by ScanGeometry
+
+    :times: Array-like of times or offsets
+    """
+
+    try:
+        # Convert timedelta to total seconds
+        return np.array([t.total_seconds() for t in times])
+    except (TypeError, AttributeError):
+        pass
+
+    try:
+        # Convert datetime to offset from first element
+        return np.array([(t - times[0]).total_seconds() for t in times])
+    except (TypeError, AttributeError):
+        pass
+
+    # Check for numpy inputs
+    array = np.atleast_1d(times)
+    if array.dtype.kind == 'm':
+        # Convert timedelta64 to float seconds
+        return array / np.timedelta64(1,'s')
+    elif array.dtype.kind == 'M':
+        # Convert datetime64 to offset from first element
+        return (array - array[0]) / np.timedelta64(1,'s')
+    elif array.dtype.kind in 'iuf':
+        # Return integer / float as is
+        return array
+
+    raise TypeError(f'unsupported type for ScanGeometry times: {type(times)}')
+
+
+def avhrr_from_times(scan_times, scan_points, scan_angle=55.37):
+    """Definition of the avhrr instrument.
+
+    Source: NOAA KLM User's Guide, Appendix J
+    http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
+
+    :scan_times: Observation times or offsets
+    :scan_points: Across track pixel positions
+    :scan_angle: Maximum scan angle of the outermost FOV
+    """
+
+    offset = _calc_time_offsets(scan_times)
+    scan_points = np.asanyarray(scan_points)
+    scans_nb = len(offset)
+
+    avhrr_inst = np.vstack([(scan_points / 1023.5 - 1) * np.deg2rad(-scan_angle),
+                            np.zeros(len(scan_points))])
+
+    avhrr_inst = np.tile(avhrr_inst[:, np.newaxis, :], [1, scans_nb, 1])
+    # building the corresponding times array
+    times = (np.tile(scan_points * 0.000025, [scans_nb, 1])
+             + np.expand_dims(offset, 1))
+    return ScanGeometry(avhrr_inst, times)
+
+
+def avhrr_gac_from_times(scan_times, scan_points, scan_angle=55.37):
+    """Definition of the avhrr instrument, gac version.
+
+    Source: NOAA KLM User's Guide, Appendix J
+    http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
+
+    :scan_times: Observation times or offsets
+    :scan_points: Across track pixel positions
+    :scan_angle: Maximum scan angle of the outermost FOV
+    """
+
+    offset = _calc_time_offsets(scan_times)
+    scan_points = np.asanyarray(scan_points)
+    scans_nb = len(offset)
+
     # The AVHRR swath is +/- 55.4 degrees, which puts the outermost FOV at
     #   55.4 * 1023.5 / 1024 = 55.373
     # GAC pixels are the average of four FOVs with sampling: ..1111.2222.----.NNNN..
     # so we need to reduce the scan_angle by a factor (1023.5 - 3.5) / 1023.5
     # to calculate the GAC pixel centres
-    gac_adjust = (1023.5 - 3.5) / 1023.5
+    gac_angle = scan_angle * (1023.5 - 3.5) / 1023.5
 
-    avhrr_inst = np.vstack(((scan_points / 204 - 1)
-                            * np.deg2rad(-scan_angle * gac_adjust),
-                            np.zeros((len(scan_points),))))
+    avhrr_inst = np.vstack([(scan_points / 204 - 1) * np.deg2rad(-gac_angle),
+                            np.zeros(len(scan_points))])
 
     avhrr_inst = np.tile(
         avhrr_inst[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
@@ -122,6 +191,7 @@ def avhrr_gac(scan_times, scan_points,
     times = (np.tile(scan_points * 0.000125, [scans_nb, 1])
              + np.expand_dims(offset, 1))
     return ScanGeometry(avhrr_inst, times)
+
 
 ################################################################
 # avhrr, all pixels

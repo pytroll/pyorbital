@@ -37,6 +37,7 @@ different pixels.
 Both scan angles and scan times are then combined into a ScanGeometry object.
 """
 
+import warnings
 import numpy as np
 
 from pyorbital.geoloc import ScanGeometry
@@ -82,6 +83,8 @@ def avhrr_gac(scan_times, scan_points,
     Source: NOAA KLM User's Guide, Appendix J
     http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
     """
+    warnings.warn("avhrr_gac is replaced with avhrr_from_times or avhrr_gac_from_times",
+                  DeprecationWarning)
     try:
         offset = np.array([(t - scan_times[0]).seconds +
                            (t - scan_times[0]).microseconds / 1000000.0 for t in scan_times])
@@ -107,7 +110,6 @@ def _calc_time_offsets(times):
 
     :times: Array-like of times or offsets
     """
-
     try:
         # Convert timedelta to total seconds
         return np.array([t.total_seconds() for t in times])
@@ -145,7 +147,6 @@ def avhrr_from_times(scan_times, scan_points, scan_angle=55.37):
     :scan_points: Across track pixel positions
     :scan_angle: Maximum scan angle of the outermost FOV
     """
-
     offset = _calc_time_offsets(scan_times)
     scan_points = np.asanyarray(scan_points)
     scans_nb = len(offset)
@@ -170,7 +171,6 @@ def avhrr_gac_from_times(scan_times, scan_points, scan_angle=55.37):
     :scan_points: Across track pixel positions
     :scan_angle: Maximum scan angle of the outermost FOV
     """
-
     offset = _calc_time_offsets(scan_times)
     scan_points = np.asanyarray(scan_points)
     scans_nb = len(offset)

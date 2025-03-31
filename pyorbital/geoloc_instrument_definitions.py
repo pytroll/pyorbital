@@ -104,39 +104,6 @@ def avhrr_gac(scan_times, scan_points,
     return ScanGeometry(avhrr_inst, times)
 
 
-def _calc_time_offsets(times):
-    """Convert array of times or offsets to number of seconds as
-    required by ScanGeometry
-
-    :times: Array-like of times or offsets
-    """
-    try:
-        # Convert timedelta to total seconds
-        return np.array([t.total_seconds() for t in times])
-    except (TypeError, AttributeError):
-        pass
-
-    try:
-        # Convert datetime to offset from first element
-        return np.array([(t - times[0]).total_seconds() for t in times])
-    except (TypeError, AttributeError):
-        pass
-
-    # Check for numpy inputs
-    array = np.atleast_1d(times)
-    if array.dtype.kind == 'm':
-        # Convert timedelta64 to float seconds
-        return array / np.timedelta64(1,'s')
-    elif array.dtype.kind == 'M':
-        # Convert datetime64 to offset from first element
-        return (array - array[0]) / np.timedelta64(1,'s')
-    elif array.dtype.kind in 'iuf':
-        # Return integer / float as is
-        return array
-
-    raise TypeError(f'unsupported type for ScanGeometry times: {type(times)}')
-
-
 def avhrr_from_times(scan_times, scan_points, scan_angle=55.37):
     """Definition of the avhrr instrument.
 
@@ -147,7 +114,7 @@ def avhrr_from_times(scan_times, scan_points, scan_angle=55.37):
     :scan_points: Across track pixel positions
     :scan_angle: Maximum scan angle of the outermost FOV
     """
-    offset = _calc_time_offsets(scan_times)
+    offset = np.array([(t - scan_times[0]).total_seconds() for t in scan_times])
     scan_points = np.asanyarray(scan_points)
     scans_nb = len(offset)
 
@@ -171,7 +138,7 @@ def avhrr_gac_from_times(scan_times, scan_points, scan_angle=55.37):
     :scan_points: Across track pixel positions
     :scan_angle: Maximum scan angle of the outermost FOV
     """
-    offset = _calc_time_offsets(scan_times)
+    offset = np.array([(t - scan_times[0]).total_seconds() for t in scan_times])
     scan_points = np.asanyarray(scan_points)
     scans_nb = len(offset)
 

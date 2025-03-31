@@ -110,7 +110,7 @@ def avhrr_from_times(scan_times, scan_points, scan_angle=55.37):
     Source: NOAA KLM User's Guide, Appendix J
     http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
 
-    :scan_times: Observation times or offsets
+    :scan_times: Observation times (datetime object)
     :scan_points: Across track pixel positions
     :scan_angle: Maximum scan angle of the outermost FOV
     """
@@ -134,7 +134,7 @@ def avhrr_gac_from_times(scan_times, scan_points, scan_angle=55.37):
     Source: NOAA KLM User's Guide, Appendix J
     http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
 
-    :scan_times: Observation times or offsets
+    :scan_times: Observation times (datetime object)
     :scan_points: Across track pixel positions
     :scan_angle: Maximum scan angle of the outermost FOV
     """

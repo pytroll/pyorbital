@@ -97,6 +97,14 @@ class TestGeoloc:
         expected = np.array([0.0, 0.0, -1.0])
         np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
 
+        # Check if we can pass an array for yaw
+        vec = instrument.vectors(pos, vel, yaw=[0])
+
+        result = vec[:, 0, 1]
+        expected = np.array([0.0, 0.0, -1.0])
+        np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
+
+
         # minus sin because we use trigonometrical direction of angles
         result = vec[:, 0, 0]
         expected = np.array([0, -np.sin(np.deg2rad(10)), -np.cos(np.deg2rad(10))])

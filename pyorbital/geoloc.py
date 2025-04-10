@@ -118,6 +118,9 @@ class ScanGeometry(object):
         # then around y
         xy_rotated = qrotate(x_rotated, y, self.fovs[1] + pitch)
         # then around z
+        if np.shape(yaw):
+            # If we have an array then need to use the same broadcasting as x/y rotation
+            yaw = np.broadcast_to(yaw, self.fovs[0].shape)
         return qrotate(xy_rotated, nadir, yaw)
 
     def times(self, start_of_scan):

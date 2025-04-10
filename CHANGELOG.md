@@ -1,3 +1,26 @@
+## Version 1.10.0 (2025/04/10)
+
+### Issues Closed
+
+* [Issue 184](https://github.com/pytroll/pyorbital/issues/184) - avhrr_gac instrument definition is broken ([PR 185](https://github.com/pytroll/pyorbital/pull/185) by [@oembury](https://github.com/oembury))
+
+In this release 1 issue was closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 185](https://github.com/pytroll/pyorbital/pull/185) - Fix avhrr gac geometry ([184](https://github.com/pytroll/pyorbital/issues/184))
+
+#### Features added
+
+* [PR 188](https://github.com/pytroll/pyorbital/pull/188) - Cleanup for #185
+* [PR 186](https://github.com/pytroll/pyorbital/pull/186) - Support yaw arrays for ScanGeometry with same broadcasting as roll / pitch
+* [PR 177](https://github.com/pytroll/pyorbital/pull/177) - Fix datetime imports
+
+In this release 4 pull requests were closed.
+
+
 ## Version 1.9.2 (2024/12/12)
 
 ### Pull Requests Merged

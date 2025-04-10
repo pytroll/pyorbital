@@ -37,6 +37,7 @@ different pixels.
 Both scan angles and scan times are then combined into a ScanGeometry object.
 """
 
+import warnings
 import numpy as np
 
 from pyorbital.geoloc import ScanGeometry
@@ -82,6 +83,8 @@ def avhrr_gac(scan_times, scan_points,
     Source: NOAA KLM User's Guide, Appendix J
     http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
     """
+    warnings.warn("avhrr_gac is replaced with avhrr_from_times or avhrr_gac_from_times",
+                  DeprecationWarning)
     try:
         offset = np.array([(t - scan_times[0]).seconds +
                            (t - scan_times[0]).microseconds / 1000000.0 for t in scan_times])
@@ -99,6 +102,63 @@ def avhrr_gac(scan_times, scan_points,
     times = (np.tile(scan_points * 0.000025, [scans_nb, 1])
              + np.expand_dims(offset, 1))
     return ScanGeometry(avhrr_inst, times)
+
+
+def avhrr_from_times(scan_times, scan_points, scan_angle=55.37):
+    """Definition of the avhrr instrument.
+
+    Source: NOAA KLM User's Guide, Appendix J
+    http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
+
+    :scan_times: Observation times (datetime object)
+    :scan_points: Across track pixel positions
+    :scan_angle: Maximum scan angle of the outermost FOV
+    """
+    offset = np.array([(t - scan_times[0]).total_seconds() for t in scan_times])
+    scan_points = np.asanyarray(scan_points)
+    scans_nb = len(offset)
+
+    avhrr_inst = np.vstack([(scan_points / 1023.5 - 1) * np.deg2rad(-scan_angle),
+                            np.zeros(len(scan_points))])
+
+    avhrr_inst = np.tile(avhrr_inst[:, np.newaxis, :], [1, scans_nb, 1])
+    # building the corresponding times array
+    times = (np.tile(scan_points * 0.000025, [scans_nb, 1])
+             + np.expand_dims(offset, 1))
+    return ScanGeometry(avhrr_inst, times)
+
+
+def avhrr_gac_from_times(scan_times, scan_points, scan_angle=55.37):
+    """Definition of the avhrr instrument, gac version.
+
+    Source: NOAA KLM User's Guide, Appendix J
+    http://www.ncdc.noaa.gov/oa/pod-guide/ncdc/docs/klm/html/j/app-j.htm
+
+    :scan_times: Observation times (datetime object)
+    :scan_points: Across track pixel positions
+    :scan_angle: Maximum scan angle of the outermost FOV
+    """
+    offset = np.array([(t - scan_times[0]).total_seconds() for t in scan_times])
+    scan_points = np.asanyarray(scan_points)
+    scans_nb = len(offset)
+
+    # The AVHRR swath is +/- 55.4 degrees, which puts the outermost FOV at
+    #   55.4 * 1023.5 / 1024 = 55.373
+    # GAC pixels are the average of four FOVs with sampling: ..1111.2222.----.NNNN..
+    # so we need to reduce the scan_angle by a factor (1023.5 - 3.5) / 1023.5
+    # to calculate the GAC pixel centres
+    gac_angle = scan_angle * (1023.5 - 3.5) / 1023.5
+
+    avhrr_inst = np.vstack([(scan_points / 204 - 1) * np.deg2rad(-gac_angle),
+                            np.zeros(len(scan_points))])
+
+    avhrr_inst = np.tile(
+        avhrr_inst[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
+    # building the corresponding times array
+    times = (np.tile(scan_points * 0.000125, [scans_nb, 1])
+             + np.expand_dims(offset, 1))
+    return ScanGeometry(avhrr_inst, times)
+
 
 ################################################################
 # avhrr, all pixels

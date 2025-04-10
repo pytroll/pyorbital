@@ -38,6 +38,7 @@ Both scan angles and scan times are then combined into a ScanGeometry object.
 """
 
 import warnings
+
 import numpy as np
 
 from pyorbital.geoloc import ScanGeometry

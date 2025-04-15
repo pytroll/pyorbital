@@ -26,8 +26,10 @@
 import datetime as dt
 
 import numpy as np
+import pytest
 
 from pyorbital.geoloc import ScanGeometry, geodetic_lat, qrotate, subpoint
+from pyorbital.geoloc_avhrr import compute_avhrr_gcps_lonlatalt, estimate_time_and_attitude_deviations
 from pyorbital.geoloc_instrument_definitions import (
     amsua,
     ascat,
@@ -171,6 +173,56 @@ class TestGeoloc:
                                    np.array([4507.85431429,
                                              0,
                                              4497.06396339]), rtol=1e-8, atol=1e-8)
+
+
+
+
+def test_arbitrary_point_geoloc():
+    """Test geolocating an arbitrary point in the swath."""
+    from pyorbital.geoloc_avhrr import compute_avhrr_gcps_lonlatalt
+    # Couple of example Two Line Elements
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+
+    # Choosing a specific time, this should be relatively close to the issue date of the TLE
+    t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    rpy = (0, 0, 0)
+
+    max_scan_angle = 55.37
+
+    gcps = np.array([[2, 500], [1500, 700], [20, 1000]])
+
+    lons, lats, alts = compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, t, (tle1, tle2))
+
+    assert lons[0] == pytest.approx(-34.69996894)
+    assert lats[0] == pytest.approx(56.69799502)
+
+    assert lons[2] == pytest.approx(-27.573052737698944)
+    assert lats[2] == pytest.approx(55.626740897592654)
+
+
+def test_minimize_geoloc_error():
+    """Test minimizing the distance to a set of gcps."""
+    # Couple of example Two Line Elements
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    tle = (tle1, tle2)
+
+    # Choosing a specific time, this should be relatively close to the issue date of the TLE
+    t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+
+    ref_time_displacement = 0.51
+    ref_time = t + dt.timedelta(seconds=ref_time_displacement)
+    ref_yaw = 0.1
+    rpy = (0, 0, ref_yaw)
+    max_scan_angle = 55.37
+    # gcps are line/col
+    gcps = np.array([[2, 500], [1500, 700], [20, 1000], [500, 1100], [100, 2000]])
+    ref_lons, ref_lats, _ = compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, ref_time, tle)
+    time_diff, roll, pitch, yaw = estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, t,
+                                                                        tle, max_scan_angle)
+    assert time_diff == pytest.approx(ref_time_displacement, abs=1e-2)
+    assert yaw == pytest.approx(ref_yaw, abs=1e-2)
 
 
 class TestGeolocDefs:

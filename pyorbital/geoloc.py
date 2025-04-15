@@ -25,18 +25,18 @@
 
 # TODO:
 # - Attitude correction
-# - project on an ellipsoid instead of a sphere
 # - optimize !!!
 # - test !!!
 
 from __future__ import print_function
 
 import numpy as np
+from pyproj import Transformer
 
 # DIRTY STUFF. Needed the get_lonlatalt function to work on pos directly if
 # we want to print out lonlats in the end.
 from pyorbital import astronomy
-from pyorbital.orbital import XKMPER, F, Orbital
+from pyorbital.orbital import Orbital
 
 A = 6378.137  # WGS84 Equatorial radius (km)
 B = 6356.75231414  # km, GRS80
@@ -183,29 +183,12 @@ def qrotate(vector, axis, angle):
 
 
 def get_lonlatalt(pos, utc_time):
-    """Calculate sublon, sublat and altitude of satellite, considering the earth an ellipsoid.
-
-    http://celestrak.com/columns/v02n03/
-
-    """
-    (pos_x, pos_y, pos_z) = pos / XKMPER
-    lon = ((np.arctan2(pos_y * XKMPER, pos_x * XKMPER) - astronomy.gmst(utc_time)) % (2 * np.pi))
-    lon = np.where(lon > np.pi, lon - np.pi * 2, lon)
-    lon = np.where(lon <= -np.pi, lon + np.pi * 2, lon)
-
-    r = np.sqrt(pos_x ** 2 + pos_y ** 2)
-    lat = np.arctan2(pos_z, r)
-    e2 = F * (2 - F)
-
-    while True:
-        lat2 = lat
-        c = 1 / (np.sqrt(1 - e2 * (np.sin(lat2) ** 2)))
-        lat = np.arctan2(pos_z + c * e2 * np.sin(lat2), r)
-        if np.all(abs(lat - lat2) < 1e-10):
-            break
-    alt = r / np.cos(lat) - c
-    alt *= A
-    return np.rad2deg(lon), np.rad2deg(lat), alt
+    """Calculate sublon, sublat and altitude of satellite, considering the earth an ellipsoid."""
+    trf = Transformer.from_crs(dict(proj="geocent"), dict(proj="latlong"))
+    lon, lat, alt = trf.transform(*(pos * 1000))
+    lon = lon - np.rad2deg(astronomy.gmst(utc_time))
+    lon = np.where(lon < -180, lon + 360, lon)
+    return lon, lat, alt
 
 # END OF DIRTY STUFF
 

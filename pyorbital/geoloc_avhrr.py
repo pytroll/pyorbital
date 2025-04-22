@@ -56,6 +56,7 @@ def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle) -> 
 def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, tle, max_scan_angle):
     """Estimate time offset and attitude deviations from gcps."""
     from scipy.optimize import minimize
+
     # we need to work in seconds*1e3 to avoid the nanosecond precision issue
     res = minimize(compute_gcp_distances_to_reference_lonlats,
                    x0=(0, 0, 0, 0),
@@ -84,5 +85,3 @@ def compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle,
     ref_lats = np.array(ref_lats)[valid]
     _, _, distances = geod.inv(ref_lons, ref_lats, lons, lats)
     return np.sum(distances**2)
-
-

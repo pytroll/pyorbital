@@ -180,6 +180,7 @@ class TestGeoloc:
 def test_arbitrary_point_geoloc():
     """Test geolocating an arbitrary point in the swath."""
     from pyorbital.geoloc_avhrr import compute_avhrr_gcps_lonlatalt
+
     # Couple of example Two Line Elements
     tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
     tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"

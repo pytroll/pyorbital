@@ -33,8 +33,10 @@ logger = logging.getLogger(__name__)
 geod = Geod(ellps="WGS84")
 
 def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle) -> None:
-    """Compute the longitute, latitude and altitude of given gcps (lines, columns of the swath)."""
-    # TODO: account for missing scanlines
+    """Compute the longitute, latitude and altitude of given gcps (scanlines, columns of the swath).
+
+    The scanlines are relative to the pass scanline numbers, zero-based.
+    """
     time_line_interval = 1/6
     time_row_interval = 25e-6
 

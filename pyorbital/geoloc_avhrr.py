@@ -40,7 +40,7 @@ def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle) -> 
     """Compute the longitute, latitude and altitude of given gcps (scanlines, columns of the swath).
 
     The gcps are arbitrary location in swath coordinates, for example (10.3, 7.7) for a gcp at line 10.3 in the swath,
-    and column 7.7. This function is the returning the geographical coordinates of the gcps.
+    and column 7.7. This function returns the geographical coordinates of the gcps.
 
     The scanlines are relative to the pass scanline numbers, zero-based.
     """
@@ -70,26 +70,38 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
     """
     from scipy.optimize import minimize
 
+    distances = compute_gcp_distances_to_reference_lonlats((0, 0, 0, 0), gcps, start_time, tle, max_scan_angle,
+                                                           (ref_lons, ref_lats))
+    logger.debug(f"GCP distances: median {np.median(distances)}, std {np.std(distances)}")
     # we need to work in seconds*1e3 to avoid the nanosecond precision issue
-    res = minimize(compute_gcp_distances_to_reference_lonlats,
+    res = minimize(compute_gcp_accumulated_squared_distances_to_reference_lonlats,
                    x0=(0, 0, 0, 0),
                    args=(gcps, start_time, tle, max_scan_angle, (ref_lons, ref_lats)),
-                   bounds=((-0.02, 0.02) , (-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5)))
+                   bounds=((-0.005, 0.005) , (-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5)))
     if not res.success:
         raise RuntimeError("Time and attitude estimation did not converge")
     time_diff, roll, pitch, yaw = res.x * [1e3, 1, 1, 1]
     logger.debug(f"Estimated time difference to {time_diff} seconds, attitude to {roll}, {pitch}, {yaw} degrees")
+    distances = compute_gcp_distances_to_reference_lonlats(res.x, gcps, start_time, tle, max_scan_angle,
+                                                           (ref_lons, ref_lats))
+    logger.debug(f"Remaining GCP distances: median {np.median(distances)}, std {np.std(distances)}")
 
     return time_diff, roll, pitch, yaw
 
 
-
-def compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs):
-    """Compute the gcp distances to references lonlats.
+def compute_gcp_accumulated_squared_distances_to_reference_lonlats(
+        variables, gcps, start_time, tle, max_scan_angle, refs):
+    """Compute the summed squared distance fot gcps to reference lonlats.
 
     Given the gcps (in swath coordinates) along with attitude and time offset, compute the sum of squared distances to
     the reference lons and lats of the gcps.
     """
+    distances = compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs)
+    return np.sum(distances**2)
+
+
+def compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs):
+    """Compute the gcp distances to references lonlats."""
     time_diff, roll, pitch, yaw = variables
     # we need to work in seconds*1e3 to avoid the nanosecond precision issue
     time = np.datetime64(start_time) + np.timedelta64(int(time_diff * 1e12), "ns")
@@ -101,4 +113,4 @@ def compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle,
     ref_lons = np.array(ref_lons)[valid]
     ref_lats = np.array(ref_lats)[valid]
     _, _, distances = geod.inv(ref_lons, ref_lats, lons, lats)
-    return np.sum(distances**2)
+    return distances

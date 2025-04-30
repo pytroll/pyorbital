@@ -9,6 +9,7 @@ dependencies = ["numpy>=1.19.0",
                 "scipy",
                 "requests",
                 "defusedxml",
+                "pyproj>=3.7.1",
                 ]
 readme = "README.md"
 requires-python = ">=3.10"
@@ -32,6 +33,11 @@ fetch_tles = "pyorbital.fetch_tles:run"
 
 [project.optional-dependencies]
 doc = ["sphinx", "sphinx_rtd_theme", "sphinxcontrib-apidoc"]
+test = [
+    "dask>=2025.3.0",
+    "pytest>=8.3.5",
+    "xarray>=2025.3.1",
+]
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]

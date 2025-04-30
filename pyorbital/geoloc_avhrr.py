@@ -77,7 +77,7 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
     res = minimize(compute_gcp_accumulated_squared_distances_to_reference_lonlats,
                    x0=(0, 0, 0, 0),
                    args=(gcps, start_time, tle, max_scan_angle, (ref_lons, ref_lats)),
-                   bounds=((-0.005, 0.005) , (-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5)))
+                   bounds=((-0.007, 0.007) , (-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5)))
     if not res.success:
         raise RuntimeError("Time and attitude estimation did not converge")
     time_diff, roll, pitch, yaw = res.x * [1e3, 1, 1, 1]

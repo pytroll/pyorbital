@@ -20,7 +20,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""This module provides geoloc operations specific to the avhrr instrument."""
+"""This module provides geoloc operations specific to the avhrr instrument.
+
+In particular, it provides functions that allow matching gcp location in swath coordinates to reference positions, and
+then minimise the distance to these positions by adjusting the time offset and attitude.
+"""
 
 import logging
 
@@ -34,6 +38,9 @@ geod = Geod(ellps="WGS84")
 
 def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle) -> None:
     """Compute the longitute, latitude and altitude of given gcps (scanlines, columns of the swath).
+
+    The gcps are arbitrary location in swath coordinates, for example (10.3, 7.7) for a gcp at line 10.3 in the swath,
+    and column 7.7. This function is the returning the geographical coordinates of the gcps.
 
     The scanlines are relative to the pass scanline numbers, zero-based.
     """
@@ -56,7 +63,11 @@ def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle) -> 
 
 
 def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, tle, max_scan_angle):
-    """Estimate time offset and attitude deviations from gcps."""
+    """Estimate time offset and attitude deviations from gcps.
+
+    Provided reference longitudes and latitudes for the gcps, this function minimises the attitude and time offset
+    needed to match the gcp coordinates to the reference coordinates.
+    """
     from scipy.optimize import minimize
 
     # we need to work in seconds*1e3 to avoid the nanosecond precision issue
@@ -74,7 +85,11 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
 
 
 def compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs):
-    """Compute the gcp distances to references lonlats."""
+    """Compute the gcp distances to references lonlats.
+
+    Given the gcps (in swath coordinates) along with attitude and time offset, compute the sum of squared distances to
+    the reference lons and lats of the gcps.
+    """
     time_diff, roll, pitch, yaw = variables
     # we need to work in seconds*1e3 to avoid the nanosecond precision issue
     time = np.datetime64(start_time) + np.timedelta64(int(time_diff * 1e12), "ns")

@@ -1,3 +1,15 @@
+## Version 1.10.1 (2025/05/08)
+
+
+### Pull Requests Merged
+
+#### Features added
+
+* [PR 189](https://github.com/pytroll/pyorbital/pull/189) - Work with gcps for avhrr
+
+In this release 1 pull request was closed.
+
+
 ## Version 1.10.0 (2025/04/10)
 
 ### Issues Closed

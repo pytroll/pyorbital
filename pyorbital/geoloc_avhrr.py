@@ -62,7 +62,7 @@ def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle) -> 
     return get_lonlatalt(pixels_pos, s_times)
 
 
-def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, tle, max_scan_angle, max_accepted_distance=5000):
+def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, tle, max_scan_angle):
     """Estimate time offset and attitude deviations from gcps.
 
     Provided reference longitudes and latitudes for the gcps, this function minimises the attitude and time offset
@@ -70,10 +70,10 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
     """
     from scipy.optimize import minimize
 
-    distances = compute_gcp_distances_to_reference_lonlats((0, 0, 0, 0), gcps, start_time, tle, max_scan_angle,
-                                                           (ref_lons, ref_lats))
-    original_median_distance = np.median(distances)
-    logger.debug(f"GCP distances: median {original_median_distance}, std {np.std(distances)}")
+    original_distances = compute_gcp_distances_to_reference_lonlats((0, 0, 0, 0), gcps, start_time, tle, max_scan_angle,
+                                                                    (ref_lons, ref_lats))
+    original_median_distance = np.median(original_distances)
+    logger.debug(f"GCP distances: median {original_median_distance}, std {np.std(original_distances)}")
     # we need to work in seconds*1e3 to avoid the nanosecond precision issue
     res = minimize(compute_gcp_accumulated_squared_distances_to_reference_lonlats,
                    x0=(0, 0, 0, 0),
@@ -88,10 +88,8 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
 
     minimized_median_distance = np.median(distances)
     logger.debug(f"Remaining GCP distances: median {minimized_median_distance}, std {np.std(distances)}")
-    if minimized_median_distance > max_accepted_distance:
-        raise RuntimeError("Minimization did not provide significant improvement.")
 
-    return time_diff, roll, pitch, yaw
+    return time_diff, (roll, pitch, yaw), (original_distances, distances)
 
 
 def compute_gcp_accumulated_squared_distances_to_reference_lonlats(

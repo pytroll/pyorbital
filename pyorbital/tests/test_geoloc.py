@@ -29,7 +29,11 @@ import numpy as np
 import pytest
 
 from pyorbital.geoloc import ScanGeometry, geodetic_lat, qrotate, subpoint
-from pyorbital.geoloc_avhrr import compute_avhrr_gcps_lonlatalt, estimate_time_and_attitude_deviations
+from pyorbital.geoloc_avhrr import (
+    compute_avhrr_gcps_lonlatalt,
+    estimate_time_and_attitude_deviations,
+    estimate_time_offset,
+)
 from pyorbital.geoloc_instrument_definitions import (
     amsua,
     ascat,
@@ -224,6 +228,29 @@ def test_minimize_geoloc_error():
                                                                                     tle, max_scan_angle)
     assert time_diff == pytest.approx(ref_time_displacement, abs=1e-2)
     assert yaw == pytest.approx(ref_yaw, abs=1e-2)
+    assert min(do) > max(dm)
+
+
+def test_minimize_time_error():
+    """Test minimizing the distance to a set of gcps using only time offset."""
+    # Couple of example Two Line Elements
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    tle = (tle1, tle2)
+
+    # Choosing a specific time, this should be relatively close to the issue date of the TLE
+    t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+
+    ref_time_displacement = 20
+    ref_time = t + dt.timedelta(seconds=ref_time_displacement)
+    rpy = (0, 0, 0)
+    max_scan_angle = 55.37
+    # gcps are line/col
+    gcps = np.array([[2, 500], [1500, 700], [20, 1000], [500, 1100], [100, 2000]])
+    ref_lons, ref_lats, _ = compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, ref_time, tle)
+    time_diff, (do, dm) = estimate_time_offset(gcps, ref_lons, ref_lats, t,
+                                                                      tle, max_scan_angle)
+    assert time_diff == pytest.approx(ref_time_displacement, abs=1e-2)
     assert min(do) > max(dm)
 
 

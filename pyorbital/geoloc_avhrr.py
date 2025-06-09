@@ -70,9 +70,10 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
     """
     from scipy.optimize import minimize
 
-    distances = compute_gcp_distances_to_reference_lonlats((0, 0, 0, 0), gcps, start_time, tle, max_scan_angle,
-                                                           (ref_lons, ref_lats))
-    logger.debug(f"GCP distances: median {np.median(distances)}, std {np.std(distances)}")
+    original_distances = compute_gcp_distances_to_reference_lonlats((0, 0, 0, 0), gcps, start_time, tle, max_scan_angle,
+                                                                    (ref_lons, ref_lats))
+    original_median_distance = np.median(original_distances)
+    logger.debug(f"GCP distances: median {original_median_distance}, std {np.std(original_distances)}")
     # we need to work in seconds*1e3 to avoid the nanosecond precision issue
     res = minimize(compute_gcp_accumulated_squared_distances_to_reference_lonlats,
                    x0=(0, 0, 0, 0),
@@ -81,12 +82,52 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
     if not res.success:
         raise RuntimeError("Time and attitude estimation did not converge")
     time_diff, roll, pitch, yaw = res.x * [1e3, 1, 1, 1]
-    logger.debug(f"Estimated time difference to {time_diff} seconds, attitude to {roll}, {pitch}, {yaw} degrees")
+    logger.debug(f"Estimated time difference to {time_diff} seconds, "
+                 f"attitude to {np.rad2deg(roll)}, {np.rad2deg(pitch)}, {np.rad2deg(yaw)} degrees")
     distances = compute_gcp_distances_to_reference_lonlats(res.x, gcps, start_time, tle, max_scan_angle,
                                                            (ref_lons, ref_lats))
-    logger.debug(f"Remaining GCP distances: median {np.median(distances)}, std {np.std(distances)}")
 
-    return time_diff, roll, pitch, yaw
+    minimized_median_distance = np.median(distances)
+    logger.debug(f"Remaining GCP distances: median {minimized_median_distance}, std {np.std(distances)}")
+
+    return time_diff, (roll, pitch, yaw), (original_distances, distances)
+
+
+def estimate_time_offset(gcps, ref_lons, ref_lats, start_time, tle, max_scan_angle):
+    """Estimate time offset from gcps.
+
+    Provided reference longitudes and latitudes for the gcps, this function minimises the time offset
+    needed to match the gcp coordinates to the reference coordinates.
+    """
+    from scipy.optimize import minimize
+
+    original_distances = compute_gcp_distances_to_reference_lonlats((0, 0, 0, 0), gcps, start_time, tle, max_scan_angle,
+                                                                    (ref_lons, ref_lats))
+    original_median_distance = np.median(original_distances)
+    logger.debug(f"GCP distances: median {original_median_distance}, std {np.std(original_distances)}")
+
+    def gcp_distance_for_time(time):
+        dist = compute_gcp_accumulated_squared_distances_to_reference_lonlats((time[0], 0, 0, 0), gcps, start_time, tle,
+                                                                              max_scan_angle, (ref_lons, ref_lats))
+        return dist
+
+    # we need to work in seconds*1e3 to avoid the nanosecond precision issue
+    res = minimize(gcp_distance_for_time,
+                   x0=(0,),
+                   bounds=((-0.03, 0.03),),
+                   options=dict(ftol=1e-1),
+                   )
+    if not res.success:
+        raise RuntimeError("Time offset estimation did not converge")
+    time_diff, = res.x * [1e3,]
+    logger.debug(f"Estimated time difference to {time_diff} seconds")
+    distances = compute_gcp_distances_to_reference_lonlats((res.x[0], 0, 0, 0), gcps, start_time, tle, max_scan_angle,
+                                                           (ref_lons, ref_lats))
+
+    minimized_median_distance = np.median(distances)
+    logger.debug(f"Remaining GCP distances: median {minimized_median_distance}, std {np.std(distances)}")
+
+    return time_diff, (original_distances, distances)
 
 
 def compute_gcp_accumulated_squared_distances_to_reference_lonlats(

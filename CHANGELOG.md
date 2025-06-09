@@ -1,3 +1,15 @@
+## Version 1.10.2 (2025/06/09)
+
+
+### Pull Requests Merged
+
+#### Features added
+
+* [PR 192](https://github.com/pytroll/pyorbital/pull/192) - Return distances from GCP minimization
+
+In this release 1 pull request was closed.
+
+
 ## Version 1.10.1 (2025/05/08)
 
 

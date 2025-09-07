@@ -721,6 +721,7 @@ class TestSQLiteTLE(unittest.TestCase):
         """Clean temporary files."""
         with suppress(PermissionError, NotADirectoryError):
             self.temp_dir.cleanup()
+        self.db.close()
 
     def test_init(self):
         """Test that the init did what it should have."""

@@ -32,7 +32,7 @@ from functools import partial
 import numpy as np
 from scipy import optimize
 
-from pyorbital import astronomy, dt2np, tlefile
+from pyorbital import astronomy, dt2np
 
 try:
     import dask.array as da
@@ -155,6 +155,8 @@ class Orbital(object):
 
     def __init__(self, satellite, tle_file=None, line1=None, line2=None):
         """Initialize the class."""
+        from pyorbital import tlefile
+
         satellite = satellite.upper()
         self.satellite_name = satellite
         self.tle = tlefile.read(satellite, tle_file=tle_file,

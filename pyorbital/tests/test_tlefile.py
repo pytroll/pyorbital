@@ -384,6 +384,24 @@ def test_get_uris_and_open_func_using_tles_env(caplog, fake_local_tles_dir, monk
     assert log_message in caplog.text
 
 
+def test_get_uris_and_open_func_using_empty_tles_env(caplog, fake_local_tles_dir, monkeypatch):
+    """Test getting the uris and associated open-function for reading tles.
+
+    Test providing no tle file but using TLES env that returns no files.
+    """
+    from pyorbital.tlefile import _get_uris_and_open_func
+
+    monkeypatch.setenv("TLES", "/no/files/here/tle*txt")
+
+    with caplog.at_level(logging.DEBUG):
+        uris, _ = _get_uris_and_open_func()
+
+    warning_text = "TLES environment variable points to no TLE files"
+    debug_text = "Fetch TLE from the internet."
+    assert warning_text in caplog.text
+    assert debug_text in caplog.text
+
+
 class TLETest(unittest.TestCase):
     """Test TLE reading.
 

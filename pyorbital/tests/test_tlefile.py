@@ -394,7 +394,8 @@ def test_get_uris_and_open_func_using_empty_tles_env(caplog, fake_local_tles_dir
     monkeypatch.setenv("TLES", "/no/files/here/tle*txt")
 
     with caplog.at_level(logging.DEBUG):
-        uris, _ = _get_uris_and_open_func()
+        with pytest.warns():
+            uris, _ = _get_uris_and_open_func()
 
     warning_text = "TLES environment variable points to no TLE files"
     debug_text = "Fetch TLE from the internet."

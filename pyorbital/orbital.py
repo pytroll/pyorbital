@@ -648,21 +648,11 @@ class OrbitElements:
 
     def velocity_at_perigee(self):
         """Compute orbital velocity at perigee in km/s."""
-        mu = XKE**2 * AE**3
-        r_p = self.semi_major_axis * (1 - self.excentricity)
-        v_er_per_min = np.sqrt(mu * (1 + self.excentricity) / r_p)
-        # Conversion factor: (AE * XKMPER) converts ER -> km; / 60 converts min -> s
-        conversion_factor = (AE * XKMPER) / 60.0
-        return v_er_per_min * conversion_factor
+        return _get_velocity_at_apsis(1 - self.excentricity, 1 + self.excentricity)
 
     def velocity_at_apogee(self):
         """Compute orbital velocity at apogee in km/s."""
-        mu = XKE**2 * AE**3
-        r_a = self.semi_major_axis * (1 + self.excentricity)
-        v_er_per_min = np.sqrt(mu * (1 - self.excentricity) / r_a)
-        # Conversion factor: (AE * XKMPER) converts ER -> km; / 60 converts min -> s
-        conversion_factor = (AE * XKMPER) / 60.0
-        return v_er_per_min * conversion_factor
+        return _get_velocity_at_apsis(1 + self.excentricity, 1 - self.excentricity)
 
     def _calculate_mean_motion_and_semi_major_axis(self):
         a_1 = (XKE / self.mean_motion) ** (2.0 / 3)

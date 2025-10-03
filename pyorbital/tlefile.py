@@ -24,6 +24,7 @@ import io
 import logging
 import os
 import sqlite3
+import warnings
 from itertools import zip_longest
 from urllib.request import urlopen
 
@@ -294,34 +295,56 @@ def _get_local_tle_path_from_env():
 
 def _get_uris_and_open_func(tle_file=None):
     """Get the uri's and the adequate file open call for the TLE files."""
-    def _open(filename):
-        return io.open(filename, "rb")
-
     local_tle_path = _get_local_tle_path_from_env()
 
     if tle_file:
-        if isinstance(tle_file, io.StringIO):
-            uris = (tle_file,)
-            open_func = _dummy_open_stringio
-        elif "ADMIN_MESSAGE" in tle_file:
-            uris = (io.StringIO(read_tle_from_mmam_xml_file(tle_file)),)
-            open_func = _dummy_open_stringio
-        else:
-            uris = (tle_file,)
-            open_func = _open
+        uris, open_func = _get_tle_file_uris_and_open_method(tle_file)
     elif local_tle_path:
-        # TODO: get the TLE file closest in time to the actual satellite
-        # overpass, NOT the latest!
-        list_of_tle_files = glob.glob(local_tle_path)
+        uris, open_func = _get_local_uris_and_open_method(local_tle_path)
+    else:
+        uris, open_func = _get_internet_uris_and_open_method()
+    return uris, open_func
+
+
+def _get_tle_file_uris_and_open_method(tle_file):
+    if isinstance(tle_file, io.StringIO):
+        uris = (tle_file,)
+        open_func = _dummy_open_stringio
+    elif "ADMIN_MESSAGE" in tle_file:
+        uris = (io.StringIO(read_tle_from_mmam_xml_file(tle_file)),)
+        open_func = _dummy_open_stringio
+    else:
+        uris = (tle_file,)
+        open_func = _open
+    return uris, open_func
+
+
+def _open(filename):
+    return io.open(filename, "rb")
+
+
+def _get_local_uris_and_open_method(local_tle_path):
+    # TODO: get the TLE file closest in time to the actual satellite
+    # overpass, NOT the latest!
+    list_of_tle_files = glob.glob(local_tle_path)
+    if list_of_tle_files:
         uris = (max(list_of_tle_files, key=os.path.getctime), )
         LOGGER.debug("Reading TLE from %s", uris[0])
         open_func = _open
     else:
-        LOGGER.debug("Fetch TLE from the internet.")
-        uris = TLE_URLS
-        open_func = urlopen
+        LOGGER.warning("TLES environment variable points to no TLE files")
+        throttle_warning = "TLEs will be downloaded from Celestrak, which can throttle the connection."
+        LOGGER.warning(throttle_warning)
+        warnings.warn(throttle_warning)
+
+        uris, open_func = _get_internet_uris_and_open_method()
 
     return uris, open_func
+
+
+def _get_internet_uris_and_open_method():
+    LOGGER.debug("Fetch TLE from the internet.")
+    return TLE_URLS, urlopen
 
 
 def _get_first_tle(uris, open_func, platform=""):

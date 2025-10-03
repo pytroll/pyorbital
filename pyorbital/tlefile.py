@@ -332,6 +332,7 @@ def _get_local_uris_and_open_method(local_tle_path):
         open_func = _open
     else:
         LOGGER.warning("TLES environment variable points to no TLE files")
+        LOGGER.warning("TLEs will be downloaded from Celestrack, which can throttle the connection.")
         uris, open_func = _get_internet_uris_and_open_method()
 
     return uris, open_func

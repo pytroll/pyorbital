@@ -28,6 +28,7 @@ import datetime as dt
 import logging
 import warnings
 from functools import partial
+from typing import Optional
 
 import numpy as np
 from scipy import optimize
@@ -92,60 +93,71 @@ class OrbitalError(Exception):
     pass
 
 
-def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
-    """Calculate observers look angle to a satellite.
-
-    http://celestrak.com/columns/v02n02/
-
-    :utc_time: Observation time (datetime object)
-    :lon: Longitude of observer position on ground in degrees east
-    :lat: Latitude of observer position on ground in degrees north
-    :alt: Altitude above sea-level (geoid) of observer position on ground in km
-
-    :return: (Azimuth, Elevation)
-    """
-    (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = astronomy.observer_position(
-        utc_time, sat_lon, sat_lat, sat_alt)
-
-    (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \
-        astronomy.observer_position(utc_time, lon, lat, alt)
-
-    lon = np.deg2rad(lon)
-    lat = np.deg2rad(lat)
-
-    theta = (astronomy.gmst(utc_time) + lon) % (2 * np.pi)
-
-    rx = pos_x - opos_x
-    ry = pos_y - opos_y
-    rz = pos_z - opos_z
-
+def ecef_to_topocentric(rx, ry, rz, lat, lon, theta):
+    """Convert ECEF vector to topocentric-horizon coordinates."""
     sin_lat = np.sin(lat)
     cos_lat = np.cos(lat)
     sin_theta = np.sin(theta)
     cos_theta = np.cos(theta)
 
-    top_s = sin_lat * cos_theta * rx + \
-        sin_lat * sin_theta * ry - cos_lat * rz
+    # Transform ECEF coordinates to topocentric-horizon coordinates
+    top_s = sin_lat * cos_theta * rx + sin_lat * sin_theta * ry - cos_lat * rz
     top_e = -sin_theta * rx + cos_theta * ry
-    top_z = cos_lat * cos_theta * rx + \
-        cos_lat * sin_theta * ry + sin_lat * rz
+    top_z = cos_lat * cos_theta * rx + cos_lat * sin_theta * ry + sin_lat * rz
 
+    return top_s, top_e, top_z
+
+def compute_azimuth_elevation(top_s, top_e, top_z, rg_):
+    """Compute azimuth and elevation from topocentric coordinates."""
     # Azimuth is undefined when elevation is 90 degrees, 180 (pi) will be returned.
     az_ = np.arctan2(-top_e, top_s) + np.pi
     az_ = np.mod(az_, 2 * np.pi)  # Needed on some platforms
 
-    rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
-
-    top_z_divided_by_rg_ = top_z / rg_
-
     # Due to rounding top_z can be larger than rg_ (when el_ ~ 90).
-    top_z_divided_by_rg_ = top_z_divided_by_rg_.clip(max=1)
+    top_z_divided_by_rg_ = np.clip(top_z / rg_, -1, 1)
     el_ = np.arcsin(top_z_divided_by_rg_)
 
     return np.rad2deg(az_), np.rad2deg(el_)
 
+def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
+    """Calculate observer's look angle to a satellite.
 
-class Orbital(object):
+    http://celestrak.com/columns/v02n02/
+
+    :param sat_lon: Satellite longitude in degrees east
+    :param sat_lat: Satellite latitude in degrees north
+    :param sat_alt: Satellite altitude in km
+    :param utc_time: Observation time (datetime object)
+    :param lon: Observer longitude in degrees east
+    :param lat: Observer latitude in degrees north
+    :param alt: Observer altitude in km
+    :return: (Azimuth, Elevation) in degrees
+    """
+    # Get satellite and observer ECEF positions
+    (pos_x, pos_y, pos_z), _ = astronomy.observer_position(utc_time, sat_lon, sat_lat, sat_alt)
+    (opos_x, opos_y, opos_z), _ = astronomy.observer_position(utc_time, lon, lat, alt)
+
+    # Convert observer coordinates to radians
+    lon = np.deg2rad(lon)
+    lat = np.deg2rad(lat)
+
+    # Compute local sidereal time
+    theta = (astronomy.gmst(utc_time) + lon) % (2 * np.pi)
+
+    # Vector from observer to satellite
+    rx = pos_x - opos_x
+    ry = pos_y - opos_y
+    rz = pos_z - opos_z
+    rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
+
+    # Convert to topocentric coordinates
+    top_s, top_e, top_z = ecef_to_topocentric(rx, ry, rz, lat, lon, theta)
+
+    # Compute azimuth and elevation
+    return compute_azimuth_elevation(top_s, top_e, top_z, rg_)
+
+
+class Orbital:
     """Class for orbital computations.
 
     The *satellite* parameter is the name of the satellite to work on and is
@@ -166,39 +178,60 @@ class Orbital(object):
         """Print the Orbital object state."""
         return self.satellite_name + " " + str(self.tle)
 
+    def _find_last_node_time(self, utc_time, is_ascending=True):
+        """Find the last node crossing time (ascending or descending) before utc_time."""
+        time_ref = np.datetime64(_get_tz_unaware_utctime(utc_time))
+        mean_motion = self.tle.mean_motion
+        orbit_period_min = XMNPDA / mean_motion
+
+        def node_func(minutes: float) -> float:
+            """Returns the satellite Z-position (in km) at time_ref + minutes."""
+            time_f = time_ref + np.timedelta64(int(minutes * 60), "s")
+            pos, _ = self.get_position(time_f, normalize=False)
+            return pos[2]
+
+        def find_bracket(func, start_min, step_min, max_back_min):
+            """Find a valid bracket where func crosses zero (sign change)."""
+            t_high = start_min
+            t_low = t_high - step_min
+            while abs(t_low) <= max_back_min:
+                f_high = func(t_high)
+                f_low = func(t_low)
+                if f_high * f_low < 0:
+                    return t_low, t_high
+                t_high = t_low
+                t_low -= step_min
+            raise ValueError("Could not find suitable bracket for node crossing.")
+
+        t_low_min, t_high_min = find_bracket(
+            node_func,
+            start_min=0.0,
+            step_min=1.0,
+            max_back_min=orbit_period_min * 2,
+        )
+
+        root_min = _get_root(node_func, t_low_min, t_high_min, tol=0.0001)
+        t_node = time_ref + np.timedelta64(int(root_min * 60), "s")
+        _, vel = self.get_position(t_node, normalize=False)
+
+        if is_ascending and vel[2] < 0:
+            t_node -= np.timedelta64(int(orbit_period_min / 2.0 * 60), "s")
+        elif not is_ascending and vel[2] > 0:
+            t_node -= np.timedelta64(int(orbit_period_min / 2.0 * 60), "s")
+
+        return t_node
+
     def get_last_an_time(self, utc_time):
         """Calculate time of last ascending node relative to the specified time."""
-        # Propagate backwards to ascending node
-        dt = np.timedelta64(10, "m")
+        t_an = self._find_last_node_time(utc_time, is_ascending=True)
+        logger.debug(f"Ascending Node crossing time: {t_an}")
+        return t_an
 
-        t_old = np.datetime64(_get_tz_unaware_utctime(utc_time))
-        t_new = t_old - dt
-        pos0, vel0 = self.get_position(t_old, normalize=False)
-        pos1, vel1 = self.get_position(t_new, normalize=False)
-        while not (pos0[2] > 0 and pos1[2] < 0):
-            pos0 = pos1
-            t_old = t_new
-            t_new = t_old - dt
-            pos1, vel1 = self.get_position(t_new, normalize=False)
-
-        # Return if z within 1 km of an
-        if np.abs(pos0[2]) < 1:
-            return t_old
-        elif np.abs(pos1[2]) < 1:
-            return t_new
-
-        # Bisect to z within 1 km
-        while np.abs(pos1[2]) > 1:
-            # pos0, vel0 = pos1, vel1
-            dt = (t_old - t_new) / 2
-            t_mid = t_old - dt
-            pos1, vel1 = self.get_position(t_mid, normalize=False)
-            if pos1[2] > 0:
-                t_old = t_mid
-            else:
-                t_new = t_mid
-
-        return t_mid
+    def get_last_dn_time(self, utc_time):
+        """Calculate time of last descending node relative to the specified time."""
+        t_dn = self._find_last_node_time(utc_time, is_ascending=False)
+        logger.debug(f"Descending Node crossing time: {t_dn}")
+        return t_dn
 
     def get_position(self, utc_time, normalize=True):
         """Get the cartesian position and velocity from the satellite."""
@@ -238,13 +271,70 @@ class Orbital(object):
         alt *= A
         return np.rad2deg(lon), np.rad2deg(lat), alt
 
-    def find_aos(self, utc_time, lon, lat):
-        """Find AOS."""
-        pass
+    def _find_single_crossing(
+            self,
+            utc_time: dt.datetime,
+            lon: float,
+            lat: float,
+            alt: float,
+            horizon: float,
+            is_aos: bool,
+            max_search_min: float = 1440.0
+        ) -> Optional[dt.datetime]:
+        """Internal helper to find the single next horizon crossing time (AOS or AOL)."""
+        elev_func = partial(self._elevation, utc_time, lon, lat, alt, horizon)
 
-    def find_aol(self, utc_time, lon, lat):
-        """Find AOL."""
-        pass
+        t_min = 0.0  # Start time in minutes from utc_time
+        t_step = 5.0 # Initial search step
+        t_curr = t_min
+
+        # Iterate forward until a sign change is found
+        while t_curr < max_search_min:
+            t_next = t_curr + t_step
+
+            elev_curr = elev_func(t_curr)
+            elev_next = elev_func(t_next)
+
+            # Check for a sign change (crossing the horizon)
+            if elev_curr * elev_next < 0:
+                t_low, t_high = sorted([t_curr, t_next])
+
+                # Check for rising (AOS) or setting (AOL)
+                # If elev_next > elev_curr, the satellite is rising (positive derivative)
+                is_rising = elev_next > elev_curr
+
+                if (is_aos and is_rising) or (not is_aos and not is_rising):
+                    root_min = optimize.brentq(
+                        elev_func, t_low, t_high, xtol=0.00001 # High precision
+                    )
+
+                    return utc_time + dt.timedelta(minutes=root_min)
+
+            t_curr = t_next
+
+        return None # No crossing found within the search limit
+
+    def find_aos(
+            self,
+            utc_time: dt.datetime,
+            lon: float,
+            lat: float,
+            alt: float = 0,
+            horizon: float = 0
+        ) -> Optional[dt.datetime]:
+        """Find the time of the next Acquisition of Signal (AOS) after utc_time (while rising)."""
+        return self._find_single_crossing(utc_time, lon, lat, alt, horizon, is_aos=True)
+
+    def find_aol(
+            self,
+            utc_time: dt.datetime,
+            lon: float,
+            lat: float,
+            alt: float = 0,
+            horizon: float = 0
+        ) -> Optional[dt.datetime]:
+        """Find the time of the next Acquisition of Signal (AOL) after utc_time (while setting)."""
+        return self._find_single_crossing(utc_time, lon, lat, alt, horizon, is_aos=False)
 
     def get_observer_look(self, utc_time, lon, lat, alt):
         """Calculate observers look angle to a satellite.
@@ -259,41 +349,24 @@ class Orbital(object):
         Return: (Azimuth, Elevation)
 
         """
-        utc_time = dt2np(utc_time)
-        (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(
-            utc_time, normalize=False)
-        (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \
-            astronomy.observer_position(utc_time, lon, lat, alt)
+        time_ref = dt2np(utc_time)
 
-        lon = np.deg2rad(lon)
-        lat = np.deg2rad(lat)
-
-        theta = (astronomy.gmst(utc_time) + lon) % (2 * np.pi)
+        (pos_x, pos_y, pos_z), _ = self.get_position(time_ref, normalize=False)
+        (opos_x, opos_y, opos_z), _ = astronomy.observer_position(time_ref, lon, lat, alt)
 
         rx = pos_x - opos_x
         ry = pos_y - opos_y
         rz = pos_z - opos_z
-
-        sin_lat = np.sin(lat)
-        cos_lat = np.cos(lat)
-        sin_theta = np.sin(theta)
-        cos_theta = np.cos(theta)
-
-        top_s = sin_lat * cos_theta * rx + \
-            sin_lat * sin_theta * ry - cos_lat * rz
-        top_e = -sin_theta * rx + cos_theta * ry
-        top_z = cos_lat * cos_theta * rx + \
-            cos_lat * sin_theta * ry + sin_lat * rz
-
-        az_ = np.arctan(-top_e / top_s)
-
-        az_ = np.where(top_s > 0, az_ + np.pi, az_)
-        az_ = np.where(az_ < 0, az_ + 2 * np.pi, az_)
-
         rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
-        el_ = np.arcsin(top_z / rg_)
 
-        return np.rad2deg(az_), np.rad2deg(el_)
+        lon_rad = np.deg2rad(lon)
+        lat_rad = np.deg2rad(lat)
+
+        theta = (astronomy.gmst(time_ref) + lon_rad) % (2 * np.pi)
+
+        top_s, top_e, top_z = ecef_to_topocentric(rx, ry, rz, lat_rad, lon_rad, theta)
+
+        return compute_azimuth_elevation(top_s, top_e, top_z, rg_)
 
     def get_orbit_number(self, utc_time, tbus_style=False, as_float=False):
         """Calculate orbit number at specified time.
@@ -308,19 +381,19 @@ class Orbital(object):
             dt = astronomy._days(utc_time - self.orbit_elements.an_time)
             orbit_period = astronomy._days(self.orbit_elements.an_period)
         except AttributeError:
-            pos_epoch, vel_epoch = self.get_position(self.tle.epoch,
-                                                     normalize=False)
+            pos_epoch, vel_epoch = self.get_position(self.tle.epoch, normalize=False)
             if np.abs(pos_epoch[2]) > 1 or not vel_epoch[2] > 0:
                 # Epoch not at ascending node
-                self.orbit_elements.an_time = self.get_last_an_time(
-                    self.tle.epoch)
+                self.orbit_elements.an_time = self.get_last_an_time(self.tle.epoch)
             else:
                 # Epoch at ascending node (z < 1 km) and positive v_z
                 self.orbit_elements.an_time = self.tle.epoch
 
             self.orbit_elements.an_period = self.orbit_elements.an_time - \
-                self.get_last_an_time(self.orbit_elements.an_time
-                                      - np.timedelta64(10, "m"))
+                self.get_last_an_time(self.orbit_elements.an_time - np.timedelta64(10, "m"))
+
+            logger.debug(f"Orbit reference AN time: {self.orbit_elements.an_time}")
+            logger.debug(f"Orbit period (days): {astronomy._days(self.orbit_elements.an_period)}")
 
             dt = astronomy._days(utc_time - self.orbit_elements.an_time)
             orbit_period = astronomy._days(self.orbit_elements.an_period)
@@ -336,7 +409,16 @@ class Orbital(object):
 
         return orbit
 
-    def get_next_passes(self, utc_time, length, lon, lat, alt, tol=0.001, horizon=0):
+    def get_next_passes(
+        self,
+        utc_time: dt.datetime,
+        length: float,
+        lon: float,
+        lat: float,
+        alt: float,
+        tol: float = 0.001,
+        horizon: float = 0
+    ) -> list[tuple[dt.datetime, dt.datetime, dt.datetime]]:
         """Calculate passes for the next hours for a given start time and a given observer.
 
         Original by Martin.
@@ -353,36 +435,49 @@ class Orbital(object):
 
         """
         # every minute
-        times = utc_time + np.array([dt.timedelta(minutes=minutes)
-                                     for minutes in range(length * 60)])
+        times = utc_time + np.array([
+            dt.timedelta(minutes=minutes)
+            for minutes in range(round(length * 60))
+        ])
         elev = self.get_observer_look(times, lon, lat, alt)[1] - horizon
         zcs = np.where(np.diff(np.sign(elev)))[0]
-        res = []
-        risetime = None
-        risemins = None
+
+        res: list[tuple[dt.datetime, dt.datetime, dt.datetime]] = []
+        risetime: Optional[dt.datetime] = None
+        risemins: Optional[float] = None
+
         elev_func = partial(self._elevation, utc_time, lon, lat, alt, horizon)
         elev_inv_func = partial(self._elevation_inv, utc_time, lon, lat, alt, horizon)
+
         for guess in zcs:
             horizon_mins = _get_root(elev_func, guess, guess + 1.0, tol=tol / 60.0)
             horizon_time = utc_time + dt.timedelta(minutes=horizon_mins)
+
             if elev[guess] < 0:
                 risetime = horizon_time
                 risemins = horizon_mins
             else:
                 falltime = horizon_time
-                fallmins = horizon_mins
-                if risetime is None:
+                fallmins: Optional[float] = horizon_mins
+
+                if risetime is None or risemins is None or fallmins is None:
                     continue
+
                 int_start = max(0, int(np.floor(risemins)))
                 int_end = min(len(elev), int(np.ceil(fallmins) + 1))
                 middle = int_start + np.argmax(elev[int_start:int_end])
-                highest = utc_time + \
-                    dt.timedelta(minutes=_get_max_parab(
-                        elev_inv_func,
-                        max(risemins, middle - 1), min(fallmins, middle + 1),
-                        tol=tol / 60.0
-                    ))
-                res += [(risetime, falltime, highest)]
+
+                highest = utc_time + dt.timedelta(minutes=_get_max_parab(
+                    elev_inv_func,
+                    max(risemins, middle - 1),
+                    min(fallmins, middle + 1),
+                    tol=tol / 60.0
+                ))
+
+                res.append((risetime, falltime, highest))
+                risetime = None
+                risemins = None
+
         return res
 
     def _get_time_at_horizon(self, utc_time, obslon, obslat, **kwargs):
@@ -510,35 +605,53 @@ class Orbital(object):
 
         return tcross
 
-
-    def _elevation(self, utc_time, lon, lat, alt, horizon, minutes):
+    def _elevation(
+            self,
+            utc_time: dt.datetime,
+            lon: float,
+            lat: float,
+            alt: float,
+            horizon: float,
+            minutes: float
+        ) -> float:
         """Compute the elevation."""
-        return self.get_observer_look(utc_time +
-                                      dt.timedelta(minutes=np.float64(minutes)),
-                                      lon, lat, alt)[1] - horizon
+        time_f = utc_time + dt.timedelta(minutes=minutes)
+        _, el = self.get_observer_look(time_f, lon, lat, alt)
+        return float(el) - horizon
 
-
-    def _elevation_inv(self, utc_time, lon, lat, alt, horizon, minutes):
+    def _elevation_inv(
+            self,
+            utc_time: dt.datetime,
+            lon: float,
+            lat: float,
+            alt: float,
+            horizon: float,
+            minutes: float
+        ) -> float:
         """Compute the inverse of elevation."""
         return -self._elevation(utc_time, lon, lat, alt, horizon, minutes)
 
 
 def _get_root(fun, start, end, tol=0.01):
-    """Root finding scheme."""
-    x_0 = end
-    x_1 = start
-    fx_0 = fun(end)
-    fx_1 = fun(start)
+    """Find a root of `fun` in [start, end] using Brent's method with tolerance `tol`."""
+    x_0 = float(end)
+    x_1 = float(start)
+    fx_0 = fun(x_0)
+    fx_1 = fun(x_1)
+
+    if fx_0 * fx_1 > 0:
+        raise ValueError("Function values at interval endpoints must have opposite signs.")
+
+    # Swap for better convergence
     if abs(fx_0) < abs(fx_1):
         fx_0, fx_1 = fx_1, fx_0
         x_0, x_1 = x_1, x_0
 
-    x_n = optimize.brentq(fun, x_0, x_1)
-    return x_n
+    return optimize.brentq(fun, x_0, x_1, xtol=tol, rtol=tol)
 
 
-def _get_max_parab(fun, start, end, tol=0.01):
-    """Successive parabolic interpolation."""
+def _get_max_parab(fun, start, end, tol=0.01, max_iter=50):
+    """Find peak of `fun` in [start, end] using parabolic interpolation with fallback."""
     a = float(start)
     c = float(end)
     b = (a + c) / 2.0
@@ -547,25 +660,35 @@ def _get_max_parab(fun, start, end, tol=0.01):
     f_b = fun(b)
     f_c = fun(c)
 
-    x = b
-    with np.errstate(invalid="raise"):
-        while True:
-            try:
-                x = x - 0.5 * (((b - a) ** 2 * (f_b - f_c)
-                                - (b - c) ** 2 * (f_b - f_a)) /
-                               ((b - a) * (f_b - f_c) - (b - c) * (f_b - f_a)))
-            except FloatingPointError:
-                return b
-            if abs(b - x) <= tol:
-                return x
-            f_x = fun(x)
-            # sometimes the estimation diverges... return best guess
-            if f_x > f_b:
-                logger.info("Parabolic interpolation did not converge, returning best guess so far.")
-                return b
+    # Handle flat or symmetric cases
+    if f_a == f_b == f_c:
+        return b
 
-            a, b, c = (a + x) / 2.0, x, (x + c) / 2.0
-            f_a, f_b, f_c = fun(a), f_x, fun(c)
+    for _ in range(max_iter):
+        denom = ((b - a) * (f_b - f_c) - (b - c) * (f_b - f_a))
+        if denom == 0:
+            return b  # fallback
+
+        try:
+            x = b - 0.5 * (((b - a)**2 * (f_b - f_c) - (b - c)**2 * (f_b - f_a)) / denom)
+        except ZeroDivisionError:
+            return b
+
+        if abs(b - x) <= tol:
+            return x
+
+        f_x = fun(x)
+
+        # Divergence or invalid result
+        if f_x > f_b or not (a <= x <= c):
+            return b
+
+        # Update bracket
+        a, b, c = (a + x) / 2.0, x, (x + c) / 2.0
+        f_a, f_b, f_c = fun(a), f_x, fun(c)
+
+    # Max iterations reached
+    return b
 
 
 class OrbitElements(object):
@@ -1271,17 +1394,18 @@ def kep2xyz(kep):
 
 
 if __name__ == "__main__":
-    obs_lon, obs_lat = np.deg2rad((12.4143, 55.9065))
-    obs_alt = 0.02
+    # Observer's location in degrees
+    obs_lon, obs_lat = 12.4143, 55.9065
+    obs_alt = 0.02  # Altitude in km
     o = Orbital(satellite="METOP-B")
-
     t_start = dt.datetime.now()
-    t_stop = t_start + dt.timedelta(minutes=20)
+    time_step = dt.timedelta(seconds=15)
+    num_steps = 80
     t = t_start
-    while t < t_stop:
-        t += dt.timedelta(seconds=15)
+    print("Time | Azimuth | Elevation | Orbit No.")
+    for i in range(num_steps):
         lon, lat, alt = o.get_lonlatalt(t)
-        lon, lat = np.rad2deg((lon, lat))
         az, el = o.get_observer_look(t, obs_lon, obs_lat, obs_alt)
         ob = o.get_orbit_number(t, tbus_style=True)
-        print(az, el, ob)
+        print(f"Time: {t.strftime('%H:%M:%S')} | Az: {az:.2f}° | El: {el:.2f}° | Orbit: {ob}")
+        t += time_step

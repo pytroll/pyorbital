@@ -139,25 +139,6 @@ def test_apogee_computation():
     assert orbit.apogee == pytest.approx(expected_apogee, abs=1e-3)
 
 
-def test_to_tle_dict_structure():
-    """Test dictionary export of TLE-like orbital elements."""
-    tle = MockTLE()
-    orbit = OrbitElements(tle)
-    tle_dict = orbit.to_tle_dict()
-    assert isinstance(tle_dict, dict)
-    expected_keys = {
-        "epoch",
-        "inclination_deg",
-        "right_ascension_deg",
-        "excentricity",
-        "arg_perigee_deg",
-        "mean_anomaly_deg",
-        "mean_motion_rev_per_day",
-        "bstar",
-    }
-    assert expected_keys.issubset(tle_dict.keys())
-
-
 def test_semi_major_axis_accuracy():
     """Test semi-major axis against analytical reference value (in km)."""
     tle = MockTLE()
@@ -194,13 +175,13 @@ def test_velocity_at_apogee_accuracy():
     assert computed_velocity_kms == pytest.approx(expected_velocity_kms, abs=0.005)
 
 
-def test_position_vector_perigee_accuracy():
+def test_position_vector_in_orbital_plane_perigee_accuracy():
     """Test position vector at perigee (Mean Anomaly = 0°)."""
     tle = MockTLE()
     tle.excentricity = 0.001
     tle.mean_anomaly = 0.0
     orbit = OrbitElements(tle)
-    pos = orbit.position_vector()
+    pos = orbit.position_vector_in_orbital_plane()
     expected_x = 1.1278289051591721  # Earth radii
     expected_y = 0.0
     assert pos[0] == pytest.approx(expected_x, rel=1e-6)
@@ -216,12 +197,12 @@ def test_position_vector_perigee_accuracy():
         (270, 7200.6528603079205),
     ],
 )
-def test_position_vector_varied(mean_anomaly_deg, expected_radius):
+def test_position_vector_in_orbital_plane_varied(mean_anomaly_deg, expected_radius):
     """Verify position vector magnitude matches expected radius at given mean anomaly."""
     tle = MockTLE()
     tle.mean_anomaly = mean_anomaly_deg
     orbit = OrbitElements(tle)
-    pos = orbit.position_vector()
+    pos = orbit.position_vector_in_orbital_plane()
     actual_radius = np.linalg.norm(pos) * XKMPER
     assert np.isclose(actual_radius, expected_radius, rtol=1e-6)
 

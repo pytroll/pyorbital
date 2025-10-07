@@ -588,7 +588,6 @@ class OrbitElements:
         self.original_mean_motion, self.semi_major_axis = self._calculate_mean_motion_and_semi_major_axis()
 
         self.period = 2 * np.pi / self.original_mean_motion
-        self.perigee = ((self.semi_major_axis * (1 - self.excentricity)) / AE - AE) * XKMPER
         self.right_ascension_lon = self.right_ascension - astronomy.gmst(self.epoch)
         self.right_ascension_lon = np.fmod(self.right_ascension_lon + np.pi, 2 * np.pi) - np.pi
 
@@ -596,6 +595,11 @@ class OrbitElements:
     def apogee(self):
         """Compute apogee altitude in kilometers."""
         return ((self.semi_major_axis * (1 + self.excentricity)) / AE - AE) * XKMPER
+
+    @property
+    def perigee(self):
+        """Compute perigee altitude in kilometers."""
+        return ((self.semi_major_axis * (1 - self.excentricity)) / AE - AE) * XKMPER
 
     @property
     def is_circular(self):
@@ -630,7 +634,7 @@ class OrbitElements:
         )
         return nu
 
-    def position_vector(self):
+    def position_vector_in_orbital_plane(self):
         """Compute position vector in the orbital plane at epoch.
 
         The x-axis points toward the perigee.
@@ -646,15 +650,36 @@ class OrbitElements:
 
         return np.array([x, y])
 
+    def _get_velocity_at_apsis(self, e_1, e_2):
+        """Helper method to compute orbital velocity at an apsis."""
+        mu = XKE**2 * AE**3
+
+        # r_apsis is the distance at the apsis (perigee or apogee)
+        r_apsis = self.semi_major_axis * e_1
+
+        # The velocity formula: V = sqrt( mu * (2/r - 1/a) ).
+        # For apse lines (r = a * (1-e^2)/(1+e*cos(nu)), it simplifies to:
+        # V = sqrt( mu * (1 ± e) / r )
+        v_er_per_min = np.sqrt(mu * (e_2 / r_apsis))
+
+        # Conversion factor: (AE * XKMPER) converts ER -> km; / 60 converts min -> s
+        conversion_factor = (AE * XKMPER) / 60.0
+
+        return v_er_per_min * conversion_factor
+
     def velocity_at_perigee(self):
         """Compute orbital velocity at perigee in km/s."""
-        return _get_velocity_at_apsis(1 - self.excentricity, 1 + self.excentricity)
+        return self._get_velocity_at_apsis(1 - self.excentricity, 1 + self.excentricity)
 
     def velocity_at_apogee(self):
         """Compute orbital velocity at apogee in km/s."""
-        return _get_velocity_at_apsis(1 + self.excentricity, 1 - self.excentricity)
+        return self._get_velocity_at_apsis(1 + self.excentricity, 1 - self.excentricity)
 
     def _calculate_mean_motion_and_semi_major_axis(self):
+        """Apply SGP4 perturbation corrections to mean motion and semi-major axis.
+
+        Based on inclination and eccentricity.
+        """
         a_1 = (XKE / self.mean_motion) ** (2.0 / 3)
         delta_1 = (3 / 2.0) * (CK2 / a_1**2) * ((3 * np.cos(self.inclination)**2 - 1) /
                                                (1 - self.excentricity**2)**(3 / 2))
@@ -666,19 +691,6 @@ class OrbitElements:
         corrected_semi_major_axis = a_0 / (1 - delta_0)
 
         return corrected_mean_motion, corrected_semi_major_axis
-
-    def to_tle_dict(self):
-        """Return a dictionary with TLE-like orbital elements."""
-        return {
-            "epoch": self.epoch,
-            "inclination_deg": np.rad2deg(self.inclination),
-            "right_ascension_deg": np.rad2deg(self.right_ascension),
-            "excentricity": self.excentricity,
-            "arg_perigee_deg": np.rad2deg(self.arg_perigee),
-            "mean_anomaly_deg": np.rad2deg(self.mean_anomaly),
-            "mean_motion_rev_per_day": self.mean_motion * XMNPDA / (2 * np.pi),
-            "bstar": self.bstar / AE
-        }
 
 
 class _SGDP4Base:

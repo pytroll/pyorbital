@@ -162,7 +162,7 @@ class ChecksumError(Exception):
     """ChecksumError."""
 
 
-class Tle(object):
+class Tle:
     """Class holding TLE objects."""
 
     def __init__(self, platform, tle_file=None, line1=None, line2=None):
@@ -277,6 +277,34 @@ class Tle(object):
         self.mean_anomaly = float(self._line2[43:51])
         self.mean_motion = float(self._line2[52:63])
         self.orbit = int(self._line2[63:68])
+
+    def to_dict(self):
+        """Return the raw, parsed TLE elements as a dictionary."""
+        return {
+            "platform": self.platform,
+            "satnumber": self.satnumber,
+            "classification": self.classification,
+            "id_launch_year": self.id_launch_year,
+            "id_launch_number": self.id_launch_number,
+            "id_launch_piece": self.id_launch_piece,
+            "epoch_year": self.epoch_year,
+            "epoch_day": self.epoch_day,
+            "epoch": self.epoch,
+            "mean_motion_derivative": self.mean_motion_derivative,
+            "mean_motion_sec_derivative": self.mean_motion_sec_derivative,
+            "bstar": self.bstar,
+            "ephemeris_type": self.ephemeris_type,
+            "element_number": self.element_number,
+            "inclination": self.inclination,
+            "right_ascension": self.right_ascension,
+            "excentricity": self.excentricity,
+            "arg_perigee": self.arg_perigee,
+            "mean_anomaly": self.mean_anomaly,
+            "mean_motion": self.mean_motion,
+            "orbit": self.orbit,
+            "line1": self._line1,
+            "line2": self._line2,
+        }
 
     def __str__(self):
         """Format the class data for printing."""

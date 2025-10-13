@@ -58,7 +58,7 @@ class TleDownloadTimeoutError(Exception):
 
 def _get_config_path():
     """Get the config path for Pyorbital."""
-    if "PPP_CONFIG_DIR" in os.environ and "PYORBITAL_CONFIG_PATH" not in os.environ:
+    if "PPP_CONFIG_DIR" in os.environ and "config_path" not in config:
         LOGGER.warning(
             "The use of PPP_CONFIG_DIR is no longer supported!" +
             " Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")

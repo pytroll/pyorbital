@@ -26,10 +26,13 @@ import os
 import sqlite3
 from itertools import zip_longest
 from urllib.request import urlopen
+from warnings import warn
 
 import defusedxml.ElementTree as ET
 import numpy as np
 import requests
+
+from pyorbital.config import config
 
 TLE_GROUPS = ("active",
               "weather",
@@ -61,7 +64,7 @@ def _get_config_path():
         LOGGER.debug("Using the package default for configuration: %s", PKG_CONFIG_DIR)
         return PKG_CONFIG_DIR
     else:
-        pyorbital_config_path = os.getenv("PYORBITAL_CONFIG_PATH", PKG_CONFIG_DIR)
+        pyorbital_config_path = config.get("config_path", PKG_CONFIG_DIR)
 
     LOGGER.debug("Path to the Pyorbital configuration (where e.g. platforms.txt is found): %s",
                  str(pyorbital_config_path))
@@ -317,7 +320,11 @@ def _get_uris_and_open_func(tle_file=None):
         LOGGER.debug("Reading TLE from %s", uris[0])
         open_func = _open
     else:
-        LOGGER.debug("Fetch TLE from the internet.")
+        if config.get("fetch_from_celestrak", None) is not True:
+            warn("In the future, implicit downloads of TLEs from celestak will be disabled by default. "
+                 "You can enable it (and remove this warning) by setting PYORBITAL_FETCH_FROM_CELESTRAK to True.",
+                 DeprecationWarning)
+        LOGGER.warning("Fetch TLE from the internet.")
         uris = TLE_URLS
         open_func = urlopen
 

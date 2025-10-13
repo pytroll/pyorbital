@@ -123,7 +123,7 @@ def test_read_tlefile_standard_platform_name(monkeypatch, fake_platforms_txt_fil
 
     path_to_platforms_txt_file = fake_platforms_txt_file.parent
 
-    with config.set("config_path", str(path_to_platforms_txt_file)):
+    with config.set(config_path=str(path_to_platforms_txt_file)):
         tle_n21 = tlefile.read("NOAA-21", str(fake_tlefile))
     assert tle_n21.line1 == "1 54234U 22150A   23045.56664999  .00000332  00000+0  17829-3 0  9993"
     assert tle_n21.line2 == "2 54234  98.7059 345.5113 0001226  81.6523 278.4792 14.19543871 13653"
@@ -138,7 +138,7 @@ def test_read_tlefile_non_standard_platform_name(monkeypatch, fake_platforms_txt
 
     path_to_platforms_txt_file = fake_platforms_txt_file.parent
 
-    with config.set("config_path", str(path_to_platforms_txt_file)):
+    with config.set(config_path=str(path_to_platforms_txt_file)):
         tle_n20 = tlefile.read("NOAA 20", str(fake_tlefile))
 
     assert tle_n20.line1 == "1 43013U 17073A   23045.54907786  .00000253  00000+0  14081-3 0  9995"
@@ -171,7 +171,7 @@ def test_read_tlefile_non_standard_platform_name_matching_start_of_name_in_tlefi
 
     path_to_platforms_txt_file = fake_platforms_txt_file.parent
 
-    with config.set("config_path", str(path_to_platforms_txt_file)):
+    with config.set(config_path=str(path_to_platforms_txt_file)):
         with pytest.raises(KeyError) as exc_info:
             with caplog.at_level(logging.DEBUG):
                 _ = tlefile.read(sat_name, str(fake_tlefile))
@@ -311,7 +311,7 @@ def test_get_config_path_ppp_config_set_and_pyorbital(caplog, monkeypatch):
 
     pyorbital_config_dir = "/path/to/pyorbital/config/dir"
     monkeypatch.setenv("PPP_CONFIG_DIR", "/path/to/old/mpop/config/dir")
-    with config.set("config_path", pyorbital_config_dir):
+    with config.set(config_path=pyorbital_config_dir):
         with caplog.at_level(logging.WARNING):
             res = _get_config_path()
 
@@ -329,7 +329,7 @@ def test_get_config_path_pyorbital_ppp_missing(caplog, monkeypatch):
 
     pyorbital_config_dir = "/path/to/pyorbital/config/dir"
 
-    with config.set("config_path", pyorbital_config_dir):
+    with config.set(config_path=pyorbital_config_dir):
         with caplog.at_level(logging.DEBUG):
             res = _get_config_path()
 

@@ -32,7 +32,7 @@ from unittest import mock
 
 import pytest
 
-from pyorbital import config
+from pyorbital.config import config
 
 LINE0 = "ISS (ZARYA)"
 LINE1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"

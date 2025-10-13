@@ -364,7 +364,7 @@ def _get_local_uris_and_open_method(local_tle_path):
         open_func = _open
     else:
         if config.get("fetch_from_celestrak", None) is not True:
-            warn("In the future, implicit downloads of TLEs from celestak will be disabled by default. "
+            warn("In the future, implicit downloads of TLEs from Celestrak will be disabled by default. "
                  "You can enable it (and remove this warning) by setting PYORBITAL_FETCH_FROM_CELESTRAK to True.",
                  DeprecationWarning)
         LOGGER.warning("TLES environment variable points to no TLE files")

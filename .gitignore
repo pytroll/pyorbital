@@ -40,4 +40,8 @@ nosetests.xml
 # rope
 .ropeproject
 
+# Virtual environment
+venv/
+.venv/
+
 pyorbital/version.py

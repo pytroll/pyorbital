@@ -24,6 +24,7 @@ import io
 import logging
 import os
 import sqlite3
+import warnings
 from itertools import zip_longest
 from urllib.request import urlopen
 from warnings import warn
@@ -164,7 +165,7 @@ class ChecksumError(Exception):
     """ChecksumError."""
 
 
-class Tle(object):
+class Tle:
     """Class holding TLE objects."""
 
     def __init__(self, platform, tle_file=None, line1=None, line2=None):
@@ -280,6 +281,34 @@ class Tle(object):
         self.mean_motion = float(self._line2[52:63])
         self.orbit = int(self._line2[63:68])
 
+    def to_dict(self):
+        """Return the raw, parsed TLE elements as a dictionary."""
+        return {
+            "platform": self.platform,
+            "satnumber": self.satnumber,
+            "classification": self.classification,
+            "id_launch_year": self.id_launch_year,
+            "id_launch_number": self.id_launch_number,
+            "id_launch_piece": self.id_launch_piece,
+            "epoch_year": self.epoch_year,
+            "epoch_day": self.epoch_day,
+            "epoch": self.epoch,
+            "mean_motion_derivative": self.mean_motion_derivative,
+            "mean_motion_sec_derivative": self.mean_motion_sec_derivative,
+            "bstar": self.bstar,
+            "ephemeris_type": self.ephemeris_type,
+            "element_number": self.element_number,
+            "inclination": self.inclination,
+            "right_ascension": self.right_ascension,
+            "excentricity": self.excentricity,
+            "arg_perigee": self.arg_perigee,
+            "mean_anomaly": self.mean_anomaly,
+            "mean_motion": self.mean_motion,
+            "orbit": self.orbit,
+            "line1": self._line1,
+            "line2": self._line2,
+        }
+
     def __str__(self):
         """Format the class data for printing."""
         import pprint
@@ -297,25 +326,39 @@ def _get_local_tle_path_from_env():
 
 def _get_uris_and_open_func(tle_file=None):
     """Get the uri's and the adequate file open call for the TLE files."""
-    def _open(filename):
-        return io.open(filename, "rb")
-
     local_tle_path = _get_local_tle_path_from_env()
 
     if tle_file:
-        if isinstance(tle_file, io.StringIO):
-            uris = (tle_file,)
-            open_func = _dummy_open_stringio
-        elif "ADMIN_MESSAGE" in tle_file:
-            uris = (io.StringIO(read_tle_from_mmam_xml_file(tle_file)),)
-            open_func = _dummy_open_stringio
-        else:
-            uris = (tle_file,)
-            open_func = _open
+        uris, open_func = _get_tle_file_uris_and_open_method(tle_file)
     elif local_tle_path:
-        # TODO: get the TLE file closest in time to the actual satellite
-        # overpass, NOT the latest!
-        list_of_tle_files = glob.glob(local_tle_path)
+        uris, open_func = _get_local_uris_and_open_method(local_tle_path)
+    else:
+        uris, open_func = _get_internet_uris_and_open_method()
+    return uris, open_func
+
+
+def _get_tle_file_uris_and_open_method(tle_file):
+    if isinstance(tle_file, io.StringIO):
+        uris = (tle_file,)
+        open_func = _dummy_open_stringio
+    elif "ADMIN_MESSAGE" in tle_file:
+        uris = (io.StringIO(read_tle_from_mmam_xml_file(tle_file)),)
+        open_func = _dummy_open_stringio
+    else:
+        uris = (tle_file,)
+        open_func = _open
+    return uris, open_func
+
+
+def _open(filename):
+    return io.open(filename, "rb")
+
+
+def _get_local_uris_and_open_method(local_tle_path):
+    # TODO: get the TLE file closest in time to the actual satellite
+    # overpass, NOT the latest!
+    list_of_tle_files = glob.glob(local_tle_path)
+    if list_of_tle_files:
         uris = (max(list_of_tle_files, key=os.path.getctime), )
         LOGGER.debug("Reading TLE from %s", uris[0])
         open_func = _open
@@ -324,11 +367,19 @@ def _get_uris_and_open_func(tle_file=None):
             warn("In the future, implicit downloads of TLEs from celestak will be disabled by default. "
                  "You can enable it (and remove this warning) by setting PYORBITAL_FETCH_FROM_CELESTRAK to True.",
                  DeprecationWarning)
-        LOGGER.warning("Fetch TLE from the internet.")
-        uris = TLE_URLS
-        open_func = urlopen
+        LOGGER.warning("TLES environment variable points to no TLE files")
+        throttle_warning = "TLEs will be downloaded from Celestrak, which can throttle the connection."
+        LOGGER.warning(throttle_warning)
+        warnings.warn(throttle_warning)
+
+        uris, open_func = _get_internet_uris_and_open_method()
 
     return uris, open_func
+
+
+def _get_internet_uris_and_open_method():
+    LOGGER.debug("Fetch TLE from the internet.")
+    return TLE_URLS, urlopen
 
 
 def _get_first_tle(uris, open_func, platform=""):

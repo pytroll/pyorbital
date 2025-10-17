@@ -437,7 +437,7 @@ class TLETest(unittest.TestCase):
         # line 2
         assert tle.inclination == 51.6416
         assert tle.right_ascension == 247.4627
-        assert tle.excentricity == 0.0006703
+        assert tle.eccentricity == 0.0006703
         assert tle.arg_perigee == 130.536
         assert tle.mean_anomaly == 325.0288
         assert tle.mean_motion == 15.72125391
@@ -877,6 +877,6 @@ def test_tle_instance_printing():
 
     tle = Tle("ISS", line1=LINE1, line2=LINE2)
 
-    expected = "{'arg_perigee': 130.536,\n 'bstar': -1.1606e-05,\n 'classification': 'U',\n 'element_number': 292,\n 'ephemeris_type': 0,\n 'epoch': np.datetime64('2008-09-20T12:25:40.104192'),\n 'epoch_day': 264.51782528,\n 'epoch_year': '08',\n 'excentricity': 0.0006703,\n 'id_launch_number': '067',\n 'id_launch_piece': 'A  ',\n 'id_launch_year': '98',\n 'inclination': 51.6416,\n 'mean_anomaly': 325.0288,\n 'mean_motion': 15.72125391,\n 'mean_motion_derivative': -2.182e-05,\n 'mean_motion_sec_derivative': 0.0,\n 'orbit': 56353,\n 'right_ascension': 247.4627,\n 'satnumber': '25544'}"  # noqa
+    expected = "{'arg_perigee': 130.536,\n 'bstar': -1.1606e-05,\n 'classification': 'U',\n 'eccentricity': 0.0006703,\n 'element_number': 292,\n 'ephemeris_type': 0,\n 'epoch': np.datetime64('2008-09-20T12:25:40.104192'),\n 'epoch_day': 264.51782528,\n 'epoch_year': '08',\n 'id_launch_number': '067',\n 'id_launch_piece': 'A  ',\n 'id_launch_year': '98',\n 'inclination': 51.6416,\n 'mean_anomaly': 325.0288,\n 'mean_motion': 15.72125391,\n 'mean_motion_derivative': -2.182e-05,\n 'mean_motion_sec_derivative': 0.0,\n 'orbit': 56353,\n 'right_ascension': 247.4627,\n 'satnumber': '25544'}"  # noqa
 
     assert str(tle) == expected

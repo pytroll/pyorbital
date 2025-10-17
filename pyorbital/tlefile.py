@@ -190,7 +190,7 @@ class Tle:
         self.element_number = None
         self.inclination = None
         self.right_ascension = None
-        self.excentricity = None
+        self.eccentricity = None
         self.arg_perigee = None
         self.mean_anomaly = None
         self.mean_motion = None
@@ -199,6 +199,12 @@ class Tle:
         self._read_tle()
         self._checksum()
         self._parse_tle()
+
+    @property
+    def excentricity(self):
+        """Get 'eccentricity' using legacy 'excentricity' name."""
+        warnings.warn("The 'eccentricity' property is deprecated in favor of 'eccentricity'", stacklevel=2)
+        return self.eccentricity
 
     @property
     def line1(self):
@@ -275,7 +281,7 @@ class Tle:
 
         self.inclination = float(self._line2[8:16])
         self.right_ascension = float(self._line2[17:25])
-        self.excentricity = int(self._line2[26:33]) * 10 ** -7
+        self.eccentricity = int(self._line2[26:33]) * 10 ** -7
         self.arg_perigee = float(self._line2[34:42])
         self.mean_anomaly = float(self._line2[43:51])
         self.mean_motion = float(self._line2[52:63])
@@ -300,7 +306,7 @@ class Tle:
             "element_number": self.element_number,
             "inclination": self.inclination,
             "right_ascension": self.right_ascension,
-            "excentricity": self.excentricity,
+            "eccentricity": self.eccentricity,
             "arg_perigee": self.arg_perigee,
             "mean_anomaly": self.mean_anomaly,
             "mean_motion": self.mean_motion,

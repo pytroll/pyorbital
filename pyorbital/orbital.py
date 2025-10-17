@@ -576,7 +576,7 @@ class OrbitElements:
     def __init__(self, tle):
         """Initialize the class."""
         self.epoch = tle.epoch
-        self.excentricity = tle.excentricity
+        self.eccentricity = tle.eccentricity
         self.inclination = np.deg2rad(tle.inclination)
         self.right_ascension = np.deg2rad(tle.right_ascension)
         self.arg_perigee = np.deg2rad(tle.arg_perigee)
@@ -594,19 +594,25 @@ class OrbitElements:
         self.right_ascension_lon = np.fmod(self.right_ascension_lon + np.pi, 2 * np.pi) - np.pi
 
     @property
+    def excentricity(self):
+        """Get 'eccentricity' using legacy 'excentricity' name."""
+        warnings.warn("The 'eccentricity' property is deprecated in favor of 'eccentricity'", stacklevel=2)
+        return self.eccentricity
+
+    @property
     def apogee(self):
         """Compute apogee altitude in kilometers."""
-        return ((self.semi_major_axis * (1 + self.excentricity)) / AE - AE) * XKMPER
+        return ((self.semi_major_axis * (1 + self.eccentricity)) / AE - AE) * XKMPER
 
     @property
     def perigee(self):
         """Compute perigee altitude in kilometers."""
-        return ((self.semi_major_axis * (1 - self.excentricity)) / AE - AE) * XKMPER
+        return ((self.semi_major_axis * (1 - self.eccentricity)) / AE - AE) * XKMPER
 
     @property
     def is_circular(self):
         """Check if orbit is nearly circular."""
-        return self.excentricity < 1e-3
+        return self.eccentricity < 1e-3
 
     @property
     def is_retrograde(self):
@@ -616,7 +622,7 @@ class OrbitElements:
     def _get_true_anomaly(self):
         """Computes the True Anomaly (nu) from Mean Anomaly (M) and Eccentricity (e)."""
         M = self.mean_anomaly
-        e = self.excentricity
+        e = self.eccentricity
         E = M # Initial guess for Eccentric Anomaly (E)
 
         # Iteratively solve Kepler's Equation (M = E - e*sin(E))
@@ -644,8 +650,8 @@ class OrbitElements:
         true_anomaly = self._get_true_anomaly()
 
         # Calculate radius (r) and coordinates using the True Anomaly
-        r = self.semi_major_axis * (1 - self.excentricity**2) / \
-            (1 + self.excentricity * np.cos(true_anomaly))
+        r = self.semi_major_axis * (1 - self.eccentricity**2) / \
+            (1 + self.eccentricity * np.cos(true_anomaly))
 
         x = r * np.cos(true_anomaly)
         y = r * np.sin(true_anomaly)
@@ -671,11 +677,11 @@ class OrbitElements:
 
     def velocity_at_perigee(self):
         """Compute orbital velocity at perigee in km/s."""
-        return self._get_velocity_at_apsis(1 - self.excentricity, 1 + self.excentricity)
+        return self._get_velocity_at_apsis(1 - self.eccentricity, 1 + self.eccentricity)
 
     def velocity_at_apogee(self):
         """Compute orbital velocity at apogee in km/s."""
-        return self._get_velocity_at_apsis(1 + self.excentricity, 1 - self.excentricity)
+        return self._get_velocity_at_apsis(1 + self.eccentricity, 1 - self.eccentricity)
 
     def _calculate_mean_motion_and_semi_major_axis(self):
         """Apply SGP4 perturbation corrections to mean motion and semi-major axis.
@@ -684,10 +690,10 @@ class OrbitElements:
         """
         a_1 = (XKE / self.mean_motion) ** (2.0 / 3)
         delta_1 = (3 / 2.0) * (CK2 / a_1**2) * ((3 * np.cos(self.inclination)**2 - 1) /
-                                               (1 - self.excentricity**2)**(3 / 2))
+                                               (1 - self.eccentricity**2)**(3 / 2))
         a_0 = a_1 * (1 - delta_1 / 3 - delta_1**2 - (134.0 / 81) * delta_1**3)
         delta_0 = (3 / 2.0) * (CK2 / a_0**2) * ((3 * np.cos(self.inclination)**2 - 1) /
-                                               (1 - self.excentricity**2)**(3 / 2))
+                                               (1 - self.eccentricity**2)**(3 / 2))
 
         corrected_mean_motion = self.mean_motion / (1 + delta_0)
         corrected_semi_major_axis = a_0 / (1 - delta_0)
@@ -704,7 +710,7 @@ class _SGDP4Base:
 
         _check_orbital_elements(orbit_elements)
 
-        self.eo = orbit_elements.excentricity
+        self.eo = orbit_elements.eccentricity
         self.xincl = orbit_elements.inclination
         self.xno = orbit_elements.original_mean_motion
         self.bstar = orbit_elements.bstar
@@ -1290,8 +1296,8 @@ class _Keplerians:
 
 
 def _check_orbital_elements(orbit_elements):
-    if not (0 < orbit_elements.excentricity < ECC_LIMIT_HIGH):
-        raise OrbitalError("Eccentricity out of range: %e" % orbit_elements.excentricity)
+    if not (0 < orbit_elements.eccentricity < ECC_LIMIT_HIGH):
+        raise OrbitalError("Eccentricity out of range: %e" % orbit_elements.eccentricity)
     if not ((0.0035 * 2 * np.pi / XMNPDA) < orbit_elements.original_mean_motion < (18 * 2 * np.pi / XMNPDA)):
         raise OrbitalError("Mean motion out of range: %e" % orbit_elements.original_mean_motion)
     if not (0 < orbit_elements.inclination < np.pi):

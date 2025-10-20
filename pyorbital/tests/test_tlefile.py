@@ -32,6 +32,8 @@ from unittest import mock
 
 import pytest
 
+from pyorbital.config import config
+
 LINE0 = "ISS (ZARYA)"
 LINE1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
 LINE2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537"
@@ -120,9 +122,9 @@ def test_read_tlefile_standard_platform_name(monkeypatch, fake_platforms_txt_fil
     from pyorbital import tlefile
 
     path_to_platforms_txt_file = fake_platforms_txt_file.parent
-    monkeypatch.setenv("PYORBITAL_CONFIG_PATH", str(path_to_platforms_txt_file))
 
-    tle_n21 = tlefile.read("NOAA-21", str(fake_tlefile))
+    with config.set(config_path=str(path_to_platforms_txt_file)):
+        tle_n21 = tlefile.read("NOAA-21", str(fake_tlefile))
     assert tle_n21.line1 == "1 54234U 22150A   23045.56664999  .00000332  00000+0  17829-3 0  9993"
     assert tle_n21.line2 == "2 54234  98.7059 345.5113 0001226  81.6523 278.4792 14.19543871 13653"
 
@@ -135,9 +137,9 @@ def test_read_tlefile_non_standard_platform_name(monkeypatch, fake_platforms_txt
     from pyorbital import tlefile
 
     path_to_platforms_txt_file = fake_platforms_txt_file.parent
-    monkeypatch.setenv("PYORBITAL_CONFIG_PATH", str(path_to_platforms_txt_file))
 
-    tle_n20 = tlefile.read("NOAA 20", str(fake_tlefile))
+    with config.set(config_path=str(path_to_platforms_txt_file)):
+        tle_n20 = tlefile.read("NOAA 20", str(fake_tlefile))
 
     assert tle_n20.line1 == "1 43013U 17073A   23045.54907786  .00000253  00000+0  14081-3 0  9995"
     assert tle_n20.line2 == "2 43013  98.7419 345.5839 0001610  80.3742 279.7616 14.19558274271576"
@@ -168,11 +170,11 @@ def test_read_tlefile_non_standard_platform_name_matching_start_of_name_in_tlefi
     from pyorbital import tlefile
 
     path_to_platforms_txt_file = fake_platforms_txt_file.parent
-    monkeypatch.setenv("PYORBITAL_CONFIG_PATH", str(path_to_platforms_txt_file))
 
-    with pytest.raises(KeyError) as exc_info:
-        with caplog.at_level(logging.DEBUG):
-            _ = tlefile.read(sat_name, str(fake_tlefile))
+    with config.set(config_path=str(path_to_platforms_txt_file)):
+        with pytest.raises(KeyError) as exc_info:
+            with caplog.at_level(logging.DEBUG):
+                _ = tlefile.read(sat_name, str(fake_tlefile))
 
     assert f"Found a possible match: {expected}?" in caplog.text
     assert str(exc_info.value) == f'"Found no TLE entry for \'{sat_name}\'"'
@@ -308,11 +310,10 @@ def test_get_config_path_ppp_config_set_and_pyorbital(caplog, monkeypatch):
     from pyorbital.tlefile import _get_config_path
 
     pyorbital_config_dir = "/path/to/pyorbital/config/dir"
-    monkeypatch.setenv("PYORBITAL_CONFIG_PATH", pyorbital_config_dir)
     monkeypatch.setenv("PPP_CONFIG_DIR", "/path/to/old/mpop/config/dir")
-
-    with caplog.at_level(logging.WARNING):
-        res = _get_config_path()
+    with config.set(config_path=pyorbital_config_dir):
+        with caplog.at_level(logging.WARNING):
+            res = _get_config_path()
 
     assert res == pyorbital_config_dir
     assert caplog.text == ""
@@ -327,10 +328,10 @@ def test_get_config_path_pyorbital_ppp_missing(caplog, monkeypatch):
     from pyorbital.tlefile import _get_config_path
 
     pyorbital_config_dir = "/path/to/pyorbital/config/dir"
-    monkeypatch.setenv("PYORBITAL_CONFIG_PATH", pyorbital_config_dir)
 
-    with caplog.at_level(logging.DEBUG):
-        res = _get_config_path()
+    with config.set(config_path=pyorbital_config_dir):
+        with caplog.at_level(logging.DEBUG):
+            res = _get_config_path()
 
     assert res == pyorbital_config_dir
     log_output = ("Path to the Pyorbital configuration (where e.g. " +
@@ -436,7 +437,7 @@ class TLETest(unittest.TestCase):
         # line 2
         assert tle.inclination == 51.6416
         assert tle.right_ascension == 247.4627
-        assert tle.excentricity == 0.0006703
+        assert tle.eccentricity == 0.0006703
         assert tle.arg_perigee == 130.536
         assert tle.mean_anomaly == 325.0288
         assert tle.mean_motion == 15.72125391
@@ -876,6 +877,6 @@ def test_tle_instance_printing():
 
     tle = Tle("ISS", line1=LINE1, line2=LINE2)
 
-    expected = "{'arg_perigee': 130.536,\n 'bstar': -1.1606e-05,\n 'classification': 'U',\n 'element_number': 292,\n 'ephemeris_type': 0,\n 'epoch': np.datetime64('2008-09-20T12:25:40.104192'),\n 'epoch_day': 264.51782528,\n 'epoch_year': '08',\n 'excentricity': 0.0006703,\n 'id_launch_number': '067',\n 'id_launch_piece': 'A  ',\n 'id_launch_year': '98',\n 'inclination': 51.6416,\n 'mean_anomaly': 325.0288,\n 'mean_motion': 15.72125391,\n 'mean_motion_derivative': -2.182e-05,\n 'mean_motion_sec_derivative': 0.0,\n 'orbit': 56353,\n 'right_ascension': 247.4627,\n 'satnumber': '25544'}"  # noqa
+    expected = "{'arg_perigee': 130.536,\n 'bstar': -1.1606e-05,\n 'classification': 'U',\n 'eccentricity': 0.0006703,\n 'element_number': 292,\n 'ephemeris_type': 0,\n 'epoch': np.datetime64('2008-09-20T12:25:40.104192'),\n 'epoch_day': 264.51782528,\n 'epoch_year': '08',\n 'id_launch_number': '067',\n 'id_launch_piece': 'A  ',\n 'id_launch_year': '98',\n 'inclination': 51.6416,\n 'mean_anomaly': 325.0288,\n 'mean_motion': 15.72125391,\n 'mean_motion_derivative': -2.182e-05,\n 'mean_motion_sec_derivative': 0.0,\n 'orbit': 56353,\n 'right_ascension': 247.4627,\n 'satnumber': '25544'}"  # noqa
 
     assert str(tle) == expected

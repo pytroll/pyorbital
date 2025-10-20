@@ -43,7 +43,7 @@ class MockTLE:
     def __init__(self):
         """Initialize mock TLE values for testing."""
         self.epoch = datetime.datetime(2025, 9, 30, 12, 0, 0)
-        self.excentricity = 0.001
+        self.eccentricity = 0.001
         self.inclination = 98.7
         self.right_ascension = 120.0
         self.arg_perigee = 87.0
@@ -65,10 +65,10 @@ def test_orbit_elements_computation():
     assert -np.pi <= orbit.right_ascension_lon <= np.pi
 
 
-def test_zero_excentricity():
+def test_zero_eccentricity():
     """Test perigee calculation with zero eccentricity."""
     tle = MockTLE()
-    tle.excentricity = 0.0
+    tle.eccentricity = 0.0
     orbit = OrbitElements(tle)
     # Perigee == Apogee altitude when e=0
     assert orbit.perigee == pytest.approx(
@@ -134,7 +134,7 @@ def test_apogee_computation():
     tle = MockTLE()
     orbit = OrbitElements(tle)
     expected_apogee = (
-        (orbit.semi_major_axis * (1 + orbit.excentricity)) / AE - AE
+        (orbit.semi_major_axis * (1 + orbit.eccentricity)) / AE - AE
     ) * XKMPER
     assert orbit.apogee == pytest.approx(expected_apogee, abs=1e-3)
 
@@ -178,7 +178,7 @@ def test_velocity_at_apogee_accuracy():
 def test_position_vector_in_orbital_plane_perigee_accuracy():
     """Test position vector at perigee (Mean Anomaly = 0°)."""
     tle = MockTLE()
-    tle.excentricity = 0.001
+    tle.eccentricity = 0.001
     tle.mean_anomaly = 0.0
     orbit = OrbitElements(tle)
     pos = orbit.position_vector_in_orbital_plane()
@@ -208,16 +208,16 @@ def test_position_vector_in_orbital_plane_varied(mean_anomaly_deg, expected_radi
 
 
 @pytest.mark.parametrize(
-    ("excentricity", "expected"),
+    ("eccentricity", "expected"),
     [
         (0.0005, True),
         (0.01, False),
     ],
 )
-def test_is_circular_property(excentricity, expected):
+def test_is_circular_property(eccentricity, expected):
     """Test circular orbit detection based on eccentricity."""
     tle = MockTLE()
-    tle.excentricity = excentricity
+    tle.eccentricity = eccentricity
     orbit = OrbitElements(tle)
     assert orbit.is_circular == expected
 
@@ -237,22 +237,22 @@ def test_is_retrograde_property(inclination_deg, expected):
     assert orbit.is_retrograde == expected
 
 
-@pytest.mark.parametrize("excentricity", [0.001, 0.01, 0.1, 0.5])
-def test_velocity_perigee_greater_than_apogee(excentricity):
+@pytest.mark.parametrize("eccentricity", [0.001, 0.01, 0.1, 0.5])
+def test_velocity_perigee_greater_than_apogee(eccentricity):
     """Ensure velocity at perigee is greater than at apogee for elliptical orbits."""
     tle = MockTLE()
-    tle.excentricity = excentricity
+    tle.eccentricity = eccentricity
     orbit = OrbitElements(tle)
     v_perigee = orbit.velocity_at_perigee()
     v_apogee = orbit.velocity_at_apogee()
     assert v_perigee > v_apogee
 
 
-@pytest.mark.parametrize("excentricity", [0.0, ECC_EPS / 10, ECC_EPS])
-def test_velocity_equal_for_circular_orbits(excentricity):
+@pytest.mark.parametrize("eccentricity", [0.0, ECC_EPS / 10, ECC_EPS])
+def test_velocity_equal_for_circular_orbits(eccentricity):
     """Ensure velocity at perigee equals velocity at apogee for nearly circular orbits."""
     tle = MockTLE()
-    tle.excentricity = excentricity
+    tle.eccentricity = eccentricity
     orbit = OrbitElements(tle)
     v_perigee = orbit.velocity_at_perigee()
     v_apogee = orbit.velocity_at_apogee()
@@ -262,7 +262,7 @@ def test_velocity_equal_for_circular_orbits(excentricity):
 def test_high_eccentricity_limit():
     """Test behavior near the upper eccentricity limit."""
     tle = MockTLE()
-    tle.excentricity = ECC_LIMIT_HIGH
+    tle.eccentricity = ECC_LIMIT_HIGH
     orbit = OrbitElements(tle)
     assert orbit.semi_major_axis > 0
     assert orbit.velocity_at_perigee() > orbit.velocity_at_apogee()
@@ -281,7 +281,7 @@ def test_sgp4_unnormalization_value():
             super().__init__()
             """Initialize reference TLE values for SGP4 unnormalization test."""
             self.inclination = 98.7408  # degrees
-            self.excentricity = 0.001140
+            self.eccentricity = 0.001140
             self.mean_motion = 14.28634842  # rev/day
             self.epoch = datetime.datetime(2200, 1, 1, 0, 0, 0)
 

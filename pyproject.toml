@@ -10,6 +10,7 @@ dependencies = ["numpy>=1.19.0",
                 "requests",
                 "defusedxml",
                 "pyproj>=3.7.1",
+                "donfig",
                 ]
 readme = "README.md"
 requires-python = ">=3.10"

@@ -27,10 +27,13 @@ import sqlite3
 import warnings
 from itertools import zip_longest
 from urllib.request import urlopen
+from warnings import warn
 
 import defusedxml.ElementTree as ET
 import numpy as np
 import requests
+
+from pyorbital.config import config
 
 TLE_GROUPS = ("active",
               "weather",
@@ -55,14 +58,14 @@ class TleDownloadTimeoutError(Exception):
 
 def _get_config_path():
     """Get the config path for Pyorbital."""
-    if "PPP_CONFIG_DIR" in os.environ and "PYORBITAL_CONFIG_PATH" not in os.environ:
+    if "PPP_CONFIG_DIR" in os.environ and "config_path" not in config:
         LOGGER.warning(
             "The use of PPP_CONFIG_DIR is no longer supported!" +
             " Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
         LOGGER.debug("Using the package default for configuration: %s", PKG_CONFIG_DIR)
         return PKG_CONFIG_DIR
     else:
-        pyorbital_config_path = os.getenv("PYORBITAL_CONFIG_PATH", PKG_CONFIG_DIR)
+        pyorbital_config_path = config.get("config_path", PKG_CONFIG_DIR)
 
     LOGGER.debug("Path to the Pyorbital configuration (where e.g. platforms.txt is found): %s",
                  str(pyorbital_config_path))
@@ -187,7 +190,7 @@ class Tle:
         self.element_number = None
         self.inclination = None
         self.right_ascension = None
-        self.excentricity = None
+        self.eccentricity = None
         self.arg_perigee = None
         self.mean_anomaly = None
         self.mean_motion = None
@@ -196,6 +199,12 @@ class Tle:
         self._read_tle()
         self._checksum()
         self._parse_tle()
+
+    @property
+    def excentricity(self):
+        """Get 'eccentricity' using legacy 'excentricity' name."""
+        warnings.warn("The 'eccentricity' property is deprecated in favor of 'eccentricity'", stacklevel=2)
+        return self.eccentricity
 
     @property
     def line1(self):
@@ -272,7 +281,7 @@ class Tle:
 
         self.inclination = float(self._line2[8:16])
         self.right_ascension = float(self._line2[17:25])
-        self.excentricity = int(self._line2[26:33]) * 10 ** -7
+        self.eccentricity = int(self._line2[26:33]) * 10 ** -7
         self.arg_perigee = float(self._line2[34:42])
         self.mean_anomaly = float(self._line2[43:51])
         self.mean_motion = float(self._line2[52:63])
@@ -297,7 +306,7 @@ class Tle:
             "element_number": self.element_number,
             "inclination": self.inclination,
             "right_ascension": self.right_ascension,
-            "excentricity": self.excentricity,
+            "eccentricity": self.eccentricity,
             "arg_perigee": self.arg_perigee,
             "mean_anomaly": self.mean_anomaly,
             "mean_motion": self.mean_motion,
@@ -360,6 +369,10 @@ def _get_local_uris_and_open_method(local_tle_path):
         LOGGER.debug("Reading TLE from %s", uris[0])
         open_func = _open
     else:
+        if config.get("fetch_from_celestrak", None) is not True:
+            warn("In the future, implicit downloads of TLEs from Celestrak will be disabled by default. "
+                 "You can enable it (and remove this warning) by setting PYORBITAL_FETCH_FROM_CELESTRAK to True.",
+                 DeprecationWarning)
         LOGGER.warning("TLES environment variable points to no TLE files")
         throttle_warning = "TLEs will be downloaded from Celestrak, which can throttle the connection."
         LOGGER.warning(throttle_warning)

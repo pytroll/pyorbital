@@ -52,9 +52,6 @@ TLE_URLS = [f"https://celestrak.org/NORAD/elements/gp.php?GROUP={group}&FORMAT=t
 LOGGER = logging.getLogger(__name__)
 PKG_CONFIG_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), "etc")
 
-class TleDownloadTimeoutError(Exception):
-    """TLE download timeout exception."""
-
 
 def _get_config_path():
     """Get the config path for Pyorbital."""
@@ -485,8 +482,9 @@ class Downloader(object):
                     try:
                         req = requests.get(uri, timeout=15)  # 15 seconds
                     except requests.exceptions.Timeout:
-                        raise TleDownloadTimeoutError(f"Failed to make request to {str(uri)} within 15 seconds!")
-                    if req.status_code == 200:
+                        logging.error(f"Failed to make request to {str(uri)} within 15 seconds!")
+                        req = None
+                    if req and req.status_code == 200:
                         tles[source] += _parse_tles_for_downloader((req.text,), io.StringIO)
                     else:
                         failures.append(uri)
@@ -494,8 +492,7 @@ class Downloader(object):
                     logging.error(
                         "Could not fetch TLEs from %s, %d failure(s): [%s]",
                         source, len(failures), ", ".join(failures))
-                logging.info("Downloaded %d TLEs from %s",
-                             len(tles[source]), source)
+                logging.info("Downloaded %d TLEs from %s", len(tles[source]), source)
         return tles
 
     def fetch_spacetrack(self):

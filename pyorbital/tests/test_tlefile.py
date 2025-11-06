@@ -560,7 +560,7 @@ class TestDownloader(unittest.TestCase):
         assert "source_2" in res
         assert len(res["source_2"]) == 1
         assert mock.call("mocked_url_1", timeout=15) in requests.get.mock_calls
-        assert len(requests.get.mock_calls) == 4
+        assert len([c for c in requests.get.mock_calls if c.args]) == 4
 
     @mock.patch("logging.error")
     @mock.patch("pyorbital.tlefile.requests.get")
@@ -597,7 +597,7 @@ class TestDownloader(unittest.TestCase):
         assert len(res["source_2"]) == 0
 
         assert mock.call("mocked_url_1", timeout=15) in requests.get.mock_calls
-        assert len(requests.get.mock_calls) == 4
+        assert len([c for c in requests.get.mock_calls if c.args]) == 4
 
     @mock.patch("pyorbital.tlefile.requests")
     def test_fetch_spacetrack_login_fails(self, requests):

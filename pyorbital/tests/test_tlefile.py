@@ -562,6 +562,23 @@ class TestDownloader(unittest.TestCase):
         assert mock.call("mocked_url_1", timeout=15) in requests.get.mock_calls
         assert len(requests.get.mock_calls) == 4
 
+    @mock.patch("logging.error")
+    @mock.patch("pyorbital.tlefile.requests.get")
+    def test_fetch_plain_tle_timeout(self, requests_get, logging_error):
+        """Test that timeout is logged."""
+        from requests.exceptions import Timeout
+
+        requests_get.side_effect = Timeout
+
+        self.dl.config["downloaders"] = FETCH_PLAIN_TLE_CONFIG
+
+        res = self.dl.fetch_plain_tle()
+        for url in ["mocked_url_1", "mocked_url_2", "mocked_url_3", "mocked_url_4"]:
+            expected = mock.call(f"Failed to make request to {url} within 15 seconds!")
+            assert expected in logging_error.mock_calls
+        assert not res["source_1"]
+        assert not res["source_2"]
+
     @mock.patch("pyorbital.tlefile.requests")
     def test_fetch_plain_tle_server_is_a_teapot(self, requests):
         """Test downloading a TLE file from internet."""

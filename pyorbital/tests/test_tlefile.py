@@ -859,7 +859,7 @@ class TestSQLiteTLE(unittest.TestCase):
         assert "%" not in files[0]
         # The satellite name should be in the file
         with open(files[0], "r") as fid:
-            data = fid.read().split("\n")
+            data = fid.read().strip("\n").split("\n")
         assert len(data) == 3
         assert "ISS" in data[0]
         assert data[1] == LINE1
@@ -883,7 +883,7 @@ class TestSQLiteTLE(unittest.TestCase):
         files = sorted(glob.glob(os.path.join(tle_dir, "tle_*txt")))
         assert len(files) == 2
         with open(files[1], "r") as fid:
-            data = fid.read().split("\n")
+            data = fid.read().strip("\n").split("\n")
         assert len(data) == 2
         assert data[0] == LINE1
         assert data[1] == LINE2

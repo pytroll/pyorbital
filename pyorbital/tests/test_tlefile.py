@@ -533,11 +533,7 @@ class TestDownloader(unittest.TestCase):
 
     @mock.patch("pyorbital.tlefile.requests")
     def test_fetch_plain_tle_not_configured(self, requests):
-        """Test downloading and a TLE file from internet."""
-        requests.get = mock.MagicMock()
-        requests.get.return_value = _get_req_response(200)
-
-        # Not configured
+        """Test that plain TLE downloading is not called when not configured."""
         self.dl.config["downloaders"] = {}
         res = self.dl.fetch_plain_tle()
         assert res == {}
@@ -545,7 +541,7 @@ class TestDownloader(unittest.TestCase):
 
     @mock.patch("pyorbital.tlefile.requests")
     def test_fetch_plain_tle_two_sources(self, requests):
-        """Test downloading and a TLE file from internet."""
+        """Test downloading a TLE file from internet."""
         requests.get = mock.MagicMock()
         requests.get.return_value = _get_req_response(200)
 
@@ -859,7 +855,9 @@ class TestSQLiteTLE(unittest.TestCase):
         assert "%" not in files[0]
         # The satellite name should be in the file
         with open(files[0], "r") as fid:
-            data = fid.read().split("\n")
+            data = fid.read()
+        assert data.endswith("\n")
+        data = data.strip("\n").split("\n")
         assert len(data) == 3
         assert "ISS" in data[0]
         assert data[1] == LINE1
@@ -883,7 +881,7 @@ class TestSQLiteTLE(unittest.TestCase):
         files = sorted(glob.glob(os.path.join(tle_dir, "tle_*txt")))
         assert len(files) == 2
         with open(files[1], "r") as fid:
-            data = fid.read().split("\n")
+            data = fid.read().strip("\n").split("\n")
         assert len(data) == 2
         assert data[0] == LINE1
         assert data[1] == LINE2

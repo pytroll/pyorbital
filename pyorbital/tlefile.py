@@ -680,6 +680,8 @@ class SQLiteTLE(object):
 
         with open(fname, "w") as fid:
             fid.write("\n".join(data))
+            # Add a line-change after the last entry
+            fid.write("\n")
 
         logging.info("Wrote %d TLEs to %s", len(data), fname)
 

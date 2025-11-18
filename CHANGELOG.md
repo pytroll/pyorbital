@@ -1,3 +1,38 @@
+###############################################################################
+## Version 1.11.0 (2025/11/18)
+
+### Issues Closed
+
+* [Issue 203](https://github.com/pytroll/pyorbital/issues/203) - Coordinate system and units for `get_position` are unspecified
+* [Issue 145](https://github.com/pytroll/pyorbital/issues/145) - Geostationary satellite scan geometry example
+* [Issue 111](https://github.com/pytroll/pyorbital/issues/111) - Documentation refers to PPP_CONFIG_DIR
+* [Issue 74](https://github.com/pytroll/pyorbital/issues/74) - ValueError in case of empty or missing TLE files ([PR 205](https://github.com/pytroll/pyorbital/pull/205) by [@pnuu](https://github.com/pnuu))
+* [Issue 61](https://github.com/pytroll/pyorbital/issues/61) - Test data never makes it in sdist/bdist packages
+* [Issue 43](https://github.com/pytroll/pyorbital/issues/43) - Satellite elevation/azimuth wrong
+
+In this release 6 issues were closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 214](https://github.com/pytroll/pyorbital/pull/214) - Fix TLE writing by adding a newline after the last TLE entry
+* [PR 213](https://github.com/pytroll/pyorbital/pull/213) - Fix timeout preventing storage of TLEs
+
+#### Features added
+
+* [PR 213](https://github.com/pytroll/pyorbital/pull/213) - Fix timeout preventing storage of TLEs
+* [PR 211](https://github.com/pytroll/pyorbital/pull/211) - Rename 'excentricity' properties to 'eccentricity'
+* [PR 210](https://github.com/pytroll/pyorbital/pull/210) - Start deprecating automatic tle downloads
+* [PR 205](https://github.com/pytroll/pyorbital/pull/205) - Add fallback when `TLES` environment variable not listing any files ([74](https://github.com/pytroll/pyorbital/issues/74), [74](https://github.com/pytroll/pyorbital/issues/74))
+* [PR 204](https://github.com/pytroll/pyorbital/pull/204) - Extend `OrbitElements` Class with New Methods and Add Pytest Coverage
+* [PR 202](https://github.com/pytroll/pyorbital/pull/202) - Move import of tlefile inline to avoid import-time side effects
+
+In this release 8 pull requests were closed.
+
+###############################################################################
+
+
 ## Version 1.10.2 (2025/06/09)
 
 

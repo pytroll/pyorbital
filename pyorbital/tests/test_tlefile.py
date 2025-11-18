@@ -533,11 +533,7 @@ class TestDownloader(unittest.TestCase):
 
     @mock.patch("pyorbital.tlefile.requests")
     def test_fetch_plain_tle_not_configured(self, requests):
-        """Test downloading and a TLE file from internet."""
-        requests.get = mock.MagicMock()
-        requests.get.return_value = _get_req_response(200)
-
-        # Not configured
+        """Test that plain TLE downloading is not called when not configured."""
         self.dl.config["downloaders"] = {}
         res = self.dl.fetch_plain_tle()
         assert res == {}
@@ -545,7 +541,7 @@ class TestDownloader(unittest.TestCase):
 
     @mock.patch("pyorbital.tlefile.requests")
     def test_fetch_plain_tle_two_sources(self, requests):
-        """Test downloading and a TLE file from internet."""
+        """Test downloading a TLE file from internet."""
         requests.get = mock.MagicMock()
         requests.get.return_value = _get_req_response(200)
 

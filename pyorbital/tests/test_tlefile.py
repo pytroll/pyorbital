@@ -648,11 +648,18 @@ class TestDownloader:
         assert res[0].line1 == LINE1
         assert res[0].line2 == LINE2
 
-    def test_read_tle_files(self):
+    @pytest.mark.parametrize(
+        "tle_lines", [(LINE1, LINE2),
+                      (LINE1, LINE2, ""),
+                      (LINE0, LINE1, LINE2),
+                      (LINE0, LINE1, LINE2, ""),
+                      ]
+    )
+    def test_read_tle_files(self, tle_lines):
         """Test reading TLE files from a file system."""
         from tempfile import TemporaryDirectory
 
-        tle_text = "\n".join((LINE0, LINE1, LINE2))
+        tle_text = "\n".join(tle_lines)
 
         save_dir = TemporaryDirectory()
         with save_dir:

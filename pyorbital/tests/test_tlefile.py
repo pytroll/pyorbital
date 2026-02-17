@@ -499,10 +499,10 @@ FETCH_SPACETRACK_CONFIG = {
 }
 
 
-class TestDownloader(unittest.TestCase):
+class TestDownloader:
     """Test TLE downloader."""
 
-    def setUp(self):
+    def setup_method(self):
         """Create a downloader instance."""
         from pyorbital.tlefile import Downloader
         self.config = {}

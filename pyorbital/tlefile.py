@@ -416,19 +416,39 @@ def _decode_lines(fid, l_0, platform, only_first, open_is_dummy=False):
     tle = ""
     l_0 = _decode(l_0)
     if l_0.strip() == platform:
+        tle = _decode_lines_with_platform_header(fid)
+    elif l_0.strip().startswith(designator):
+        tle = _decode_lines_without_platform_header(fid, l_0, platform, only_first, open_is_dummy)
+    elif l_0.startswith(platform) and platform not in SATELLITES:
+        LOGGER.debug("Found a possible match: %s?", str(l_0.strip()))
+
+    return tle
+
+
+def _decode_lines_with_platform_header(fid):
+    tle = ""
+    try:
         l_1 = _decode(next(fid))
         l_2 = _decode(next(fid))
         tle = _merge_tle_from_two_lines(l_1, l_2)
-    elif l_0.strip().startswith(designator):
-        if (platform in SATELLITES or not only_first) or open_is_dummy:
-            l_1 = l_0
+    except StopIteration:
+        # There were empty lines at the end of the file
+        pass
+    return tle
+
+
+def _decode_lines_without_platform_header(fid, l_0, platform, only_first, open_is_dummy):
+    tle = ""
+    if (platform in SATELLITES or not only_first) or open_is_dummy:
+        l_1 = l_0
+        try:
             l_2 = _decode(next(fid))
             tle = _merge_tle_from_two_lines(l_1, l_2)
             if platform:
                 LOGGER.debug("Found platform %s, ID: %s", platform, SATELLITES[platform])
-    elif l_0.startswith(platform) and platform not in SATELLITES:
-        LOGGER.debug("Found a possible match: %s?", str(l_0.strip()))
-
+        except StopIteration:
+            # There were empty lines at the end of the file
+            pass
     return tle
 
 

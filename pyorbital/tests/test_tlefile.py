@@ -651,8 +651,10 @@ class TestDownloader:
     @pytest.mark.parametrize(
         "tle_lines", [(LINE1, LINE2),
                       (LINE1, LINE2, ""),
+                      (LINE1, LINE2, "", ""),
                       (LINE0, LINE1, LINE2),
                       (LINE0, LINE1, LINE2, ""),
+                      (LINE0, LINE1, LINE2, "", ""),
                       ]
     )
     def test_read_tle_files(self, tle_lines):

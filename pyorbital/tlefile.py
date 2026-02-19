@@ -433,6 +433,7 @@ def _decode_lines_with_platform_header(fid):
 
 
 def _decode_lines_without_platform_header(fid, l_0, platform, only_first, open_is_dummy):
+    tle = ""
     if (platform in SATELLITES or not only_first) or open_is_dummy:
         l_1 = l_0
         l_2 = _decode(next(fid))

@@ -113,7 +113,6 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     (pos_x, pos_y, pos_z), _ = astronomy.observer_position(utc_time, sat_lon, sat_lat, sat_alt)
     (opos_x, opos_y, opos_z), _ = astronomy.observer_position(utc_time, lon, lat, alt)
 
-    # Convert observer coordinates to radians
     lon = np.deg2rad(lon)
     lat = np.deg2rad(lat)
 

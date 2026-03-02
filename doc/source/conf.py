@@ -13,15 +13,16 @@
 """Configurations for sphinx based documentation."""
 
 import datetime as dt
-import os
 import sys
+from pathlib import Path
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute, like shown here.
+# documentation root, use an absolute path as shown here.
 
-sys.path.insert(0, os.path.abspath("../../"))
-sys.path.insert(0, os.path.abspath("../../pyorbital"))
+root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(root))
+sys.path.insert(0, str(root / "pyorbital"))
 from pyorbital.version import __version__  # noqa
 
 # -- General configuration -----------------------------------------------------
@@ -46,10 +47,9 @@ source_suffix = ".rst"
 master_doc = "index"
 
 # General information about the project.
-project = u"pyorbital"
-copyright = u"2012, 2024-{}, The PyTroll Team".format(dt.datetime.utcnow().strftime("%Y"))  # noqa: A001
-
-
+project = "pyorbital"
+current_year = dt.datetime.now(dt.timezone.utc).year
+copyright = f"2012, 2024-{current_year}, The PyTroll Team"  # noqa: A001
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -197,8 +197,8 @@ htmlhelp_basename = "pyorbitaldoc"
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-    ("index", "pyorbital.tex", u"pyorbital Documentation",
-     u"The Pytroll crew", "manual"),
+    ("index", "pyorbital.tex", "pyorbital Documentation",
+     "The Pytroll crew", "manual"),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -230,6 +230,6 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ("index", "pyorbital", u"pyorbital Documentation",
-     [u"The Pytroll crew"], 1)
+    ("index", "pyorbital", "pyorbital Documentation",
+     ["The Pytroll crew"], 1)
 ]

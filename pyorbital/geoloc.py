@@ -51,7 +51,7 @@ def subpoint(query_point, a=A, b=B):
     return np.stack([nx_, ny_, nz_], axis=0)
 
 
-class ScanGeometry(object):
+class ScanGeometry:
     """Description of the geometry of an instrument.
 
     *fovs* is the x and y viewing angles of the instrument. y is zero if the we
@@ -110,7 +110,7 @@ class ScanGeometry(object):
             return np.array(self._times) + start_of_scan
 
 
-class Quaternion(object):
+class Quaternion:
     """Some class, that I don't know what is doing..."""
 
     def __init__(self, scalar, vector):

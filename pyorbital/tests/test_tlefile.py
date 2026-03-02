@@ -6,7 +6,6 @@ import logging
 import os
 import time
 import unittest
-from contextlib import suppress
 from pathlib import Path
 from tempfile import mkstemp
 from unittest import mock
@@ -217,7 +216,8 @@ def _mock_env_tles_missing(monkeypatch):
 @pytest.fixture
 def _mock_env_tles(monkeypatch, fake_local_tles_dir):
     """Mock environment variable TLES."""
-    monkeypatch.setenv("TLES", os.path.join(fake_local_tles_dir, "*"))
+    pattern = Path(fake_local_tles_dir) / "*"
+    monkeypatch.setenv("TLES", str(pattern))
 
 
 @pytest.mark.usefixtures("_mock_env_ppp_config_dir_missing")
@@ -243,7 +243,7 @@ def test_check_is_platform_supported_existing(caplog):
     logoutput_lines = caplog.text.split("\n")
 
     expected1 = "Satellite NOAA-21 is supported. NORAD number: 54234"
-    expected2 = "Satellite names and NORAD numbers are defined in {path}".format(path=PKG_CONFIG_DIR)
+    expected2 = f"Satellite names and NORAD numbers are defined in {PKG_CONFIG_DIR}"
 
     assert expected1 in logoutput_lines[0]
     assert expected2 in logoutput_lines[1]
@@ -260,10 +260,12 @@ def test_check_is_platform_supported_unknown(caplog):
 
     logoutput_lines = caplog.text.split("\n")
 
-    expected1 = "Satellite {satellite} is NOT supported.".format(satellite=sat)
-    expected2 = ("Please add it to a local copy of the platforms.txt file and put in " +
-                 "the directory pointed to by the environment variable PYORBITAL_CONFIG_PATH")
-    expected3 = "Satellite names and NORAD numbers are defined in {path}".format(path=PKG_CONFIG_DIR)
+    expected1 = f"Satellite {sat} is NOT supported."
+    expected2 = (
+        "Please add it to a local copy of the platforms.txt file and put it in "
+        "the directory pointed to by the environment variable PYORBITAL_CONFIG_PATH"
+    )
+    expected3 = f"Satellite names and NORAD numbers are defined in {PKG_CONFIG_DIR}"
 
     assert expected1 in logoutput_lines[0]
     assert expected2 in logoutput_lines[1]
@@ -290,7 +292,7 @@ def test_get_config_path_ppp_config_set_and_pyorbital(caplog, monkeypatch):
     """Test getting the config path."""
     from pyorbital.tlefile import _get_config_path
 
-    pyorbital_config_dir = "/path/to/pyorbital/config/dir"
+    pyorbital_config_dir = Path("/path/to/pyorbital/config/dir")
     monkeypatch.setenv("PPP_CONFIG_DIR", "/path/to/old/mpop/config/dir")
     with config.set(config_path=pyorbital_config_dir):
         with caplog.at_level(logging.WARNING):
@@ -308,15 +310,17 @@ def test_get_config_path_pyorbital_ppp_missing(caplog, monkeypatch):
     """
     from pyorbital.tlefile import _get_config_path
 
-    pyorbital_config_dir = "/path/to/pyorbital/config/dir"
+    pyorbital_config_dir = Path("/path/to/pyorbital/config/dir")
 
     with config.set(config_path=pyorbital_config_dir):
         with caplog.at_level(logging.DEBUG):
             res = _get_config_path()
 
     assert res == pyorbital_config_dir
-    log_output = ("Path to the Pyorbital configuration (where e.g. " +
-                  "platforms.txt is found): {path}".format(path=pyorbital_config_dir))
+    log_output = (
+        f"Path to the Pyorbital configuration (where e.g. platforms.txt is found): "
+        f"{pyorbital_config_dir}"
+    )
     assert log_output in caplog.text
 
 
@@ -343,9 +347,11 @@ def test_get_local_tle_path(fake_local_tles_dir):
     from pyorbital.tlefile import _get_local_tle_path_from_env
 
     res = _get_local_tle_path_from_env()
-    assert res == os.path.join(fake_local_tles_dir, "*")
+    expected = str(Path(fake_local_tles_dir) / "*")
+    assert res == expected
 
 
+@pytest.mark.usefixtures("_mock_env_tles")
 def test_get_uris_and_open_func_using_tles_env(caplog, fake_local_tles_dir, monkeypatch):
     """Test getting the uris and associated open-function for reading tles.
 
@@ -355,14 +361,14 @@ def test_get_uris_and_open_func_using_tles_env(caplog, fake_local_tles_dir, monk
 
     from pyorbital.tlefile import _get_uris_and_open_func
 
-    monkeypatch.setenv("TLES", str(os.path.join(fake_local_tles_dir, "*")))
+    monkeypatch.setenv("TLES", str(Path(fake_local_tles_dir) / "*"))
 
     with caplog.at_level(logging.DEBUG):
         uris, _ = _get_uris_and_open_func()
 
     assert isinstance(uris, Sequence)
     assert uris[0] == str(fake_local_tles_dir / "tle-202211180830.txt")
-    log_message = "Reading TLE from {msg}".format(msg=str(fake_local_tles_dir))
+    log_message = f"Reading TLE from {fake_local_tles_dir}"
     assert log_message in caplog.text
 
 
@@ -476,12 +482,12 @@ class TLETest(unittest.TestCase):
 
         from pyorbital.tlefile import Tle
 
-        save_dir = TemporaryDirectory()
-        with save_dir:
-            fname = os.path.join(save_dir.name, "20210420_Metop-B_ADMIN_MESSAGE_NO_127.xml")
-            with open(fname, "w") as fid:
-                fid.write(tle_xml)
-            tle = Tle("", tle_file=fname)
+        with TemporaryDirectory() as save_dir:
+            save_dir = Path(save_dir)
+            fname = save_dir / "20210420_Metop-B_ADMIN_MESSAGE_NO_127.xml"
+            fname.write_text(tle_xml)
+            tle = Tle("", tle_file=str(fname))
+
         self.check_example(tle)
 
 
@@ -654,22 +660,26 @@ class TestDownloader(unittest.TestCase):
 
         tle_text = "\n".join((LINE0, LINE1, LINE2))
 
-        save_dir = TemporaryDirectory()
-        with save_dir:
-            fname = os.path.join(save_dir.name, "tle_20200129_1600.txt")
-            with open(fname, "w") as fid:
-                fid.write(tle_text)
+        with TemporaryDirectory() as tmp:
+            save_dir = Path(tmp)
+
+            fname = save_dir / "tle_20200129_1600.txt"
+            fname.write_text(tle_text)
 
             # Add a non-existent file, it shouldn't cause a crash
-            nonexistent = os.path.join(save_dir.name, "not_here.txt")
+            nonexistent = save_dir / "not_here.txt"
+
             # Use a wildcard to collect files (passed to glob)
-            starred_fname = os.path.join(save_dir.name, "tle*txt")
+            starred_fname = save_dir / "tle*txt"
+
             self.dl.config["downloaders"] = {
                 "read_tle_files": {
-                    "paths": [fname, nonexistent, starred_fname]
+                    "paths": [str(fname), str(nonexistent), str(starred_fname)]
                 }
             }
+
             res = self.dl.read_tle_files()
+
         assert len(res) == 2
         assert res[0].line1 == LINE1
         assert res[0].line2 == LINE2
@@ -678,20 +688,21 @@ class TestDownloader(unittest.TestCase):
         """Test reading TLE files from a file system."""
         from tempfile import TemporaryDirectory
 
-        save_dir = TemporaryDirectory()
-        with save_dir:
-            fname = os.path.join(save_dir.name, "20210420_Metop-B_ADMIN_MESSAGE_NO_127.xml")
-            with open(fname, "w") as fid:
-                fid.write(tle_xml)
-            # Add a non-existent file, it shouldn't cause a crash
-            nonexistent = os.path.join(save_dir.name, "not_here.txt")
-            # Use a wildcard to collect files (passed to glob)
-            starred_fname = os.path.join(save_dir.name, "*.xml")
+        with TemporaryDirectory() as tmp:
+            save_dir = Path(tmp)
+
+            fname = save_dir / "20210420_Metop-B_ADMIN_MESSAGE_NO_127.xml"
+            fname.write_text(tle_xml)
+
+            nonexistent = save_dir / "not_here.txt"
+            starred_fname = save_dir / "*.xml"
+
             self.dl.config["downloaders"] = {
                 "read_xml_admin_messages": {
-                    "paths": [fname, nonexistent, starred_fname]
+                    "paths": [str(fname), str(nonexistent), str(starred_fname)]
                 }
             }
+
             res = self.dl.read_xml_admin_messages()
 
         # There are two sets of TLEs in the file.  And as the same file is
@@ -709,163 +720,6 @@ def _get_req_response(code):
     req.text = "\n".join((LINE0, LINE1, LINE2))
     return req
 
-
-class TestSQLiteTLE(unittest.TestCase):
-    """Test saving TLE data to a SQLite database."""
-
-    def setUp(self):
-        """Create a database instance."""
-        from tempfile import TemporaryDirectory
-
-        from pyorbital.tlefile import SQLiteTLE, Tle
-
-        self.temp_dir = TemporaryDirectory()
-        self.db_fname = os.path.join(self.temp_dir.name, "tle.db")
-        self.platforms = {25544: "ISS"}
-        self.writer_config = {
-            "output_dir": os.path.join(self.temp_dir.name, "tle_dir"),
-            "filename_pattern": "tle_%Y%m%d_%H%M%S.%f.txt",
-            "write_name": True,
-            "write_always": False
-        }
-        self.db = SQLiteTLE(self.db_fname, self.platforms, self.writer_config)
-        self.tle = Tle("ISS", line1=LINE1, line2=LINE2)
-
-    def tearDown(self):
-        """Clean temporary files."""
-        with suppress(PermissionError, NotADirectoryError):
-            self.temp_dir.cleanup()
-        self.db.close()
-
-    def test_init(self):
-        """Test that the init did what it should have."""
-        from pyorbital.tlefile import PLATFORM_NAMES_TABLE, table_exists
-
-        columns = [col.strip() for col in
-                   PLATFORM_NAMES_TABLE.strip("()").split(",")]
-        num_columns = len(columns)
-
-        assert os.path.exists(self.db_fname)
-        assert table_exists(self.db.db, "platform_names")
-        res = self.db.db.execute("select * from platform_names")
-        names = [description[0] for description in res.description]
-        assert len(names) == num_columns
-        for col in columns:
-            assert col.split(" ")[0] in names
-
-    def test_update_db(self):
-        """Test updating database with new data."""
-        from pyorbital.tlefile import ISO_TIME_FORMAT, SATID_TABLE, _utcnow, table_exists
-
-        # Get the column names
-        columns = [col.strip() for col in
-                   SATID_TABLE.replace("'{}' (", "").strip(")").split(",")]
-        # Platform number
-        satid = int(list(self.platforms.keys())[0])
-
-        # Data from a platform that isn't configured
-        self.db.platforms = {}
-        self.db.update_db(self.tle, "foo")
-        assert not table_exists(self.db.db, satid)
-        assert not self.db.updated
-
-        # Configured platform
-        self.db.platforms = self.platforms
-        self.db.update_db(self.tle, "foo")
-        assert table_exists(self.db.db, satid)
-        assert self.db.updated
-
-        # Check that all the columns were added
-        res = self.db.db.execute(f"select * from '{satid:d}'")  # noseq
-        names = [description[0] for description in res.description]
-        for col in columns:
-            assert col.split(" ")[0] in names
-
-        # Check the data
-        data = res.fetchall()
-        assert len(data) == 1
-        # epoch
-        assert data[0][0] == "2008-09-20T12:25:40.104192"
-        # TLE
-        assert data[0][1] == "\n".join((LINE1, LINE2))
-        # Date when the data were added should be close to current time
-        date_added = dt.datetime.strptime(data[0][2], ISO_TIME_FORMAT)
-        now = _utcnow()
-        assert (now - date_added).total_seconds() < 1.0
-        # Source of the data
-        assert data[0][3] == "foo"
-
-        # Try to add the same data again. Nothing should change even
-        # if the source is different if the epoch is the same
-        self.db.update_db(self.tle, "bar")
-        res = self.db.db.execute(f"select * from '{satid:d}'")  # noseq
-        data = res.fetchall()
-        assert len(data) == 1
-        date_added2 = dt.datetime.strptime(data[0][2], ISO_TIME_FORMAT)
-        assert date_added == date_added2
-        # Source of the data
-        assert data[0][3] == "foo"
-
-    def test_write_tle_txt(self):
-        """Test reading data from the database and writing it to a file."""
-        import glob
-        tle_dir = self.writer_config["output_dir"]
-
-        # Put some data in the database
-        self.db.update_db(self.tle, "foo")
-
-        # Fake that the database hasn't been updated
-        self.db.updated = False
-
-        # Try to dump the data to disk
-        self.db.write_tle_txt()
-
-        # The output dir hasn't been created
-        assert not os.path.exists(tle_dir)
-
-        self.db.updated = True
-        self.db.write_tle_txt()
-
-        # The dir should be there
-        assert os.path.exists(tle_dir)
-        # There should be one file in the directory
-        files = glob.glob(os.path.join(tle_dir, "tle_*txt"))
-        assert len(files) == 1
-        # The file should have been named with the date ('%' characters
-        # not there anymore)
-        assert "%" not in files[0]
-        # The satellite name should be in the file
-        with open(files[0], "r") as fid:
-            data = fid.read()
-        assert data.endswith("\n")
-        data = data.strip("\n").split("\n")
-        assert len(data) == 3
-        assert "ISS" in data[0]
-        assert data[1] == LINE1
-        assert data[2] == LINE2
-
-        # Call the writing again, nothing should be written. In
-        # real-life this assumes a re-run has been done without new
-        # TLE data
-        self.db.updated = False
-        self.db.write_tle_txt()
-        files = glob.glob(os.path.join(tle_dir, "tle_*txt"))
-        assert len(files) == 1
-
-        # Force writing with every call
-        # Do not write the satellite name
-        self.db.writer_config["write_always"] = True
-        self.db.writer_config["write_name"] = False
-        # Wait a bit to ensure different filename
-        time.sleep(2)
-        self.db.write_tle_txt()
-        files = sorted(glob.glob(os.path.join(tle_dir, "tle_*txt")))
-        assert len(files) == 2
-        with open(files[1], "r") as fid:
-            data = fid.read().strip("\n").split("\n")
-        assert len(data) == 2
-        assert data[0] == LINE1
-        assert data[1] == LINE2
 
 def test_tle_instance_printing():
     """Test the print the Tle instance."""

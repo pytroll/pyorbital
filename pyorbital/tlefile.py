@@ -8,6 +8,7 @@ import os
 import sqlite3
 import warnings
 from itertools import zip_longest
+from pathlib import Path
 from urllib.request import urlopen
 from warnings import warn
 
@@ -32,38 +33,42 @@ TLE_URLS = [f"https://celestrak.org/NORAD/elements/gp.php?GROUP={group}&FORMAT=t
 
 
 LOGGER = logging.getLogger(__name__)
-PKG_CONFIG_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), "etc")
+PKG_CONFIG_DIR = Path(__file__).resolve().parent / "etc"
 
 
-def _get_config_path():
+def _get_config_path() -> Path:
     """Get the config path for Pyorbital."""
     if "PPP_CONFIG_DIR" in os.environ and "config_path" not in config:
         LOGGER.warning(
-            "The use of PPP_CONFIG_DIR is no longer supported!" +
-            " Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!")
+            "The use of PPP_CONFIG_DIR is no longer supported! "
+            "Please use PYORBITAL_CONFIG_PATH if you need a custom config path for pyorbital!"
+        )
         LOGGER.debug("Using the package default for configuration: %s", PKG_CONFIG_DIR)
-        return PKG_CONFIG_DIR
-    else:
-        pyorbital_config_path = config.get("config_path", PKG_CONFIG_DIR)
+        return Path(PKG_CONFIG_DIR)
 
-    LOGGER.debug("Path to the Pyorbital configuration (where e.g. platforms.txt is found): %s",
-                 str(pyorbital_config_path))
+    pyorbital_config_path = Path(config.get("config_path", PKG_CONFIG_DIR))
+    LOGGER.debug(
+        "Path to the Pyorbital configuration (where e.g. platforms.txt is found): %s",
+        pyorbital_config_path
+    )
     return pyorbital_config_path
 
 
-def get_platforms_filepath():
+def get_platforms_filepath() -> str:
     """Get the platforms.txt file path.
 
     Check that the file exists or raise an error.
     """
     config_path = _get_config_path()
-    platform_file = os.path.join(config_path, "platforms.txt")
-    if not os.path.isfile(platform_file):
-        platform_file = os.path.join(PKG_CONFIG_DIR, "platforms.txt")
-        if not os.path.isfile(platform_file):
-            raise OSError("Platform file {filepath} does not exist!".format(filepath=platform_file))
+    platform_file = config_path / "platforms.txt"
 
-    return platform_file
+    if not platform_file.is_file():
+        fallback = PKG_CONFIG_DIR / "platforms.txt"
+        if not fallback.is_file():
+            raise OSError(f"Platform file {fallback} does not exist!")
+        return str(fallback)
+
+    return str(platform_file)
 
 
 def read_platform_numbers(filename, in_upper=False, num_as_int=False):
@@ -101,18 +106,22 @@ in the following format:
 """
 
 
-def check_is_platform_supported(satname):
+def check_is_platform_supported(satname) -> None:
     """Check if satellite is supported and print info."""
     if satname in SATELLITES:
-        LOGGER.info("Satellite {name} is supported. NORAD number: {norad}".format(
-            name=satname, norad=SATELLITES[satname]))
+        LOGGER.info(
+            f"Satellite {satname} is supported. NORAD number: {SATELLITES[satname]}"
+        )
     else:
-        LOGGER.info("Satellite {name} is NOT supported.".format(name=satname))
-        LOGGER.info("Please add it to a local copy of the platforms.txt file and put in " +
-                    "the directory pointed to by the environment variable PYORBITAL_CONFIG_PATH")
+        LOGGER.info(f"Satellite {satname} is NOT supported.")
+        LOGGER.info(
+            "Please add it to a local copy of the platforms.txt file and put it in "
+            "the directory pointed to by the environment variable PYORBITAL_CONFIG_PATH"
+        )
 
-    LOGGER.info("Satellite names and NORAD numbers are defined in {filepath}".format(
-        filepath=get_platforms_filepath()))
+    LOGGER.info(
+        f"Satellite names and NORAD numbers are defined in {get_platforms_filepath()}"
+    )
 
 
 def _dummy_open_stringio(stream):
@@ -343,24 +352,33 @@ def _get_local_uris_and_open_method(local_tle_path):
     # TODO: get the TLE file closest in time to the actual satellite
     # overpass, NOT the latest!
     list_of_tle_files = glob.glob(local_tle_path)
+
     if list_of_tle_files:
-        uris = (max(list_of_tle_files, key=os.path.getctime), )
+        paths = [Path(p) for p in list_of_tle_files]
+        newest = max(paths, key=lambda p: p.stat().st_ctime)
+
+        uris = (str(newest),)
         LOGGER.debug("Reading TLE from %s", uris[0])
         open_func = _open
+
     else:
         if config.get("fetch_from_celestrak", None) is not True:
-            warn("In the future, implicit downloads of TLEs from Celestrak will be disabled by default. "
-                 "You can enable it (and remove this warning) by setting PYORBITAL_FETCH_FROM_CELESTRAK to True.",
-                 DeprecationWarning)
+            warn(
+                "In the future, implicit downloads of TLEs from Celestrak will be disabled by default. "
+                "You can enable it (and remove this warning) by setting PYORBITAL_FETCH_FROM_CELESTRAK to True.",
+                DeprecationWarning
+            )
+
         LOGGER.warning("TLES environment variable points to no TLE files")
-        throttle_warning = "TLEs will be downloaded from Celestrak, which can throttle the connection."
+        throttle_warning = (
+            "TLEs will be downloaded from Celestrak, which can throttle the connection."
+        )
         LOGGER.warning(throttle_warning)
         warnings.warn(throttle_warning)
 
         uris, open_func = _get_internet_uris_and_open_method()
 
     return uris, open_func
-
 
 def _get_internet_uris_and_open_method():
     LOGGER.debug("Fetch TLE from the internet.")
@@ -445,7 +463,7 @@ PLATFORM_VALUES = "INSERT INTO platform_names VALUES (?, ?)"
 ISO_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f"
 
 
-class Downloader(object):
+class Downloader:
     """Class for downloading TLE data."""
 
     def __init__(self, config):
@@ -539,14 +557,17 @@ def _parse_tles_for_downloader(item, open_func):
 def collect_filenames(paths):
     """Collect all filenames from *paths*."""
     fnames = []
+
     for path in paths:
         if "*" in path:
             fnames += glob.glob(path)
         else:
-            if not os.path.exists(path):
-                logging.error("File %s doesn't exist.", path)
+            p = Path(path)
+            if not p.exists():
+                logging.error("File %s doesn't exist.", p)
                 continue
-            fnames += [path]
+            fnames.append(str(p))
+
     return fnames
 
 
@@ -584,7 +605,7 @@ def _group_iterable_to_chunks(n, iterable, fillvalue=None):
     return zip_longest(fillvalue=fillvalue, *args)
 
 
-class SQLiteTLE(object):
+class SQLiteTLE:
     """Store TLE data in a sqlite3 database."""
 
     def __init__(self, db_location, platforms, writer_config):
@@ -599,9 +620,9 @@ class SQLiteTLE(object):
             cmd = "CREATE TABLE platform_names " + PLATFORM_NAMES_TABLE
             with self.db:
                 self.db.execute(cmd)
-                logging.info("Created database table 'platform_names'")
+                LOGGER.info("Created database table 'platform_names'")
 
-    def update_db(self, tle, source):
+    def update_db(self, tle, source) -> None:
         """Update the collected data.
 
         Only data with newer epoch than the existing one is used.
@@ -610,64 +631,81 @@ class SQLiteTLE(object):
         num = int(tle.satnumber)
         if num not in self.platforms:
             return
+
         tle.platform_name = self.platforms[num]
+
         if not table_exists(self.db, num):
-            cmd = "CREATE TABLE " + SATID_TABLE.format(num)
+            # Create table for this satellite
+            cmd = f"CREATE TABLE {SATID_TABLE.format(num)}"
             with self.db:
                 self.db.execute(cmd)
-                logging.info("Created database table '%d'", num)
-            cmd = ""
+                LOGGER.info(f"Created database table '{num}'")
+
+            # Insert platform name
             with self.db:
                 self.db.execute(PLATFORM_VALUES, (num, self.platforms[num]))
-                logging.info("Added platform name '%s' for ID '%d'",
-                             self.platforms[num], num)
+                LOGGER.info(
+                    f"Added platform name '{self.platforms[num]}' for ID '{num}'"
+                )
+
+        # Insert TLE row
         cmd = SATID_VALUES.format(num)
         epoch = tle.epoch.item().isoformat()
-        tle = "\n".join([tle.line1, tle.line2])
+        tle_text = "\n".join([tle.line1, tle.line2])
         now = _utcnow().isoformat()
+
         try:
             with self.db:
-                self.db.execute(cmd, (epoch, tle, now, source))
-                logging.info("Added TLE for %d (%s), epoch: %s, source: %s",
-                             num, self.platforms[num], epoch, source)
+                self.db.execute(cmd, (epoch, tle_text, now, source))
+                LOGGER.info(
+                    f"Added TLE for satellite {num} ({self.platforms[num]}), "
+                    f"epoch={epoch}, source={source}"
+                )
                 self.updated = True
         except sqlite3.IntegrityError:
             pass
 
-    def write_tle_txt(self):
+    def write_tle_txt(self) -> None:
         """Write TLE data to a text file."""
         if not self.updated and not self.writer_config.get("write_always",
                                                            False):
             return
-        pattern = os.path.join(self.writer_config["output_dir"],
-                               self.writer_config["filename_pattern"])
+
+        output_dir = self.writer_config["output_dir"]
+        pattern = os.path.join(output_dir, self.writer_config["filename_pattern"])
+
         now = _utcnow()
-        fname = now.strftime(pattern)
-        out_dir = os.path.dirname(fname)
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
-            logging.info("Created directory %s", out_dir)
+        fname_str = now.strftime(pattern)
+        fname = Path(fname_str)
+
+        if not fname.parent.exists():
+            fname.parent.mkdir(parents=True, exist_ok=True)
+            LOGGER.info(f"Created directory {fname.parent}")
+
         data = []
 
         for satid, platform_name in self.platforms.items():
             if self.writer_config.get("write_name", False):
                 data.append(platform_name)
+
             query = f"SELECT epoch, tle FROM '{satid:d}' ORDER BY epoch DESC LIMIT 1"  # nosec
             epoch, tle = self.db.execute(query).fetchone()  # nosec
+
             date_epoch = dt.datetime.strptime(epoch, ISO_TIME_FORMAT)
-            tle_age = (_utcnow() - date_epoch).total_seconds() / 3600.
-            logging.info("Latest TLE for '%s' (%s) is %d hours old.",
-                         satid, platform_name, int(tle_age))
+            tle_age = (_utcnow() - date_epoch).total_seconds() / 3600.0
+            LOGGER.debug(
+                f"Latest TLE for '{satid}' ({platform_name}) is {int(tle_age)} hours old."
+            )
+
             data.append(tle)
 
-        with open(fname, "w") as fid:
+        with fname.open("w") as fid:
             fid.write("\n".join(data))
-            # Add a line-change after the last entry
             fid.write("\n")
 
-        logging.info("Wrote %d TLEs to %s", len(data), fname)
+        LOGGER.info(f"Wrote {len(data)} TLEs to {fname}")
 
-    def close(self):
+    def close(self) -> None:
         """Close the database."""
         self.db.close()
 

@@ -5,8 +5,8 @@
 from __future__ import print_function, with_statement
 
 import datetime as dt
-import os
 import unittest
+from pathlib import Path
 
 import numpy as np
 
@@ -29,8 +29,8 @@ class LineOrbital(Orbital):
 
 def get_results(satnumber, delay):
     """Get expected results from result file."""
-    path = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(path, "aiaa_results")) as f_2:
+    path = Path(__file__).resolve().parent
+    with open(path / "aiaa_results") as f_2:
         line = f_2.readline()
         while line:
             if line.endswith(" xx\n") and int(line[:-3]) == satnumber:
@@ -56,19 +56,19 @@ def get_results(satnumber, delay):
             line = f_2.readline()
 
 
-_DATAPATH = os.path.dirname(os.path.abspath(__file__))
+_DATAPATH = Path(__file__).resolve().parent
 
 
 class AIAAIntegrationTest(unittest.TestCase):
     """Test against the AIAA test cases."""
 
     @unittest.skipIf(
-        not os.path.exists(os.path.join(_DATAPATH, "SGP4-VER.TLE")),
+        not (_DATAPATH / "SGP4-VER.TLE").exists(),
         "SGP4-VER.TLE not available")
     def test_aiaa(self):
         """Do the tests against AIAA test cases."""
-        path = os.path.dirname(os.path.abspath(__file__))
-        with open(os.path.join(path, "SGP4-VER.TLE")) as f__:
+        path = Path(__file__).resolve().parent
+        with open(path / "SGP4-VER.TLE") as f__:
             test_line = f__.readline()
             while test_line:
                 if test_line.startswith("#"):

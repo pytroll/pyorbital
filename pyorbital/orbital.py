@@ -4,7 +4,6 @@ import datetime as dt
 import logging
 import warnings
 from functools import partial
-from typing import Optional
 
 import numpy as np
 from scipy import optimize
@@ -95,6 +94,16 @@ def compute_azimuth_elevation(top_s, top_e, top_z, rg_):
 
     return np.rad2deg(az_), np.rad2deg(el_)
 
+def _look_from_ecef(pos, opos, lon_rad, lat_rad, theta):
+    """Compute azimuth/elevation from two ECEF positions."""
+    rx = pos[0] - opos[0]
+    ry = pos[1] - opos[1]
+    rz = pos[2] - opos[2]
+    rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
+
+    top_s, top_e, top_z = ecef_to_topocentric(rx, ry, rz, lat_rad, lon_rad, theta)
+    return compute_azimuth_elevation(top_s, top_e, top_z, rg_)
+
 def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     """Calculate observer's look angle to a satellite.
 
@@ -109,27 +118,24 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     :param alt: Observer altitude in km
     :return: (Azimuth, Elevation) in degrees
     """
-    # Get satellite and observer ECEF positions
-    (pos_x, pos_y, pos_z), _ = astronomy.observer_position(utc_time, sat_lon, sat_lat, sat_alt)
-    (opos_x, opos_y, opos_z), _ = astronomy.observer_position(utc_time, lon, lat, alt)
+    (pos_x, pos_y, pos_z), _ = astronomy.observer_position(
+        utc_time, sat_lon, sat_lat, sat_alt
+    )
+    (opos_x, opos_y, opos_z), _ = astronomy.observer_position(
+        utc_time, lon, lat, alt
+    )
 
-    lon = np.deg2rad(lon)
-    lat = np.deg2rad(lat)
+    lon_rad = np.deg2rad(lon)
+    lat_rad = np.deg2rad(lat)
+    theta = (astronomy.gmst(utc_time) + lon_rad) % (2 * np.pi)
 
-    # Compute local sidereal time
-    theta = (astronomy.gmst(utc_time) + lon) % (2 * np.pi)
-
-    # Vector from observer to satellite
-    rx = pos_x - opos_x
-    ry = pos_y - opos_y
-    rz = pos_z - opos_z
-    rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
-
-    # Convert to topocentric coordinates
-    top_s, top_e, top_z = ecef_to_topocentric(rx, ry, rz, lat, lon, theta)
-
-    # Compute azimuth and elevation
-    return compute_azimuth_elevation(top_s, top_e, top_z, rg_)
+    return _look_from_ecef(
+        (pos_x, pos_y, pos_z),
+        (opos_x, opos_y, opos_z),
+        lon_rad,
+        lat_rad,
+        theta
+    )
 
 
 class Orbital:
@@ -257,7 +263,7 @@ class Orbital:
             horizon: float,
             is_aos: bool,
             max_search_min: float = 1440.0
-        ) -> Optional[dt.datetime]:
+        ) -> dt.datetime | None:
         """Internal helper to find the single next horizon crossing time (AOS or AOL)."""
         elev_func = partial(self._elevation, utc_time, lon, lat, alt, horizon)
 
@@ -298,7 +304,7 @@ class Orbital:
             lat: float,
             alt: float = 0,
             horizon: float = 0
-        ) -> Optional[dt.datetime]:
+        ) -> dt.datetime | None:
         """Find the time of the next Acquisition of Signal (AOS) after utc_time (while rising)."""
         return self._find_single_crossing(utc_time, lon, lat, alt, horizon, is_aos=True)
 
@@ -309,7 +315,7 @@ class Orbital:
             lat: float,
             alt: float = 0,
             horizon: float = 0
-        ) -> Optional[dt.datetime]:
+        ) -> dt.datetime | None:
         """Find the time of the next Acquisition of Signal (AOL) after utc_time (while setting)."""
         return self._find_single_crossing(utc_time, lon, lat, alt, horizon, is_aos=False)
 
@@ -331,19 +337,17 @@ class Orbital:
         (pos_x, pos_y, pos_z), _ = self.get_position(time_ref, normalize=False)
         (opos_x, opos_y, opos_z), _ = astronomy.observer_position(time_ref, lon, lat, alt)
 
-        rx = pos_x - opos_x
-        ry = pos_y - opos_y
-        rz = pos_z - opos_z
-        rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
-
         lon_rad = np.deg2rad(lon)
         lat_rad = np.deg2rad(lat)
-
         theta = (astronomy.gmst(time_ref) + lon_rad) % (2 * np.pi)
 
-        top_s, top_e, top_z = ecef_to_topocentric(rx, ry, rz, lat_rad, lon_rad, theta)
-
-        return compute_azimuth_elevation(top_s, top_e, top_z, rg_)
+        return _look_from_ecef(
+            (pos_x, pos_y, pos_z),
+            (opos_x, opos_y, opos_z),
+            lon_rad,
+            lat_rad,
+            theta
+        )
 
     def get_orbit_number(self, utc_time, tbus_style=False, as_float=False):
         """Calculate orbit number at specified time.
@@ -420,8 +424,8 @@ class Orbital:
         zcs = np.where(np.diff(np.sign(elev)))[0]
 
         res: list[tuple[dt.datetime, dt.datetime, dt.datetime]] = []
-        risetime: Optional[dt.datetime] = None
-        risemins: Optional[float] = None
+        risetime: dt.datetime | None = None
+        risemins: float | None = None
 
         elev_func = partial(self._elevation, utc_time, lon, lat, alt, horizon)
         elev_inv_func = partial(self._elevation_inv, utc_time, lon, lat, alt, horizon)
@@ -435,7 +439,7 @@ class Orbital:
                 risemins = horizon_mins
             else:
                 falltime = horizon_time
-                fallmins: Optional[float] = horizon_mins
+                fallmins: float | None = horizon_mins
 
                 if risetime is None or risemins is None or fallmins is None:
                     continue

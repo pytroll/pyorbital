@@ -90,8 +90,8 @@ class Test(unittest.TestCase):
         t2 = dt.datetime(2013, 3, 2, 22, 3, 00)
         on1 = sat.get_orbit_number(t1)
         on2 = sat.get_orbit_number(t2)
-        assert on2 >= on1
-        assert on2 - on1 <= 1
+        assert on1 == 6973
+        assert on2 == 6974
         pos1, vel1 = sat.get_position(t1, normalize=False)
         pos2, vel2 = sat.get_position(t2, normalize=False)
         del vel1, vel2

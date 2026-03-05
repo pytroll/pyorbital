@@ -1,4 +1,4 @@
-## Version 0.12.1 (2026/03/05)
+## Version 1.12.1 (2026/03/05)
 
 ### Pull Requests Merged
 

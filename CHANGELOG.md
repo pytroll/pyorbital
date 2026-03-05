@@ -1,3 +1,14 @@
+## Version 0.12.1 (2026/03/05)
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 223](https://github.com/pytroll/pyorbital/pull/223) - Bugfix `Downloader` handling of trailing empty lines
+
+In this release 1 pull request was closed.
+
+
 ## Version 1.12.0 (2026/02/06)
 
 ### Issues Closed

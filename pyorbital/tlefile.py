@@ -415,20 +415,31 @@ def _decode_lines(fid, l_0, platform, only_first, open_is_dummy=False):
     designator = "1 " + SATELLITES.get(platform, "")
     tle = ""
     l_0 = _decode(l_0)
-    if l_0.strip() == platform:
-        l_1 = _decode(next(fid))
-        l_2 = _decode(next(fid))
-        tle = _merge_tle_from_two_lines(l_1, l_2)
+    if l_0.strip() == platform and platform != "":
+        tle = _decode_lines_with_platform_header(fid)
     elif l_0.strip().startswith(designator):
-        if (platform in SATELLITES or not only_first) or open_is_dummy:
-            l_1 = l_0
-            l_2 = _decode(next(fid))
-            tle = _merge_tle_from_two_lines(l_1, l_2)
-            if platform:
-                LOGGER.debug("Found platform %s, ID: %s", platform, SATELLITES[platform])
+        tle = _decode_lines_without_platform_header(fid, l_0, platform, only_first, open_is_dummy)
     elif l_0.startswith(platform) and platform not in SATELLITES:
         LOGGER.debug("Found a possible match: %s?", str(l_0.strip()))
 
+    return tle
+
+
+def _decode_lines_with_platform_header(fid):
+    l_1 = _decode(next(fid))
+    l_2 = _decode(next(fid))
+    tle = _merge_tle_from_two_lines(l_1, l_2)
+    return tle
+
+
+def _decode_lines_without_platform_header(fid, l_0, platform, only_first, open_is_dummy):
+    tle = ""
+    if (platform in SATELLITES or not only_first) or open_is_dummy:
+        l_1 = l_0
+        l_2 = _decode(next(fid))
+        tle = _merge_tle_from_two_lines(l_1, l_2)
+        if platform:
+            LOGGER.debug("Found platform %s, ID: %s", platform, SATELLITES[platform])
     return tle
 
 

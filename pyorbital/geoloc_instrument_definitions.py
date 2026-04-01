@@ -14,10 +14,102 @@ Both scan angles and scan times are then combined into a ScanGeometry object.
 """
 
 import warnings
+from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import ArrayLike
 
 from pyorbital.geoloc import ScanGeometry
+
+
+@dataclass
+class SingleLinePushbroomScan:
+    """Definition of a single-line pushbroom instrument scan geometry.
+
+    Args:
+        left_angle: Scan angle at the left edge of the swath (degrees).
+        right_angle: Scan angle at the right edge of the swath (degrees).
+        pixels_per_scan: Number of pixels per scan line.
+        forward_angle: Along-track viewing angle (degrees), default 0.
+    """
+
+    left_angle: float
+    right_angle: float
+    pixels_per_scan: int
+    forward_angle: float = 0
+
+    def angles(self, pixels: slice | ArrayLike | None = None):
+        """Compute the scan angles for the given pixel positions.
+
+        Args:
+            pixels: Pixel positions to compute angles for. Can be a slice,
+                an array-like of indices, or None for all pixels.
+
+        Returns:
+            Tuple of (cross_track_angles, along_track_angles) in radians.
+        """
+        left, right, count = self._resolve_pixel_range(pixels)
+        x_fovs = np.linspace(np.deg2rad(left), np.deg2rad(right), count)
+        y_fovs = np.full(count, np.deg2rad(self.forward_angle))
+        return x_fovs, y_fovs
+
+    def _resolve_pixel_range(self, pixels):
+        """Resolve a pixel selector to (left_angle_deg, right_angle_deg, count)."""
+        if pixels is None:
+            return self.left_angle, self.right_angle, self.pixels_per_scan
+        positions = self._pixel_positions(pixels)
+        scale = (self.right_angle - self.left_angle) / (self.pixels_per_scan - 1)
+        left = positions[0] * scale + self.left_angle
+        right = positions[-1] * scale + self.left_angle
+        return left, right, len(positions)
+
+    def _pixel_positions(self, pixels):
+        """Convert a pixel selector (slice or array-like) to a sequence of positions."""
+        try:
+            return range(*pixels.indices(self.pixels_per_scan))
+        except AttributeError:
+            return pixels
+
+
+@dataclass
+class PushbroomSwath:
+    """A pushbroom swath combining a scanline definition with time sampling.
+
+    Args:
+        scanline: The instrument scanline definition.
+        time_sampling: Time interval between consecutive scan lines.
+    """
+
+    scanline: SingleLinePushbroomScan
+    time_sampling: np.timedelta64
+
+    def scan_geometry(self, scan_lines: slice, pixels: slice | ArrayLike | None = None):
+        """Generate a ScanGeometry for the given scan lines and pixel subset.
+
+        Args:
+            scan_lines: Slice selecting which scan line numbers to include.
+                The slice stop is required; start defaults to 0, step to 1.
+            pixels: Optional pixel subset (slice or array of indices).
+
+        Returns:
+            A ScanGeometry object with the appropriate fovs and times.
+        """
+        scans = range(*scan_lines.indices(scan_lines.stop))
+        x_fovs, y_fovs = self.scanline.angles(pixels)
+        fovs = self._tiled_fovs(x_fovs, y_fovs, len(scans))
+        times = self._scan_times(scans, len(x_fovs))
+        return ScanGeometry(fovs, times)
+
+    def _tiled_fovs(self, x_fovs, y_fovs, n_scans):
+        """Stack and tile scan angles across all scan lines."""
+        one_line = np.vstack((x_fovs, y_fovs))
+        return np.tile(one_line[:, np.newaxis, :], [1, n_scans, 1])
+
+    def _scan_times(self, scans, pixels_len):
+        """Build a (n_scans × pixels_len) time offset array."""
+        times = np.zeros((len(scans), pixels_len), dtype=self.time_sampling.dtype)
+        times += np.array(scans)[:, np.newaxis] * self.time_sampling
+        return times
 
 ################################################################
 #
@@ -512,38 +604,31 @@ def mwhs2(scans_nb, scan_points=None):
 ################################################################
 
 
-def olci(scans_nb, scan_points=None):
+OLCI_SCAN = SingleLinePushbroomScan(
+    left_angle=46.5, right_angle=-22.1, pixels_per_scan=4000)
+
+OLCI_SWATH = PushbroomSwath(
+    scanline=OLCI_SCAN, time_sampling=np.timedelta64(44, "ms"))
+
+
+def olci(scans_nb, scan_points=None, apply_offset=True):
     """Definition of the OLCI instrument.
 
     Source: Sentinel-3 OLCI Coverage
     https://sentinel.esa.int/web/sentinel/user-guides/sentinel-3-olci/coverage
     """
-    if scan_points is None:
-        scan_len = 4000  # samples per scan
-        scan_points = np.arange(4000)
+    if scan_points is not None:
+        scan = SingleLinePushbroomScan(
+            left_angle=OLCI_SCAN.left_angle,
+            right_angle=OLCI_SCAN.right_angle,
+            pixels_per_scan=len(scan_points))
     else:
-        scan_len = len(scan_points)
-    # scan_rate = 0.044  # single scan, seconds
-    scan_angle_west = 46.5  # swath, degrees
-    scan_angle_east = -22.1  # swath, degrees
-    # sampling_interval = 18e-3  # single view, seconds
-    # build the olci instrument scan line angles
-    scanline_angles = np.linspace(np.deg2rad(scan_angle_west),
-                                  np.deg2rad(scan_angle_east), scan_len)
-    inst = np.vstack((scanline_angles, np.zeros(scan_len,)))
-
-    inst = np.tile(inst[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
-
-    # building the corresponding times array
-    # times = (np.tile(scan_points * 0.000025 + 0.0025415, [scans_nb, 1])
-    #         + np.expand_dims(offset, 1))
-
-    times = np.tile(np.zeros_like(scanline_angles), [np.int32(scans_nb), 1])
-    # if apply_offset:
-    #     offset = np.arange(np.int(scans_nb)) * frequency
-    #     times += np.expand_dims(offset, 1)
-
-    return ScanGeometry(inst, times)
+        scan = OLCI_SCAN
+    swath = PushbroomSwath(scanline=scan, time_sampling=OLCI_SWATH.time_sampling)
+    geom = swath.scan_geometry(scan_lines=slice(int(scans_nb)))
+    if not apply_offset:
+        geom._times[:] = 0
+    return geom
 
 
 def ascat(scan_nb, scan_points=None):
@@ -587,27 +672,22 @@ def ascat(scan_nb, scan_points=None):
     return ScanGeometry(inst, times)
 
 
+SLSTR_NADIR_SCAN = SingleLinePushbroomScan(
+    left_angle=46.5, right_angle=-22.1, pixels_per_scan=3000)
+
+
 def slstr_nadir(scans_nb, scan_points=None):
     """Definition of the SLSTR instrument nadir swath.
 
     Source: Sentinel-3 SLSTR Coverage
     https://sentinel.esa.int/web/sentinel/user-guides/Sentinel-3-slstr/coverage
     """
-    if scan_points is None:
-        scan_len = 3000  # samples per scan
-        scan_points = np.arange(scan_len)
+    if scan_points is not None:
+        scan = SingleLinePushbroomScan(
+            left_angle=SLSTR_NADIR_SCAN.left_angle,
+            right_angle=SLSTR_NADIR_SCAN.right_angle,
+            pixels_per_scan=len(scan_points))
     else:
-        scan_len = len(scan_points)
-    scan_angle_west = 46.5  # swath, degrees
-    scan_angle_east = -22.1  # swath, degrees
-
-    # build the slstr instrument scan line angles
-    scanline_angles = np.linspace(np.deg2rad(scan_angle_west),
-                                  np.deg2rad(scan_angle_east), scan_len)
-    inst = np.vstack((scanline_angles, np.zeros(scan_len,)))
-
-    inst = np.tile(inst[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
-
-    times = np.tile(np.zeros_like(scanline_angles), [np.int32(scans_nb), 1])
-
-    return ScanGeometry(inst, times)
+        scan = SLSTR_NADIR_SCAN
+    swath = PushbroomSwath(scanline=scan, time_sampling=np.timedelta64(0))
+    return swath.scan_geometry(scan_lines=slice(int(scans_nb)))

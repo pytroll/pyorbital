@@ -13,6 +13,8 @@ from pyorbital.geoloc_avhrr import (
     estimate_time_offset,
 )
 from pyorbital.geoloc_instrument_definitions import (
+    PushbroomSwath,
+    SingleLinePushbroomScan,
     amsua,
     ascat,
     atms,
@@ -429,3 +431,178 @@ class TestGeolocDefs:
         geom = slstr_nadir(1, None)
 
         np.testing.assert_equal(geom.fovs.size, 6000)
+
+    def test_one_line_pushbroom(self):
+        """Test pushbroom swath geometry via PushbroomSwath class."""
+        scan = SingleLinePushbroomScan(left_angle=46.5, right_angle=-22.1, pixels_per_scan=4865)
+        time_sampling = np.timedelta64(44, "ms")
+        swath = PushbroomSwath(scanline=scan, time_sampling=time_sampling)
+        geom = swath.scan_geometry(scan_lines=slice(None, 11, 10), pixels=slice(None, None, 152))
+        assert geom.fovs.shape == (2, 2, 33)
+        assert geom.fovs[0, 0, 0] == pytest.approx(np.deg2rad(46.5))
+        assert geom.fovs[0, 1, 0] == pytest.approx(np.deg2rad(46.5))
+        assert geom.fovs[0, 0, -1] == pytest.approx(np.deg2rad(-22.1))
+        assert geom.fovs[0, 1, -1] == pytest.approx(np.deg2rad(-22.1))
+        assert geom.fovs[1, 0, 0] == 0
+        assert geom._times.shape == (2, 33)
+        assert geom._times[0, 0] == 0
+        assert geom._times[0, -1] == 0
+        assert geom._times[1, 0] == time_sampling * 10
+        assert geom._times[1, -1] == time_sampling * 10
+        assert geom._times.dtype == np.timedelta64(1, "ns").dtype
+
+
+def test_single_line_pushbroom_scan():
+    pixels_per_scan = 4865
+    left_angle = 46.5
+    right_angle = -22.1
+    forward_angle = 10
+    scan = SingleLinePushbroomScan(left_angle, right_angle, pixels_per_scan, forward_angle=forward_angle)
+    x_fovs, y_fovs = scan.angles()
+    np.testing.assert_allclose(x_fovs, np.linspace(np.deg2rad(left_angle),
+                                                   np.deg2rad(right_angle), pixels_per_scan))
+    np.testing.assert_allclose(y_fovs, np.deg2rad(forward_angle))
+    assert len(y_fovs) == len(x_fovs)
+
+    step = 152
+    pixel_numbers = slice(0, pixels_per_scan, step)
+    reduced_x_fovs, y_fovs = scan.angles(pixel_numbers)
+    np.testing.assert_allclose(y_fovs, np.deg2rad(forward_angle))
+    np.testing.assert_allclose(reduced_x_fovs, x_fovs[pixel_numbers])
+
+    pixel_numbers = slice(76, pixels_per_scan, step)
+    reduced_x_fovs, y_fovs = scan.angles(pixel_numbers)
+    np.testing.assert_allclose(y_fovs, np.deg2rad(forward_angle))
+    np.testing.assert_allclose(reduced_x_fovs, x_fovs[pixel_numbers])
+
+    pixel_numbers = [0, 2432, 4864]
+    reduced_x_fovs, y_fovs = scan.angles(pixel_numbers)
+    np.testing.assert_allclose(y_fovs, np.deg2rad(forward_angle))
+    np.testing.assert_allclose(reduced_x_fovs, x_fovs[pixel_numbers])
+
+
+def test_pushbroom_swath_generates_scan_geometry():
+    """Test that PushbroomSwath produces a ScanGeometry with correct fovs and times."""
+    scan = SingleLinePushbroomScan(left_angle=46.5, right_angle=-22.1, pixels_per_scan=4865)
+    time_sampling = np.timedelta64(44, "ms")
+    swath = PushbroomSwath(scanline=scan, time_sampling=time_sampling)
+    geom = swath.scan_geometry(scan_lines=slice(None, 11, 10), pixels=slice(None, None, 152))
+    assert isinstance(geom, ScanGeometry)
+    assert geom.fovs.shape == (2, 2, 33)
+    assert geom.fovs[0, 0, 0] == pytest.approx(np.deg2rad(46.5))
+    assert geom.fovs[0, 0, -1] == pytest.approx(np.deg2rad(-22.1))
+    assert geom.fovs[1, 0, 0] == 0
+    assert geom._times[0, 0] == np.timedelta64(0)
+    assert geom._times[0, -1] == np.timedelta64(0)
+    assert geom._times[1, 0] == time_sampling * 10
+    assert geom._times[1, -1] == time_sampling * 10
+
+
+def test_olci_scan_constant_matches_olci_function():
+    """Test that OLCI_SCAN constant produces geometry matching the legacy olci() function."""
+    from pyorbital.geoloc_instrument_definitions import OLCI_SCAN, olci
+
+    legacy_geom = olci(10)
+    swath = PushbroomSwath(scanline=OLCI_SCAN, time_sampling=np.timedelta64(44, "ms"))
+    new_geom = swath.scan_geometry(scan_lines=slice(10))
+    np.testing.assert_allclose(new_geom.fovs, legacy_geom.fovs)
+    np.testing.assert_allclose(new_geom._times.astype(float), legacy_geom._times.astype(float), atol=1)
+
+
+def test_slstr_nadir_scan_constant():
+    """Test that SLSTR_NADIR_SCAN constant produces geometry matching legacy slstr_nadir()."""
+    from pyorbital.geoloc_instrument_definitions import SLSTR_NADIR_SCAN
+
+    legacy_geom = slstr_nadir(10)
+    swath = PushbroomSwath(scanline=SLSTR_NADIR_SCAN, time_sampling=np.timedelta64(0))
+    new_geom = swath.scan_geometry(scan_lines=slice(10))
+    np.testing.assert_allclose(new_geom.fovs, legacy_geom.fovs)
+    np.testing.assert_equal(new_geom._times, legacy_geom._times)
+
+
+def test_bounding_box_returns_closed_polygon():
+    """Test that bounding_box returns a closed polygon of lon/lat points."""
+    from pyorbital.geoloc import bounding_box
+    from pyorbital.geoloc_instrument_definitions import OLCI_SWATH
+
+    tle1 = "1 33591U 09005A   21355.91138073  .00000074  00000+0  65091-4 0  9998"
+    tle2 = "2 33591  99.1688  21.1338 0013414 329.8936  30.1462 14.12516400663123"
+    start_time = dt.datetime(2021, 12, 22, 12, 0, 0)
+    end_time = start_time + dt.timedelta(seconds=44 * 0.044)
+
+    lons, lats = bounding_box(OLCI_SWATH, start_time, end_time, (tle1, tle2),
+                              points_per_edge=5)
+    # 5 points per edge, 4 edges sharing corners = 4*(5-1) + 1 closing = 17
+    assert len(lons) == 17
+    assert len(lats) == 17
+    # polygon is closed
+    assert lons[0] == lons[-1]
+    assert lats[0] == lats[-1]
+    # all values are finite
+    assert np.all(np.isfinite(lons))
+    assert np.all(np.isfinite(lats))
+
+
+def test_yaw_steering_changes_vectors():
+    """Test that yaw steering modifies the look vectors compared to no steering."""
+    from pyorbital.geoloc import compute_yaw_steering
+
+    # A satellite at ~7000km altitude, moving along x-axis, above the equator
+    pos = np.array([[7000, 0, 0]]).T  # equatorial position
+    vel = np.array([[0, 7.5, 0]]).T   # ~7.5 km/s orbital velocity
+
+    yaw_angle = compute_yaw_steering(pos, vel)
+
+    # At the equator, yaw steering should produce a non-zero angle
+    assert yaw_angle != 0.0
+    # The angle should be small (typically < 4 degrees for LEO)
+    assert abs(yaw_angle) < np.deg2rad(4)
+
+
+def test_yaw_steering_applied_in_vectors():
+    """Test that vectors() applies yaw steering when enabled."""
+    from pyorbital.geoloc import compute_yaw_steering
+
+    xy = np.vstack((np.deg2rad(np.array([10, 0, -10])),
+                    np.array([0, 0, 0])))
+    xy = np.tile(xy[:, np.newaxis, :], [1, 1, 1])
+    times = np.tile([0, 0, 0], [1, 1])
+    instrument = ScanGeometry(xy, times)
+
+    pos = np.array([[7000, 0, 0]]).T
+    vel = np.array([[0, 7.5, 0]]).T
+    pos = np.stack([pos[:, 0]] * 3, axis=1)[:, np.newaxis, :]
+    vel = np.stack([vel[:, 0]] * 3, axis=1)[:, np.newaxis, :]
+
+    vec_no_steering = instrument.vectors(pos, vel)
+    vec_with_steering = instrument.vectors(pos, vel, yaw_steering=True)
+
+    # Vectors should differ when yaw steering is applied
+    assert not np.allclose(vec_no_steering, vec_with_steering)
+
+    # Manually compute: yaw steering should add the computed yaw angle
+    yaw_angle = compute_yaw_steering(pos, vel)
+    vec_manual_yaw = instrument.vectors(pos, vel, yaw=yaw_angle)
+    np.testing.assert_allclose(vec_with_steering, vec_manual_yaw)
+
+
+def test_compute_pixels_with_yaw_steering():
+    """Test that compute_pixels passes yaw_steering through to vectors."""
+    from pyorbital.geoloc import compute_pixels
+
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+
+    # Create a simple 1D scan geometry (like compute_avhrr_gcps_lonlatalt does)
+    scan_angles = np.array([np.deg2rad(-55.37), 0, np.deg2rad(55.37)])
+    fovs = np.vstack((scan_angles, np.zeros(3)))
+    times = np.array([0.0, 0.001, 0.002])
+    sgeom = ScanGeometry(fovs, times)
+    s_times = sgeom.times(t)
+
+    pixels_no_yaw = compute_pixels((tle1, tle2), sgeom, s_times)
+    pixels_yaw = compute_pixels((tle1, tle2), sgeom, s_times, yaw_steering=True)
+
+    # The positions should differ with yaw steering
+    assert not np.allclose(pixels_no_yaw, pixels_yaw)

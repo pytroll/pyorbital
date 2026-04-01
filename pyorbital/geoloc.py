@@ -1,9 +1,5 @@
 """Module to compute geolocalization of a satellite scene."""
 
-# TODO:
-# - Attitude correction
-# - optimize !!!
-# - test !!!
 
 from __future__ import print_function
 
@@ -17,7 +13,8 @@ from pyorbital.orbital import Orbital
 
 A = 6378.137  # WGS84 Equatorial radius (km)
 B = 6356.75231414  # km, GRS80
-# B = 6356.752314245 # km, WGS84
+
+OMEGA_EARTH = 7.2921159e-5  # Earth's rotation rate (rad/s)
 
 
 def geodetic_lat(point, a=A, b=B):
@@ -51,6 +48,44 @@ def subpoint(query_point, a=A, b=B):
     return np.stack([nx_, ny_, nz_], axis=0)
 
 
+def compute_yaw_steering(pos, vel):
+    """Compute the yaw steering angle to compensate for Earth's rotation.
+
+    Args:
+        pos: Satellite position as column vector(s) in km (ECI frame).
+        vel: Satellite velocity as column vector(s) in km/s (ECI frame).
+
+    Returns:
+        Yaw steering angle in radians.
+    """
+    r = vnorm(pos)
+    v = vnorm(vel)
+    lat = np.arcsin(pos[2] / r)
+    return np.arctan2(OMEGA_EARTH * A * np.cos(lat), v)
+
+
+def _local_frame(pos, vel):
+    """Compute the satellite's local orbital reference frame.
+
+    Returns (nadir, along_track, cross_track) as unit column vectors.
+    """
+    nadir = subpoint(-pos)
+    nadir /= vnorm(nadir)
+    along_track = vel / vnorm(vel)
+    cross_track = np.cross(nadir, vel, 0, 0, 0)
+    cross_track /= vnorm(cross_track)
+    return nadir, along_track, cross_track
+
+
+def _effective_yaw(yaw, yaw_steering, pos, vel, fovs_shape):
+    """Compute the effective yaw angle, optionally adding the yaw-steering term."""
+    if yaw_steering:
+        yaw = yaw + compute_yaw_steering(pos, vel)
+    if np.shape(yaw):
+        yaw = np.broadcast_to(yaw, fovs_shape)
+    return yaw
+
+
 class ScanGeometry(object):
     """Description of the geometry of an instrument.
 
@@ -63,47 +98,31 @@ class ScanGeometry(object):
     def __init__(self, fovs, times, attitude=(0, 0, 0)):
         """Initialize the class."""
         self.fovs = np.array(fovs)
-        self._times = np.array(times) * np.timedelta64(1000000000, "ns")
+        try:
+            # assuming seconds
+            self._times = np.asanyarray(times) * np.timedelta64(1000000000, "ns")
+        except TypeError:
+            self._times = np.asanyarray(times).astype("timedelta64[ns]")
         self.attitude = attitude
 
-    def vectors(self, pos, vel, roll=0.0, pitch=0.0, yaw=0.0):
+    def vectors(self, pos, vel, roll=0.0, pitch=0.0, yaw=0.0, yaw_steering=False):
         """Get unit vectors pointing to the different pixels.
 
         *pos* and *vel* are column vectors, or matrices of column
         vectors. Returns vectors as stacked rows.
+
+        If *yaw_steering* is True, the yaw angle is computed from the
+        satellite position and velocity to compensate for Earth's rotation.
+        This is added to any explicit *yaw* value.
         """
-        # TODO: yaw steering mode !
-
-        # Fake nadir: This is the intersection point between the satellite
-        # looking down at the centre of the ellipsoid and the surface of the
-        # ellipsoid. Nadir on the other hand is the point which vertical goes
-        # through the satellite...
-        # nadir = -pos / vnorm(pos)
-
-        nadir = subpoint(-pos)
-        nadir /= vnorm(nadir)
-
-        # x is along track (roll)
-        x = vel / vnorm(vel)
-
-        # y is cross track (pitch)
-        y = np.cross(nadir, vel, 0, 0, 0)
-        y /= vnorm(y)
-
-        # rotate first around x
-        x_rotated = qrotate(nadir, x, self.fovs[0] + roll)
-        # then around y
-        xy_rotated = qrotate(x_rotated, y, self.fovs[1] + pitch)
-        # then around z
-        if np.shape(yaw):
-            # If we have an array then need to use the same broadcasting as x/y rotation
-            yaw = np.broadcast_to(yaw, self.fovs[0].shape)
-        return qrotate(xy_rotated, nadir, yaw)
+        nadir, along_track, cross_track = _local_frame(pos, vel)
+        effective_yaw = _effective_yaw(yaw, yaw_steering, pos, vel, self.fovs[0].shape)
+        along_track_rotated = qrotate(nadir, along_track, self.fovs[0] + roll)
+        both_rotated = qrotate(along_track_rotated, cross_track, self.fovs[1] + pitch)
+        return qrotate(both_rotated, nadir, effective_yaw)
 
     def times(self, start_of_scan):
         """Return an array with the times of each scan line."""
-        # tds = [timedelta(seconds=i) for i in self._times]
-        # tds = self._times.astype('timedelta64[us]')
         try:
             return np.array(self._times) + np.datetime64(start_of_scan)
         except ValueError:
@@ -170,7 +189,7 @@ def get_lonlatalt(pos, utc_time):
 # END OF DIRTY STUFF
 
 
-def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0)):
+def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0), yaw_steering=False):
     """Compute cartesian coordinates of the pixels in instrument scan."""
     if isinstance(orb, (list, tuple)):
         tle1, tle2 = orb
@@ -180,7 +199,7 @@ def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0)):
     pos, vel = orb.get_position(times, normalize=False)
 
     # now, get the vectors pointing to each pixel
-    vectors = sgeom.vectors(pos, vel, *rpy)
+    vectors = sgeom.vectors(pos, vel, *rpy, yaw_steering=yaw_steering)
 
     # compute intersection of lines (directed by vectors and passing through
     # (0, 0, 0)) and ellipsoid. Derived from:
@@ -227,6 +246,78 @@ def vnorm(m):
 def hnorm(m):
     """Norms of a matrix of row vectors."""
     return np.sqrt((m**2).sum(1))
+
+
+def _n_scans_from_duration(duration, time_sampling):
+    """Compute the number of scan lines covering a given duration."""
+    if time_sampling <= np.timedelta64(0):
+        return 1
+    return max(1, int(duration / time_sampling))
+
+
+def _sample_indices(count, n_samples):
+    """Return n_samples evenly-spaced integer indices from 0 to count-1."""
+    return np.linspace(0, count - 1, n_samples, dtype=int)
+
+
+def _boundary_scan_pixel_pairs(scan_indices, pixel_indices):
+    """Build ordered (scan, pixel) pairs tracing the swath boundary polygon.
+
+    Traverses: bottom edge left→right, right edge bottom→top,
+    top edge right→left, left edge top→bottom, closing point.
+    """
+    scans, pixels = [], []
+
+    for px in pixel_indices:               # bottom edge: left → right
+        scans.append(scan_indices[0])
+        pixels.append(px)
+    for sc in scan_indices[1:]:            # right edge: bottom → top
+        scans.append(sc)
+        pixels.append(pixel_indices[-1])
+    for px in reversed(pixel_indices[:-1]): # top edge: right → left
+        scans.append(scan_indices[-1])
+        pixels.append(px)
+    for sc in reversed(scan_indices[1:-1]): # left edge: top → bottom
+        scans.append(sc)
+        pixels.append(pixel_indices[0])
+
+    scans.append(scans[0])     # close the polygon
+    pixels.append(pixels[0])
+    return np.array(scans), np.array(pixels)
+
+
+def _geolocate_boundary(swath, edge_scans, edge_pixels, start_time, tle, rpy):
+    """Geolocate a set of (scan, pixel) boundary pairs and return (lons, lats)."""
+    x_fovs, y_fovs = swath.scanline.angles(edge_pixels)
+    sgeom = ScanGeometry(np.vstack((x_fovs, y_fovs)), edge_scans * swath.time_sampling)
+    s_times = sgeom.times(start_time)
+    pixels_pos = compute_pixels(tle, sgeom, s_times, rpy)
+    lons, lats, _ = get_lonlatalt(pixels_pos, s_times)
+    return lons, lats
+
+
+def bounding_box(swath, start_time, end_time, tle, points_per_edge=10, rpy=(0.0, 0.0, 0.0)):
+    """Compute a bounding polygon for a satellite swath.
+
+    Args:
+        swath: A PushbroomSwath with scanline and time_sampling attributes.
+        start_time: Start of the observation period (datetime).
+        end_time: End of the observation period (datetime).
+        tle: TLE data as (line1, line2) tuple.
+        points_per_edge: Number of sample points per edge (including corners).
+        rpy: Roll, pitch, yaw corrections.
+
+    Returns:
+        Tuple of (lons, lats) arrays forming a closed polygon.
+    """
+    duration = np.datetime64(end_time) - np.datetime64(start_time)
+    n_scans = _n_scans_from_duration(duration, swath.time_sampling)
+
+    scan_indices = _sample_indices(n_scans, points_per_edge)
+    pixel_indices = _sample_indices(swath.scanline.pixels_per_scan, points_per_edge)
+
+    edge_scans, edge_pixels = _boundary_scan_pixel_pairs(scan_indices, pixel_indices)
+    return _geolocate_boundary(swath, edge_scans, edge_pixels, start_time, tle, rpy)
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ from pyorbital.geoloc_avhrr import (
 from pyorbital.geoloc_instrument_definitions import (
     PushbroomSwath,
     SingleLinePushbroomScan,
+    SweepbroomScan,
     amsua,
     ascat,
     atms,
@@ -23,6 +24,7 @@ from pyorbital.geoloc_instrument_definitions import (
     avhrr_gac_from_times,
     hirs4,
     mhs,
+    mwhs2,
     slstr_nadir,
     viirs,
 )
@@ -606,3 +608,26 @@ def test_compute_pixels_with_yaw_steering():
 
     # The positions should differ with yaw steering
     assert not np.allclose(pixels_no_yaw, pixels_yaw)
+
+
+def test_sweepbroom_scan_constants_match_legacy_functions():
+    """Test that sweepbroom instrument constants produce geometry matching the legacy functions."""
+    from pyorbital.geoloc_instrument_definitions import (
+        AMSU_A_SCAN, MHS_SCAN, HIRS4_SCAN, ATMS_SCAN, MWHS2_SCAN,
+    )
+    for scan, legacy_fn in [
+        (AMSU_A_SCAN, amsua),
+        (MHS_SCAN, mhs),
+        (HIRS4_SCAN, hirs4),
+        (ATMS_SCAN, atms),
+        (MWHS2_SCAN, mwhs2),
+    ]:
+        legacy_geom = legacy_fn(5)
+        new_geom = scan.scan_geometry(5)
+        np.testing.assert_allclose(new_geom.fovs, legacy_geom.fovs, rtol=1e-6, atol=1e-6,
+                                   err_msg=f"{scan} fovs mismatch")
+        np.testing.assert_allclose(
+            new_geom._times.view(np.int64).astype(np.float64),
+            legacy_geom._times.view(np.int64).astype(np.float64),
+            rtol=1e-6, atol=1e-6,
+            err_msg=f"{scan} times mismatch")

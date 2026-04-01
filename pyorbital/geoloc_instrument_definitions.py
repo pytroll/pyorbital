@@ -111,6 +111,118 @@ class PushbroomSwath:
         times += np.array(scans)[:, np.newaxis] * self.time_sampling
         return times
 
+
+@dataclass
+class SweepbroomScan:
+    """Definition of a cross-track (whiskbroom) scanning instrument.
+
+    Pixels are acquired sequentially across track, one line at a time.
+
+    Args:
+        pixels_per_scan: Number of pixels per scan line.
+        scan_angle: Half-swath angle in degrees (positive). Pixels run
+            from +scan_angle (left edge) to -scan_angle (right edge).
+        scan_rate: Duration of one complete scan cycle in seconds.
+        pixel_dwell_time: Time per pixel measurement in seconds.
+        sync_time: Delay before the first pixel measurement in seconds.
+    """
+
+    pixels_per_scan: int
+    scan_angle: float
+    scan_rate: float
+    pixel_dwell_time: float
+    sync_time: float = 0.0
+
+    def angles(self, scan_points=None):
+        """Compute cross-track angles for the given pixel positions.
+
+        Args:
+            scan_points: Pixel indices (array-like or None for all pixels).
+
+        Returns:
+            Cross-track angles in radians, running from +scan_angle to
+            -scan_angle as pixel index increases.
+        """
+        if scan_points is None:
+            scan_points = np.arange(self.pixels_per_scan)
+        scan_points = np.asanyarray(scan_points)
+        return (scan_points / (self.pixels_per_scan * 0.5 - 0.5) - 1) * np.deg2rad(-self.scan_angle)
+
+    def scan_geometry(self, scans_nb, scan_points=None):
+        """Generate a ScanGeometry for the given number of scan lines.
+
+        Args:
+            scans_nb: Number of scan lines.
+            scan_points: Optional subset of pixel indices.
+
+        Returns:
+            A ScanGeometry object with the appropriate fovs and times.
+        """
+        scan_points = self._resolve_scan_points(scan_points)
+        samples = self._tiled_samples(scan_points, int(scans_nb))
+        times = self._scan_times(scan_points, int(scans_nb))
+        return ScanGeometry(samples, times)
+
+    def _resolve_scan_points(self, scan_points):
+        """Return scan_points as a numpy array, defaulting to all pixels."""
+        if scan_points is None:
+            return np.arange(self.pixels_per_scan)
+        return np.asanyarray(scan_points)
+
+    def _tiled_samples(self, scan_points, n_scans):
+        """Stack cross-track and along-track angles, tiled across scan lines."""
+        cross_track = self.angles(scan_points)
+        one_line = np.vstack((cross_track, np.zeros(len(scan_points))))
+        return np.tile(one_line[:, np.newaxis, :], [1, n_scans, 1])
+
+    def _scan_times(self, scan_points, n_scans):
+        """Build (n_scans × n_pixels) time array with per-pixel and per-scan offsets."""
+        pixel_times = scan_points * self.pixel_dwell_time + self.sync_time
+        scan_offsets = np.arange(n_scans) * self.scan_rate
+        return np.tile(pixel_times, [n_scans, 1]) + np.expand_dims(scan_offsets, 1)
+
+
+AMSU_A_SCAN = SweepbroomScan(
+    pixels_per_scan=30,
+    scan_angle=48.3,
+    scan_rate=8.0,
+    pixel_dwell_time=0.2,
+    sync_time=0.00355,
+)
+
+MHS_SCAN = SweepbroomScan(
+    pixels_per_scan=90,
+    scan_angle=49.444,
+    scan_rate=8 / 3.0,
+    pixel_dwell_time=(8 / 3.0 - 1) / 90.0,
+    sync_time=0.0,
+)
+
+HIRS4_SCAN = SweepbroomScan(
+    pixels_per_scan=56,
+    scan_angle=49.5,
+    scan_rate=6.4,
+    pixel_dwell_time=6.4 / 56.0,
+    sync_time=0.0,
+)
+
+ATMS_SCAN = SweepbroomScan(
+    pixels_per_scan=96,
+    scan_angle=52.7,
+    scan_rate=8 / 3.0,
+    pixel_dwell_time=18e-3,
+    sync_time=0.0,
+)
+
+MWHS2_SCAN = SweepbroomScan(
+    pixels_per_scan=98,
+    scan_angle=53.35,
+    scan_rate=8 / 3.0,
+    pixel_dwell_time=(8 / 3.0 - 1) / 98.0,
+    sync_time=0.0,
+)
+
+
 ################################################################
 #
 #   AVHRR
@@ -351,29 +463,7 @@ def amsua(scans_nb, scan_points=None):
        pyorbital.geoloc.ScanGeometry object
 
     """
-    scan_len = 30  # 30 samples per scan
-    scan_rate = 8  # single scan, seconds
-    scan_angle = -48.3  # swath, degrees
-    sampling_interval = 0.2  # single view, seconds
-    sync_time = 0.00355  # delay before the actual scan starts
-
-    if scan_points is None:
-        scan_points = np.arange(0, scan_len)
-
-    # build the instrument (scan angles)
-    samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1)
-                         * np.deg2rad(scan_angle),
-                         np.zeros((len(scan_points),))))
-    samples = np.tile(samples[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
-
-    # building the corresponding times array
-    offset = np.arange(scans_nb) * scan_rate
-    times = (np.tile(scan_points * sampling_interval + sync_time,
-                     [np.int32(scans_nb), 1])
-             + np.expand_dims(offset, 1))
-
-    # build the scan geometry object
-    return ScanGeometry(samples, times)
+    return AMSU_A_SCAN.scan_geometry(scans_nb, scan_points)
 
 
 ################################################################
@@ -402,36 +492,7 @@ def mhs(scans_nb, scan_points=None):
        pyorbital.geoloc.ScanGeometry object
 
     """
-    scan_len = 90  # 90 samples per scan
-    scan_rate = 8 / 3.  # single scan, seconds
-    scan_angle = -49.444  # swath, degrees
-    sampling_interval = (8 / 3. - 1) / 90.  # single view, seconds
-    sync_time = 0.0  # delay before the actual scan starts - don't know! FIXME!
-
-    if scan_points is None:
-        scan_points = np.arange(0, scan_len)
-
-    # build the instrument (scan angles)
-    samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1) * np.deg2rad(scan_angle),
-                         np.zeros((len(scan_points),))))
-    samples = np.tile(samples[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
-
-    # building the corresponding times array
-    offset = np.arange(scans_nb) * scan_rate
-    times = (np.tile(scan_points * sampling_interval + sync_time, [np.int32(scans_nb), 1]) + np.expand_dims(offset, 1))
-
-    # scan_angles = np.linspace(-np.deg2rad(scan_angle), np.deg2rad(scan_angle), scan_len)[scan_points]
-
-    # samples = np.vstack((scan_angles, np.zeros(len(scan_points) * 1,)))
-    # samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
-
-    # # building the corresponding times array
-    # offset = np.arange(scans_nb) * scan_rate
-    # times = (np.tile(scan_points * sampling_interval, [np.int(scans_nb), 1])
-    #          + np.expand_dims(offset, 1))
-
-    # build the scan geometry object
-    return ScanGeometry(samples, times)
+    return MHS_SCAN.scan_geometry(scans_nb, scan_points)
 
 
 ################################################################
@@ -459,27 +520,7 @@ def hirs4(scans_nb, scan_points=None):
        pyorbital.geoloc.ScanGeometry object
 
     """
-    scan_len = 56  # 56 samples per scan
-    scan_rate = 6.4  # single scan, seconds
-    scan_angle = -49.5  # swath, degrees
-    sampling_interval = abs(scan_rate) / scan_len  # single view, seconds
-
-    if scan_points is None:
-        scan_points = np.arange(0, scan_len)
-
-    # build the instrument (scan angles)
-    samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1)
-                         * np.deg2rad(scan_angle),
-                         np.zeros((len(scan_points),))))
-    samples = np.tile(samples[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
-
-    # building the corresponding times array
-    offset = np.arange(scans_nb) * scan_rate
-    times = (np.tile(scan_points * sampling_interval, [np.int32(scans_nb), 1])
-             + np.expand_dims(offset, 1))
-
-    # build the scan geometry object
-    return ScanGeometry(samples, times)
+    return HIRS4_SCAN.scan_geometry(scans_nb, scan_points)
 
 
 ################################################################
@@ -509,27 +550,7 @@ def atms(scans_nb, scan_points=None):
        pyorbital.geoloc.ScanGeometry object
 
     """
-    scan_len = 96  # 96 samples per scan
-    scan_rate = 8 / 3.  # single scan, seconds
-    scan_angle = -52.7  # swath, degrees
-    sampling_interval = 18e-3  # single view, seconds
-
-    if scan_points is None:
-        scan_points = np.arange(0, scan_len)
-
-    # build the instrument (scan angles)
-    scan_angles = np.linspace(-np.deg2rad(scan_angle), np.deg2rad(scan_angle), scan_len)[scan_points]
-
-    samples = np.vstack((scan_angles, np.zeros(len(scan_points) * 1,)))
-    samples = np.tile(samples[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
-
-    # building the corresponding times array
-    offset = np.arange(scans_nb) * scan_rate
-    times = (np.tile(scan_points * sampling_interval, [np.int32(scans_nb), 1])
-             + np.expand_dims(offset, 1))
-
-    # build the scan geometry object
-    return ScanGeometry(samples, times)
+    return ATMS_SCAN.scan_geometry(scans_nb, scan_points)
 
 
 ################################################################
@@ -560,41 +581,7 @@ def mwhs2(scans_nb, scan_points=None):
        pyorbital.geoloc.ScanGeometry object
 
     """
-    scan_len = 98  # 98 samples per scan
-    scan_rate = 8 / 3.  # single scan, seconds
-    scan_angle = -53.35  # swath, degrees
-    sampling_interval = (8 / 3. - 1) / 98.  # single view, seconds
-    # sampling_interval = 17.449e-3  # single view, seconds
-    sync_time = 0.0  # delay before the actual scan starts - don't know! FIXME!
-
-    if scan_points is None:
-        scan_points = np.arange(0, scan_len)
-
-    # build the instrument (scan angles)
-    samples = np.vstack(((scan_points / (scan_len * 0.5 - 0.5) - 1)
-                         * np.deg2rad(scan_angle),
-                         np.zeros((len(scan_points),))))
-    samples = np.tile(samples[:, np.newaxis, :], [1, np.int32(scans_nb), 1])
-
-    # building the corresponding times array
-    offset = np.arange(scans_nb) * scan_rate
-    times = (np.tile(scan_points * sampling_interval + sync_time,
-                     [np.int32(scans_nb), 1])
-             + np.expand_dims(offset, 1))
-
-    # # build the instrument (scan angles)
-    # scan_angles = np.linspace(-np.deg2rad(scan_angle), np.deg2rad(scan_angle), scan_len)[scan_points]
-
-    # samples = np.vstack((scan_angles, np.zeros(len(scan_points) * 1,)))
-    # samples = np.tile(samples[:, np.newaxis, :], [1, np.int(scans_nb), 1])
-
-    # # building the corresponding times array
-    # offset = np.arange(scans_nb) * scan_rate
-    # times = (np.tile(scan_points * sampling_interval, [np.int(scans_nb), 1])
-    #          + np.expand_dims(offset, 1))
-
-    # build the scan geometry object
-    return ScanGeometry(samples, times)
+    return MWHS2_SCAN.scan_geometry(scans_nb, scan_points)
 
 
 ################################################################

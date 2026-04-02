@@ -495,7 +495,10 @@ if _HAS_NUMBA:
                 ldotc = xr * cxr + yr * cyr + zr * czr
                 lsq = xr * xr + yr * yr + zr * zr
                 csq = cxr * cxr + cyr * cyr + czr * czr
-                d1 = (ldotc - math.sqrt(ldotc * ldotc - csq * lsq + lsq)) / lsq
+                disc = ldotc * ldotc - csq * lsq + lsq
+                if disc < 0.0:
+                    disc = 0.0
+                d1 = (ldotc - math.sqrt(disc)) / lsq
                 ex = rx * d1 + px
                 ey = ry * d1 + py
                 ez = rz * d1 + pz
@@ -713,7 +716,12 @@ def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0), yaw_steering=False):
 
 
 def _ellipsoid_intersection(vectors, pos, radius):
-    """Intersect pixel vectors with the WGS-84 ellipsoid (pos already broadcast)."""
+    """Intersect pixel vectors with the WGS-84 ellipsoid (pos already broadcast).
+
+    When a ray misses the ellipsoid (discriminant < 0) the discriminant is
+    clamped to 0, returning the point of closest approach on the tangent line.
+    This keeps results finite and continuous during optimizer exploration.
+    """
     centre = -pos
     shape = vectors.shape
     xr_ = vectors.reshape([3, -1]) * radius
@@ -721,7 +729,8 @@ def _ellipsoid_intersection(vectors, pos, radius):
     ldotc = np.einsum("ij,ij->j", xr_, cr_)
     lsq = np.einsum("ij,ij->j", xr_, xr_)
     csq = np.einsum("ij,ij->j", cr_, cr_)
-    d1_ = (ldotc - np.sqrt(ldotc ** 2 - csq * lsq + lsq)) / lsq
+    discriminant = np.maximum(ldotc ** 2 - csq * lsq + lsq, 0.0)
+    d1_ = (ldotc - np.sqrt(discriminant)) / lsq
     return vectors * d1_.reshape(shape[1:]) - centre.reshape(shape)
 
 
@@ -750,7 +759,8 @@ def _ellipsoid_intersection_broadcast(vectors, pos, radius, pixels_per_line):
     lsq   = np.einsum("ijk,ijk->jk", xr_, xr_)              # (M, K)
     csq   = np.einsum("ij,ij->j", cr_, cr_)                 # (M,)
     csq_exp = csq[:, np.newaxis]
-    d1_ = (ldotc - np.sqrt(ldotc ** 2 - csq_exp * lsq + lsq)) / lsq
+    discriminant = np.maximum(ldotc ** 2 - csq_exp * lsq + lsq, 0.0)
+    d1_ = (ldotc - np.sqrt(discriminant)) / lsq
     result = vec3 * d1_[np.newaxis] + pos[:, :, np.newaxis]
     return result.reshape(3, -1)
 

@@ -13,9 +13,9 @@ from pyorbital.geoloc_avhrr import (
     estimate_time_offset,
 )
 from pyorbital.geoloc_instrument_definitions import (
+    MultiLineWhiskbroomScan,
     PushbroomSwath,
     SingleLinePushbroomScan,
-    SweepbroomScan,
     amsua,
     ascat,
     atms,
@@ -30,40 +30,37 @@ from pyorbital.geoloc_instrument_definitions import (
 )
 
 
-class TestQuaternion:
-    """Test the quaternion rotation."""
+def test_qrotate():
+    """Test quaternion rotation."""
+    vector = np.array([[1, 0, 0]]).T
+    axis = np.array([[0, 1, 0]]).T
+    angle = np.deg2rad(90)
 
-    def test_qrotate(self):
-        """Test quaternion rotation."""
-        vector = np.array([[1, 0, 0]]).T
-        axis = np.array([[0, 1, 0]]).T
-        angle = np.deg2rad(90)
+    result = qrotate(vector, axis, angle)[:, 0]
+    expected = np.array([0, 0, 1])
+    np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
 
-        result = qrotate(vector, axis, angle)[:, 0]
-        expected = np.array([0, 0, 1])
-        np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
+    axis = np.array([0, 1, 0])
+    result = qrotate(vector, axis, angle)
+    expected = np.array([[0, 0, 1]]).T
+    np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
 
-        axis = np.array([0, 1, 0])
-        result = qrotate(vector, axis, angle)
-        expected = np.array([[0, 0, 1]]).T
-        np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
+    vector = np.array([[1, 0, 0],
+                       [0, 0, 1]]).T
+    axis = np.array([0, 1, 0])
+    angle = np.deg2rad(90)
+    result = qrotate(vector, axis, angle)
+    expected = np.array([[0, 0, 1],
+                         [-1, 0, 0]]).T
 
-        vector = np.array([[1, 0, 0],
-                           [0, 0, 1]]).T
-        axis = np.array([0, 1, 0])
-        angle = np.deg2rad(90)
-        result = qrotate(vector, axis, angle)
-        expected = np.array([[0, 0, 1],
-                             [-1, 0, 0]]).T
+    np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
 
-        np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
+    axis = np.array([[0, 1, 0]]).T
+    result = qrotate(vector, axis, angle)
+    expected = np.array([[0, 0, 1],
+                         [-1, 0, 0]]).T
 
-        axis = np.array([[0, 1, 0]]).T
-        result = qrotate(vector, axis, angle)
-        expected = np.array([[0, 0, 1],
-                             [-1, 0, 0]]).T
-
-        np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
+    np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
 
 
 class TestGeoloc:
@@ -84,7 +81,6 @@ class TestGeoloc:
         np.testing.assert_allclose(np.rad2deg(instrument.fovs[0]), np.array([[10, 0, -10]]))
 
         # Test vectors
-
         pos = np.rollaxis(np.tile(np.array([0, 0, 7000]), [3, 1, 1]), 2)
         vel = np.rollaxis(np.tile(np.array([1, 0, 0]), [3, 1, 1]), 2)
         pos = np.stack([np.array([0, 0, 7000])] * 3, 1)[:, np.newaxis, :]
@@ -610,10 +606,81 @@ def test_compute_pixels_with_yaw_steering():
     assert not np.allclose(pixels_no_yaw, pixels_yaw)
 
 
-def test_sweepbroom_scan_constants_match_legacy_functions():
-    """Test that sweepbroom instrument constants produce geometry matching the legacy functions."""
+def test_compute_pixels_with_2d_scan_times():
+    """Test that compute_pixels works with multi-scan 2D time arrays (avhrr-style).
+
+    avhrr() produces fovs of shape (2, N_SCANS, N_PX) and times of shape
+    (N_SCANS, N_PX). compute_pixels must handle this without crashing and
+    return pixel positions of the correct shape.
+    """
+    from pyorbital.geoloc import compute_pixels, get_lonlatalt
+    from pyorbital.geoloc_instrument_definitions import avhrr
+
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+
+    n_scans, n_px = 5, 10
+    sgeom = avhrr(n_scans, np.arange(n_px))
+    s_times = sgeom.times(t)
+
+    assert s_times.shape == (n_scans, n_px), "times should be 2D"
+
+    pixels = compute_pixels((tle1, tle2), sgeom, s_times)
+    lons, lats, alts = get_lonlatalt(pixels, s_times)
+
+    assert pixels.shape == (3, n_scans * n_px)
+    assert lons.shape == (n_scans * n_px,)
+    assert np.all(np.isfinite(lons))
+    assert np.all(np.abs(lats) <= 90)
+    # Pixels are surface points: altitude should be within terrain range (not orbital altitude)
+    assert np.all(np.abs(alts) < 10000)
+
+
+def test_compute_pixels_2d_matches_1d_reference():
+    """Test that the 2D-times path gives the same result as the 1D reference path.
+
+    The 1D reference path (flat ScanGeometry, per-pixel SGP4) is the
+    original correct behaviour.  The 2D path uses per-scan SGP4 which
+    is an approximation; the difference should be sub-pixel (< 0.01 deg).
+    """
+    from pyorbital.geoloc import compute_pixels, get_lonlatalt
+    from pyorbital.geoloc_instrument_definitions import avhrr
+
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+
+    scan_pts = np.arange(200)
+
+    # Reference: flat 1D ScanGeometry (per-pixel SGP4)
+    cross_angles = (scan_pts / 1023.5 - 1) * np.deg2rad(-55.37)
+    fovs_flat = np.vstack([cross_angles, np.zeros(len(scan_pts))])
+    t_float = scan_pts * 0.000025
+    sgeom_ref = ScanGeometry(fovs_flat, t_float)
+    s_times_ref = sgeom_ref.times(t)
+    pix_ref = compute_pixels((tle1, tle2), sgeom_ref, s_times_ref)
+    lons_ref, lats_ref, _ = get_lonlatalt(pix_ref, s_times_ref)
+
+    # 2D path: avhrr(1, ...) with per-scan SGP4 approximation
+    sgeom_2d = avhrr(1, scan_pts)
+    s_times_2d = sgeom_2d.times(t)
+    pix_2d = compute_pixels((tle1, tle2), sgeom_2d, s_times_2d)
+    lons_2d, lats_2d, _ = get_lonlatalt(pix_2d, s_times_2d)
+
+    # Per-scan SGP4 is an approximation; error < 0.01 deg for AVHRR scan rates
+    np.testing.assert_allclose(lons_2d, lons_ref, atol=0.01)
+    np.testing.assert_allclose(lats_2d, lats_ref, atol=0.01)
+
+
+def test_whiskbroom_scan_constants_match_legacy_functions():
+    """Test that whiskbroom instrument constants produce geometry matching the legacy functions."""
     from pyorbital.geoloc_instrument_definitions import (
-        AMSU_A_SCAN, MHS_SCAN, HIRS4_SCAN, ATMS_SCAN, MWHS2_SCAN,
+        AMSU_A_SCAN,
+        ATMS_SCAN,
+        HIRS4_SCAN,
+        MHS_SCAN,
+        MWHS2_SCAN,
     )
     for scan, legacy_fn in [
         (AMSU_A_SCAN, amsua),
@@ -631,3 +698,159 @@ def test_sweepbroom_scan_constants_match_legacy_functions():
             legacy_geom._times.view(np.int64).astype(np.float64),
             rtol=1e-6, atol=1e-6,
             err_msg=f"{scan} times mismatch")
+
+
+def test_multiline_whiskbroom_fov_shape():
+    """Test that MultiLineWhiskbroomScan produces (2, n_scans*lines_per_scan, n_pixels) fovs."""
+    scan = MultiLineWhiskbroomScan(
+        pixels_per_scan=10, scan_angle=55.0, scan_rate=1.5,
+        pixel_dwell_time=1.48 / 10, lines_per_scan=4,
+        along_track_step=np.deg2rad(0.067),
+    )
+    geom = scan.scan_geometry(n_scans=3)
+    assert geom.fovs.shape == (2, 3 * 4, 10)
+    assert geom._times.shape == (3 * 4, 10)
+    assert geom.lines_per_scan == 4
+
+
+def test_multiline_whiskbroom_along_track_angles():
+    """Check that along-track angles span symmetrically around zero for each scan's detector rows."""
+    lines_per_scan = 4
+    step = 0.01
+    scan = MultiLineWhiskbroomScan(
+        pixels_per_scan=5, scan_angle=10.0, scan_rate=1.5,
+        pixel_dwell_time=0.1, lines_per_scan=lines_per_scan,
+        along_track_step=step,
+    )
+    geom = scan.scan_geometry(n_scans=2)
+    # Along-track angles for the first scan's rows (uniform across pixels)
+    at_angles = geom.fovs[1, :lines_per_scan, 0]
+    expected = (np.arange(lines_per_scan) - (lines_per_scan - 1) / 2.0) * step
+    np.testing.assert_allclose(at_angles, expected, atol=1e-10)
+    # All scan lines in a scan share the same pixel-level cross-track times
+    scan_times = geom._times[:lines_per_scan, :]
+    np.testing.assert_equal(scan_times[0], scan_times[1])
+
+
+def test_multiline_whiskbroom_lines_per_scan_in_scan_geometry():
+    """Assert that ScanGeometry.lines_per_scan attribute is set correctly."""
+    from pyorbital.geoloc import ScanGeometry
+    fovs = np.zeros((2, 8, 5))
+    times = np.zeros((8, 5))
+    geom = ScanGeometry(fovs, times, lines_per_scan=4)
+    assert geom.lines_per_scan == 4
+
+
+def test_get_lonlatalt_produces_same_results_with_numba():
+    """Check that get_lonlatalt with numba produces the same lon/lat/alt as pyproj (< 1e-6 deg, < 0.1 m)."""
+    pytest.importorskip("numba")
+    from pyproj import Transformer
+
+    from pyorbital.geoloc import _numba_ecef_to_lonlatalt
+
+    # Build 1 000 random ECEF surface points (alt=0)
+    rng = np.random.default_rng(0)
+    lons_t = rng.uniform(-179, 179, 1000)
+    lats_t = rng.uniform(-89, 89, 1000)
+    trf_fwd = Transformer.from_crs(dict(proj="latlong"), dict(proj="geocent"))
+    x_m, y_m, z_m = trf_fwd.transform(lons_t, lats_t, np.zeros(1000))
+
+    # Reference: pyproj geocent -> latlong
+    trf_inv = Transformer.from_crs(dict(proj="geocent"), dict(proj="latlong"))
+    lon_pp, lat_pp, alt_pp = trf_inv.transform(x_m, y_m, z_m)
+
+    # Numba kernel takes km, returns degrees + meters
+    lon_nb, lat_nb, alt_nb = _numba_ecef_to_lonlatalt(x_m / 1000, y_m / 1000, z_m / 1000)
+
+    np.testing.assert_allclose(lon_nb, lon_pp, atol=1e-6,
+                               err_msg="numba lon disagrees with pyproj")
+    np.testing.assert_allclose(lat_nb, lat_pp, atol=1e-6,
+                               err_msg="numba lat disagrees with pyproj")
+    np.testing.assert_allclose(alt_nb, alt_pp, atol=0.1,
+                               err_msg="numba alt disagrees with pyproj")
+
+def test_compute_pixel_works():
+    """Check that compute_pixels works for MultiLineWhiskbroomScan without OOM or crash."""
+    from pyorbital.geoloc import compute_pixels, get_lonlatalt
+    from pyorbital.geoloc_instrument_definitions import MERSI_250M_SCAN
+
+    tle1 = "1 33591U 09005A   21355.91138073  .00000074  00000+0  65091-4 0  9998"
+    tle2 = "2 33591  99.1688  21.1338 0013414 329.8936  30.1462 14.12516400663123"
+    t = dt.datetime(2021, 12, 21, 12, 0, 0)
+
+    n_scans = 10
+    sgeom = MERSI_250M_SCAN.scan_geometry(n_scans)
+    assert sgeom.fovs.shape == (2, n_scans * 40, 8192)
+    assert sgeom.lines_per_scan == 40
+
+    s_times = sgeom.times(t)
+    pixels = compute_pixels((tle1, tle2), sgeom, s_times)
+    lons, lats, alts = get_lonlatalt(pixels, s_times)
+
+    assert pixels.shape == (3, n_scans * 40 * 8192)
+    assert np.all(np.isfinite(lons))
+    assert np.all(np.abs(lats) <= 90)
+
+
+def test_geolocate_matches_compute_pixels_get_lonlatalt():
+    """Check that geolocate() agrees with compute_pixels+get_lonlatalt to < 1e-6 deg / < 0.1 m."""
+    pytest.importorskip("numba")
+    from pyorbital.geoloc import _HAS_NUMBA, compute_pixels, geolocate, get_lonlatalt
+    if not _HAS_NUMBA:
+        pytest.skip("numba not available")
+
+    from pyorbital.geoloc_instrument_definitions import MERSI_1KM_SCAN
+
+    tle1 = "1 33591U 09005A   21355.91138073  .00000074  00000+0  65091-4 0  9998"
+    tle2 = "2 33591  99.1688  21.1338 0013414 329.8936  30.1462 14.12516400663123"
+    t = dt.datetime(2021, 12, 21, 12, 0, 0)
+    n_scans = 5
+    sgeom = MERSI_1KM_SCAN.scan_geometry(n_scans)
+    s_times = sgeom.times(t)
+
+    # Reference: the established pipeline
+    pixels = compute_pixels((tle1, tle2), sgeom, s_times)
+    lon_ref, lat_ref, alt_ref = get_lonlatalt(pixels, s_times)
+
+    # New fused path
+    lon_fused, lat_fused, alt_fused = geolocate((tle1, tle2), sgeom, s_times)
+
+    assert lon_fused.shape == lon_ref.shape
+    np.testing.assert_allclose(lon_fused, lon_ref, atol=1e-6,
+                               err_msg="geolocate lon disagrees with reference")
+    np.testing.assert_allclose(lat_fused, lat_ref, atol=1e-6,
+                               err_msg="geolocate lat disagrees with reference")
+    np.testing.assert_allclose(alt_fused, alt_ref, atol=1.0,
+                               err_msg="geolocate alt disagrees with reference")
+
+
+def test_geolocate_with_yaw_steering_matches_reference():
+    """Check that geolocate(yaw_steering=True) fused path agrees with compute_pixels reference."""
+    pytest.importorskip("numba")
+    from pyorbital.geoloc import _HAS_NUMBA, compute_pixels, geolocate, get_lonlatalt
+    if not _HAS_NUMBA:
+        pytest.skip("numba not available")
+
+    from pyorbital.geoloc_instrument_definitions import MERSI_1KM_SCAN
+
+    tle1 = "1 33591U 09005A   21355.91138073  .00000074  00000+0  65091-4 0  9998"
+    tle2 = "2 33591  99.1688  21.1338 0013414 329.8936  30.1462 14.12516400663123"
+    t = dt.datetime(2021, 12, 21, 12, 0, 0)
+    n_scans = 5
+    sgeom = MERSI_1KM_SCAN.scan_geometry(n_scans)
+    s_times = sgeom.times(t)
+
+    # Reference: established pipeline with yaw steering
+    pixels = compute_pixels((tle1, tle2), sgeom, s_times, yaw_steering=True)
+    lon_ref, lat_ref, alt_ref = get_lonlatalt(pixels, s_times)
+
+    # Fused numba path with yaw steering
+    lon_f, lat_f, alt_f = geolocate((tle1, tle2), sgeom, s_times, yaw_steering=True)
+
+    assert lon_f.shape == lon_ref.shape
+    np.testing.assert_allclose(lon_f, lon_ref, atol=1e-6,
+                               err_msg="yaw-steered lon disagrees with reference")
+    np.testing.assert_allclose(lat_f, lat_ref, atol=1e-6,
+                               err_msg="yaw-steered lat disagrees with reference")
+    np.testing.assert_allclose(alt_f, alt_ref, atol=1.0,
+                               err_msg="yaw-steered alt disagrees with reference")

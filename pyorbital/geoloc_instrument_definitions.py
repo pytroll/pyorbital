@@ -113,7 +113,7 @@ class PushbroomSwath:
 
 
 @dataclass
-class SweepbroomScan:
+class WhiskbroomScan:
     """Definition of a cross-track (whiskbroom) scanning instrument.
 
     Pixels are acquired sequentially across track, one line at a time.
@@ -182,7 +182,7 @@ class SweepbroomScan:
         return np.tile(pixel_times, [n_scans, 1]) + np.expand_dims(scan_offsets, 1)
 
 
-AMSU_A_SCAN = SweepbroomScan(
+AMSU_A_SCAN = WhiskbroomScan(
     pixels_per_scan=30,
     scan_angle=48.3,
     scan_rate=8.0,
@@ -190,7 +190,7 @@ AMSU_A_SCAN = SweepbroomScan(
     sync_time=0.00355,
 )
 
-MHS_SCAN = SweepbroomScan(
+MHS_SCAN = WhiskbroomScan(
     pixels_per_scan=90,
     scan_angle=49.444,
     scan_rate=8 / 3.0,
@@ -198,7 +198,7 @@ MHS_SCAN = SweepbroomScan(
     sync_time=0.0,
 )
 
-HIRS4_SCAN = SweepbroomScan(
+HIRS4_SCAN = WhiskbroomScan(
     pixels_per_scan=56,
     scan_angle=49.5,
     scan_rate=6.4,
@@ -206,7 +206,7 @@ HIRS4_SCAN = SweepbroomScan(
     sync_time=0.0,
 )
 
-ATMS_SCAN = SweepbroomScan(
+ATMS_SCAN = WhiskbroomScan(
     pixels_per_scan=96,
     scan_angle=52.7,
     scan_rate=8 / 3.0,
@@ -214,12 +214,135 @@ ATMS_SCAN = SweepbroomScan(
     sync_time=0.0,
 )
 
-MWHS2_SCAN = SweepbroomScan(
+MWHS2_SCAN = WhiskbroomScan(
     pixels_per_scan=98,
     scan_angle=53.35,
     scan_rate=8 / 3.0,
     pixel_dwell_time=(8 / 3.0 - 1) / 98.0,
     sync_time=0.0,
+)
+
+
+@dataclass
+class MultiLineWhiskbroomScan:
+    """Definition of a multi-line cross-track (whiskbroom) scanning instrument.
+
+    Each sweep of the cross-track mirror captures *lines_per_scan* simultaneous
+    lines via a detector array stacked along the flight direction.  Examples:
+    MERSI-2, MERSI-3, MODIS, VIIRS (all have multiple detector rows per scan).
+
+    Args:
+        pixels_per_scan: Number of pixels per scan line (across-track).
+        scan_angle: Half-swath angle in degrees (positive). Pixels run
+            from +scan_angle (left edge) to -scan_angle (right edge).
+        scan_rate: Duration of one complete scan cycle in seconds.
+        pixel_dwell_time: Time per pixel measurement in seconds.
+        lines_per_scan: Number of detector rows along-track captured per sweep.
+        along_track_step: Angular spacing between detector rows in radians.
+            Typically pixel_size_km / orbit_altitude_km.
+        sync_time: Delay before the first pixel measurement in seconds.
+    """
+
+    pixels_per_scan: int
+    scan_angle: float
+    scan_rate: float
+    pixel_dwell_time: float
+    lines_per_scan: int
+    along_track_step: float
+    sync_time: float = 0.0
+
+    def cross_track_angles(self, scan_points=None):
+        """Compute cross-track angles for the given pixel positions.
+
+        Returns:
+            Cross-track angles in radians, running from +scan_angle to
+            -scan_angle as pixel index increases.
+        """
+        if scan_points is None:
+            scan_points = np.arange(self.pixels_per_scan)
+        scan_points = np.asanyarray(scan_points)
+        return (scan_points / (self.pixels_per_scan * 0.5 - 0.5) - 1) * np.deg2rad(-self.scan_angle)
+
+    def along_track_angles(self):
+        """Compute along-track angles for each detector row.
+
+        Returns:
+            Along-track angles in radians, symmetric around zero, one per row.
+        """
+        rows = np.arange(self.lines_per_scan)
+        return (rows - (self.lines_per_scan - 1) / 2.0) * self.along_track_step
+
+    def scan_geometry(self, n_scans, scan_points=None):
+        """Generate a ScanGeometry for the given number of complete scans.
+
+        Each scan produces *lines_per_scan* output lines.
+
+        Args:
+            n_scans: Number of scan cycles.
+            scan_points: Optional subset of pixel indices.
+
+        Returns:
+            A ScanGeometry with fovs shape ``(2, n_scans*lines_per_scan, n_pixels)``
+            and times shape ``(n_scans*lines_per_scan, n_pixels)``.
+        """
+        if scan_points is None:
+            scan_points = np.arange(self.pixels_per_scan)
+        scan_points = np.asanyarray(scan_points)
+        n_scans = int(n_scans)
+        fovs = self._build_fovs(scan_points, n_scans)
+        times = self._build_times(scan_points, n_scans)
+        return ScanGeometry(fovs, times, lines_per_scan=self.lines_per_scan)
+
+    def _build_fovs(self, scan_points, n_scans):
+        """Build (2, n_scans*L, n_pixels) FOV array."""
+        L = self.lines_per_scan
+        cross = self.cross_track_angles(scan_points)           # (N,)
+        along = self.along_track_angles()                      # (L,)
+        # cross-track: same for all L lines within each scan
+        cross_tiled = np.tile(cross, (n_scans * L, 1))        # (n_scans*L, N)
+        # along-track: repeating L-row block, constant across pixels
+        along_block = np.tile(along[:, np.newaxis], (1, len(scan_points)))  # (L, N)
+        along_tiled = np.tile(along_block, (n_scans, 1))      # (n_scans*L, N)
+        return np.stack([cross_tiled, along_tiled])            # (2, n_scans*L, N)
+
+    def _build_times(self, scan_points, n_scans):
+        """Build (n_scans*L, n_pixels) time array.
+
+        All detector rows within the same scan share identical per-pixel times
+        (the mirror position is the same for all rows at each instant).
+        """
+        L = self.lines_per_scan
+        pixel_times = scan_points * self.pixel_dwell_time + self.sync_time  # (N,)
+        scan_offsets = np.arange(n_scans) * self.scan_rate                  # (n_scans,)
+        # one row per scan line (n_scans*L rows total, L identical per scan)
+        per_scan_times = (np.tile(pixel_times, (n_scans, 1))
+                          + scan_offsets[:, np.newaxis])                    # (n_scans, N)
+        return np.repeat(per_scan_times, L, axis=0)                        # (n_scans*L, N)
+
+
+# FY-3 MERSI-2 / MERSI-3 (same scan geometry for both series)
+# Sources: WMO OSCAR; scan rate from EV_start_time in L1B data (1.5 s/scan)
+# Orbit altitude ~850 km; pixel size 1 km → along_track_step = 1/850 rad
+# pixel_dwell_time ≈ 1.48 s sweep / pixels_per_scan (1km sweep, 1.5s scan rate)
+_MERSI_SWEEP_TIME = 1.48  # seconds of active sweep per scan
+_MERSI_ALTITUDE_KM = 850.0
+
+MERSI_1KM_SCAN = MultiLineWhiskbroomScan(
+    pixels_per_scan=2048,
+    scan_angle=55.4,
+    scan_rate=1.5,
+    pixel_dwell_time=_MERSI_SWEEP_TIME / 2048,
+    lines_per_scan=10,
+    along_track_step=1.0 / _MERSI_ALTITUDE_KM,
+)
+
+MERSI_250M_SCAN = MultiLineWhiskbroomScan(
+    pixels_per_scan=8192,
+    scan_angle=55.4,
+    scan_rate=1.5,
+    pixel_dwell_time=_MERSI_SWEEP_TIME / 8192,
+    lines_per_scan=40,
+    along_track_step=0.25 / _MERSI_ALTITUDE_KM,
 )
 
 

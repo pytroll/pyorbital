@@ -7,10 +7,8 @@ from functools import partial
 
 import numpy as np
 from scipy import optimize
-from sgp4.api import Satrec
 
-from pyorbital import astronomy, dt2np, tlefile
-from pyorbital.astronomy import jdays
+from pyorbital import astronomy, dt2np
 
 try:
     import dask.array as da
@@ -133,6 +131,8 @@ class Orbital(object):
 
     def __init__(self, satellite, tle_file=None, line1=None, line2=None):
         """Initialize the class."""
+        from pyorbital import tlefile
+
         satellite = satellite.upper()
         self.satellite_name = satellite
         self.tle = tlefile.read(satellite, tle_file=tle_file,
@@ -180,19 +180,8 @@ class Orbital(object):
 
     def get_position(self, utc_time, normalize=True):
         """Get the cartesian position and velocity from the satellite."""
-        sat = Satrec.twoline2rv(self.tle._line1, self.tle._line2)
-        jday = jdays(utc_time)
-        if np.isscalar(jday):
-            err, pos, vel = sat.sgp4(jday, 0.0)
-            pos = np.asanyarray(pos)
-            vel = np.asanyarray(vel)
-        else:
-            err, pos, vel = sat.sgp4_array(jday, np.zeros_like(jday))
-            pos = pos.T
-            vel = vel.T
-        # kep = self._sgdp4.propagate(utc_time)
-        # breakpoint()
-        # pos, vel = kep2xyz(kep)
+        kep = self._sgdp4.propagate(utc_time)
+        pos, vel = kep2xyz(kep)
 
         if normalize:
             pos /= XKMPER

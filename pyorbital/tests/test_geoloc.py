@@ -725,7 +725,7 @@ def test_multiline_whiskbroom_along_track_angles():
     geom = scan.scan_geometry(n_scans=2)
     # Along-track angles for the first scan's rows (uniform across pixels)
     at_angles = geom.fovs[1, :lines_per_scan, 0]
-    expected = (np.arange(lines_per_scan) - (lines_per_scan - 1) / 2.0) * step
+    expected = ((lines_per_scan - 1) / 2.0 - np.arange(lines_per_scan)) * step
     np.testing.assert_allclose(at_angles, expected, atol=1e-10)
     # All scan lines in a scan share the same pixel-level cross-track times
     scan_times = geom._times[:lines_per_scan, :]

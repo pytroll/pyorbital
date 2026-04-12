@@ -270,7 +270,7 @@ class MultiLineWhiskbroomScan:
             Along-track angles in radians, symmetric around zero, one per row.
         """
         rows = np.arange(self.lines_per_scan)
-        return (rows - (self.lines_per_scan - 1) / 2.0) * self.along_track_step
+        return ((self.lines_per_scan - 1) / 2.0 - rows) * self.along_track_step
 
     def scan_geometry(self, n_scans, scan_points=None):
         """Generate a ScanGeometry for the given number of complete scans.

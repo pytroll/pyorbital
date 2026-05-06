@@ -22,7 +22,7 @@ from pyorbital import astronomy
 from pyorbital.orbital import Orbital
 
 A = 6378.137  # WGS84 and GRS80 Equatorial radius (km)
-B = 6356.75231414  # km, GRS80
+B = 6356.752314245  # km, WGS84
 
 # Module-level cached Transformer — avoids re-creating the PROJ context on
 # every get_lonlatalt() call.
@@ -90,10 +90,20 @@ def _local_frame(pos, vel):
     """Compute the satellite's local orbital reference frame.
 
     Returns (nadir, along_track, cross_track) as unit column vectors.
+
+    The nadir is the geodetic sub-satellite direction: from the satellite to
+    the foot of the perpendicular on the WGS84 ellipsoid (``subpoint(pos)``).
+    It is re-orthogonalised against ``along_track`` via Gram-Schmidt to maintain
+    the orthonormality required by the broadcast rotation in :class:`ScanGeometry`.
     """
-    nadir = subpoint(-pos)
+    sub = subpoint(pos)
+    nadir = sub - pos
     nadir /= vnorm(nadir)
     along_track = vel / vnorm(vel)
+    # Gram-Schmidt: remove the along_track component from nadir so that
+    # nadir ⊥ along_track (required by _vectors_broadcast simplified formula).
+    nadir = nadir - along_track * np.sum(nadir * along_track, axis=0, keepdims=True)
+    nadir /= vnorm(nadir)
     cross_track = np.cross(nadir, vel, 0, 0, 0)
     cross_track /= vnorm(cross_track)
     return nadir, along_track, cross_track
@@ -215,9 +225,11 @@ class ScanGeometry(object):
         fovs = self.fovs.reshape(2, -1)
         nadir, along_track, cross_track = _local_frame(pos, vel)
         effective_yaw = _effective_yaw(yaw, yaw_steering, pos, vel, self.fovs[0].shape)
-        rotated = qrotate(nadir, along_track, fovs[0] + roll)
         if np.any(fovs[1] + pitch):
-            rotated = qrotate(rotated, cross_track, fovs[1] + pitch)
+            rotated = qrotate(nadir, cross_track, fovs[1] + pitch)
+            rotated = qrotate(rotated, along_track, fovs[0] + roll)
+        else:
+            rotated = qrotate(nadir, along_track, fovs[0] + roll)
         return qrotate(rotated, nadir, effective_yaw)
 
     def _vectors_broadcast(self, pos, vel, roll, pitch, yaw, yaw_steering):
@@ -234,31 +246,42 @@ class ScanGeometry(object):
            Trig is computed on ``N_scans`` values instead of
            ``N_scans * N_pixels``.
 
-        3. **nadir ⊥ along_track** (guaranteed by :func:`_local_frame`).
-           The first Rodrigues rotation therefore simplifies to two
+        3. **nadir ⊥ cross_track** (guaranteed by :func:`_local_frame`).
+           The along-track Rodrigues rotation therefore simplifies to two
            multiply-add operations:
-           ``rotated = nadir * cos(θ) + cross_track * sin(θ)``
+           ``r1 = nadir * cos(α) - along_track * sin(α)``
         """
         nadir, along_track, cross_track = _local_frame(pos, vel)
         effective_yaw = _effective_yaw(yaw, yaw_steering, pos, vel, self.fovs[0].shape)
 
-        # --- First rotation: nadir around along_track by cross-track scan angle ---
-        # Exploit nadir ⊥ along_track: full Rodrigues reduces to 2 mults.
-        # Cross-track angles are identical for all scan lines: use first row (1, N)
-        # for trig, then broadcast across M scan lines.
+        nadir_3d = nadir[:, :, np.newaxis]                      # (3, M, 1)
+        at_3d = along_track[:, :, np.newaxis]                   # (3, M, 1)
+        ct_3d = cross_track[:, :, np.newaxis]                   # (3, M, 1)
+
+        # Cross-track angles are identical for all scan lines: compute trig once.
         cross_angles = (self.fovs[0] + roll)[0:1, :]           # (1, N)
         cos_c = np.cos(cross_angles)                            # (1, N)
         sin_c = np.sin(cross_angles)                            # (1, N)
-        nadir_3d = nadir[:, :, np.newaxis]                      # (3, M, 1)
-        ct_3d = cross_track[:, :, np.newaxis]                   # (3, M, 1)
-        rotated = nadir_3d * cos_c[np.newaxis] + ct_3d * sin_c[np.newaxis]
 
-        # --- Second rotation: around cross_track by along-track detector angle ---
-        # Along-track angles are constant across pixels: use first column (M, 1)
-        # so trig is computed on M values instead of M*N.
+        # Along-track angles are constant across pixels: compute trig once per row.
         along_angles = (self.fovs[1] + pitch)[:, 0:1]          # (M, 1)
+
         if np.any(along_angles):
-            rotated = _rodrigues(rotated, cross_track, along_angles)
+            # --- Step 1: along-track (simplified Rodrigues around cross_track) ---
+            # Exploit nadir ⊥ cross_track: r1 = nadir*cos(α) - along_track*sin(α)
+            cos_a = np.cos(along_angles)[np.newaxis]            # (1, M, 1)
+            sin_a = np.sin(along_angles)[np.newaxis]            # (1, M, 1)
+            r1 = nadir_3d * cos_a - at_3d * sin_a              # (3, M, 1)
+
+            # --- Step 2: cross-track (compact full-Rodrigues around along_track) ---
+            # r2 = r1*cos(θ) + cross_track*cos(α)*sin(θ) - along_track*sin(α)*(1-cos(θ))
+            one_m_cos_c = 1.0 - cos_c                          # (1, N)
+            rotated = (r1 * cos_c[np.newaxis]
+                       + ct_3d * cos_a * sin_c[np.newaxis]
+                       - at_3d * sin_a * one_m_cos_c[np.newaxis])
+        else:
+            # No along-track offset: simplified cross-track only (nadir ⊥ along_track).
+            rotated = nadir_3d * cos_c[np.newaxis] + ct_3d * sin_c[np.newaxis]
 
         # --- Yaw rotation (only if non-zero) ---
         if np.shape(effective_yaw):
@@ -401,8 +424,8 @@ if _HAS_NUMBA:
         :func:`_rodrigues` and :func:`qrotate`.
 
         Three rotations are applied in order:
-        1. Cross-track (simplified, exploits nadir ⊥ along_track).
-        2. Along-track Rodrigues (skipped when ``along_angles[m] ≈ 0``).
+        1. Along-track (simplified Rodrigues, exploits nadir ⊥ cross_track).
+        2. Cross-track (compact full-Rodrigues around along_track = cross_track × nadir).
         3. Yaw Rodrigues around nadir (skipped when ``yaw_angles[m] ≈ 0``).
 
         Args:
@@ -442,34 +465,32 @@ if _HAS_NUMBA:
             nx, ny, nz = nadir[0, m], nadir[1, m], nadir[2, m]
             ctx, cty, ctz = cross_track[0, m], cross_track[1, m], cross_track[2, m]
 
-            # Along-track Rodrigues trig — computed once per scan line
+            # Along-track trig — computed once per scan line
             alpha = along_angles[m]
             cos_a = math.cos(alpha)
             sin_a = math.sin(alpha)
-            do_along = abs(sin_a) > 1e-15
-            one_m_cos_a = 1.0 - cos_a
+
+            # along_track = cross_track × nadir  (pre-computed per row)
+            atx = cty * nz - ctz * ny
+            aty = ctz * nx - ctx * nz
+            atz = ctx * ny - cty * nx
+
+            # --- Step 1: along-track (simplified Rodrigues, nadir ⊥ cross_track) ---
+            # r1 = nadir*cos(α) - along_track*sin(α)  (pre-computed per row)
+            r1x = nx * cos_a - atx * sin_a
+            r1y = ny * cos_a - aty * sin_a
+            r1z = nz * cos_a - atz * sin_a
 
             gmst_m = gmst_scan[m]
 
             for k in range(N):
-                # --- 1st rotation: nadir*cos_c + cross_track*sin_c ---
-                # Simplified CW Rodrigues (nadir ⊥ along_track):
-                #   v_rot = nadir·cos(θ) - (along×nadir)·sin(θ)
-                #         = nadir·cos(θ) + cross_track·sin(θ)
+                # --- Step 2: cross-track (compact full-Rodrigues around along_track) ---
+                # r2 = r1*cos(θ) + cross_track*cos(α)*sin(θ) - along_track*sin(α)*(1-cos(θ))
                 cc, sc = cos_c[k], sin_c[k]
-                rx = nx * cc + ctx * sc
-                ry = ny * cc + cty * sc
-                rz = nz * cc + ctz * sc
-
-                # --- 2nd rotation: CW Rodrigues around cross_track by alpha ---
-                if do_along:
-                    ctdotr = ctx * rx + cty * ry + ctz * rz
-                    crx = cty * rz - ctz * ry
-                    cry = ctz * rx - ctx * rz
-                    crz = ctx * ry - cty * rx
-                    rx = rx * cos_a - crx * sin_a + ctx * ctdotr * one_m_cos_a
-                    ry = ry * cos_a - cry * sin_a + cty * ctdotr * one_m_cos_a
-                    rz = rz * cos_a - crz * sin_a + ctz * ctdotr * one_m_cos_a
+                one_m_cc = 1.0 - cc
+                rx = r1x * cc + ctx * cos_a * sc - atx * sin_a * one_m_cc
+                ry = r1y * cc + cty * cos_a * sc - aty * sin_a * one_m_cc
+                rz = r1z * cc + ctz * cos_a * sc - atz * sin_a * one_m_cc
 
                 # --- 3rd rotation: CW Rodrigues around nadir by yaw angle ---
                 yaw_m = yaw_angles[m]

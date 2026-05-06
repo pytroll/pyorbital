@@ -13,6 +13,7 @@ from pyorbital.geoloc_avhrr import (
     estimate_time_offset,
 )
 from pyorbital.geoloc_instrument_definitions import (
+    FocalPlaneWhiskbroomScan,
     MultiLineWhiskbroomScan,
     PushbroomSwath,
     SingleLinePushbroomScan,
@@ -157,6 +158,35 @@ class TestGeoloc:
                                              4497.06396339]), rtol=1e-8, atol=1e-8)
 
 
+def test_local_frame_nadir_is_perpendicular_to_ellipsoid():
+    """_local_frame nadir must point from satellite to geodetic sub-satellite point.
+
+    For a satellite over 45°N: the true geodetic nadir direction is the inward
+    normal to the WGS84 ellipsoid, which differs from the geocentric direction
+    (pos / |pos|) by up to ~0.2° due to Earth's oblateness.  The test checks
+    that the nadir vector is anti-parallel to the outward ellipsoid normal at the
+    sub-satellite point, to within 0.01° (a geocentric approximation would fail
+    this check at the ~0.19° level).
+    """
+    from pyorbital.geoloc import _local_frame, subpoint
+
+    e2 = 0.00669437999014  # WGS84 first eccentricity squared
+    a = 6378.137
+    phi = np.deg2rad(45.0)
+    n = a / np.sqrt(1 - e2 * np.sin(phi) ** 2)
+    r_surface = np.array([n * np.cos(phi), 0.0, (1 - e2) * n * np.sin(phi)])
+    # Add altitude along the outward ellipsoid normal (not the geocentric radial)
+    outward_normal = np.array([np.cos(phi), 0.0, np.sin(phi)])
+    pos = (r_surface + outward_normal * 883.0).reshape(3, 1)
+    vel = np.array([[-np.sin(phi)], [0.0], [np.cos(phi)]]) * 7.5  # km/s southward
+
+    nadir, _, _ = _local_frame(pos, vel)
+
+    # Outward ellipsoid normal at geodetic lat 45° is exactly (cos45, 0, sin45)
+    outward_normal = np.array([np.cos(phi), 0.0, np.sin(phi)])
+    dot = float(np.dot(nadir[:, 0], outward_normal))
+    angle_deg = np.degrees(np.arccos(np.clip(-dot, -1, 1)))
+    assert angle_deg < 0.01, f"nadir deviates {angle_deg:.4f}° from geodetic normal (should be < 0.01°)"
 
 
 def test_arbitrary_point_geoloc():
@@ -177,11 +207,11 @@ def test_arbitrary_point_geoloc():
 
     lons, lats, alts = compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, t, (tle1, tle2))
 
-    assert lons[0] == pytest.approx(-34.69996894)
-    assert lats[0] == pytest.approx(56.69799502)
+    assert lons[0] == pytest.approx(-34.6837529770841)
+    assert lats[0] == pytest.approx(56.6957393293241)
 
-    assert lons[2] == pytest.approx(-27.573052737698944)
-    assert lats[2] == pytest.approx(55.626740897592654)
+    assert lons[2] == pytest.approx(-27.562036184782173)
+    assert lats[2] == pytest.approx(55.62432770982518)
 
 
 def test_minimize_geoloc_error():
@@ -854,3 +884,168 @@ def test_geolocate_with_yaw_steering_matches_reference():
                                err_msg="yaw-steered lat disagrees with reference")
     np.testing.assert_allclose(alt_f, alt_ref, atol=1.0,
                                err_msg="yaw-steered alt disagrees with reference")
+
+
+# ---------------------------------------------------------------------------
+# FocalPlaneWhiskbroomScan tests
+# ---------------------------------------------------------------------------
+
+def _fp_scan(lines_per_scan=4, altitude_km=830.0, det_position=(0.0, 0.0), boresight=None):
+    """Helper: FocalPlaneWhiskbroomScan with focal_length=altitude_km, det_space=1.0."""
+    return FocalPlaneWhiskbroomScan(
+        pixels_per_scan=20,
+        scan_angle=55.0,
+        scan_rate=1.5,
+        pixel_dwell_time=0.001,
+        lines_per_scan=lines_per_scan,
+        focal_length=altitude_km,
+        det_space=1.0,
+        det_position=det_position,
+        boresight=boresight,
+    )
+
+
+def test_focal_plane_identity_matches_multiline_whiskbroom():
+    """FocalPlaneWhiskbroomScan with identity boresight and zero offset matches MultiLineWhiskbroomScan."""
+    altitude_km = 830.0
+    lines_per_scan = 4
+    fp = _fp_scan(lines_per_scan=lines_per_scan, altitude_km=altitude_km)
+    ref = MultiLineWhiskbroomScan(
+        pixels_per_scan=20,
+        scan_angle=55.0,
+        scan_rate=1.5,
+        pixel_dwell_time=0.001,
+        lines_per_scan=lines_per_scan,
+        along_track_step=1.0 / altitude_km,
+    )
+    # FocalPlaneWhiskbroomScan uses exact arctan2; MultiLineWhiskbroomScan uses the
+    # small-angle approximation tan(θ)≈θ.  Tolerance covers that ~nrad difference.
+    np.testing.assert_allclose(fp.along_track_angles(), ref.along_track_angles(), atol=1e-7)
+    np.testing.assert_allclose(fp.cross_track_angles(), ref.cross_track_angles(), atol=1e-10)
+
+
+def test_focal_plane_det_position_y_shifts_along_track():
+    """det_position y-offset shifts each row's along-track angle by the correct arctan amount."""
+    altitude_km = 830.0
+    y_offset_mm = 5.0
+    lines_per_scan = 4
+    fp_base = _fp_scan(lines_per_scan=lines_per_scan, altitude_km=altitude_km, det_position=(0.0, 0.0))
+    fp_off = _fp_scan(lines_per_scan=lines_per_scan, altitude_km=altitude_km, det_position=(0.0, y_offset_mm))
+
+    # Compute expected angles from first principles
+    rows = np.arange(lines_per_scan, dtype=float)
+    y_base = ((lines_per_scan - 1) / 2.0 - rows) * 1.0          # det_space=1.0
+    y_off = y_base + y_offset_mm
+    expected_base = np.arctan2(y_base, altitude_km)
+    expected_off = np.arctan2(y_off, altitude_km)
+
+    np.testing.assert_allclose(fp_base.along_track_angles(), expected_base, atol=1e-12)
+    np.testing.assert_allclose(fp_off.along_track_angles(), expected_off, atol=1e-12)
+
+
+def test_focal_plane_det_position_x_shifts_cross_track_uniformly():
+    """det_position x-offset shifts all cross-track angles by the same amount."""
+    altitude_km = 830.0
+    x_offset_mm = 3.0
+    fp_base = _fp_scan(altitude_km=altitude_km, det_position=(0.0, 0.0))
+    fp_off = _fp_scan(altitude_km=altitude_km, det_position=(x_offset_mm, 0.0))
+
+    delta = fp_off.cross_track_angles() - fp_base.cross_track_angles()
+    np.testing.assert_allclose(delta, delta[0], atol=1e-12,
+                               err_msg="cross-track shift is not uniform across pixels")
+    expected = np.arctan2(x_offset_mm, altitude_km)
+    np.testing.assert_allclose(delta[0], expected, atol=1e-10,
+                               err_msg="cross-track shift magnitude is incorrect")
+
+
+def test_focal_plane_pure_pitch_boresight_shifts_along_track():
+    """A pure pitch rotation in the boresight shifts all along-track angles by that angle."""
+    pitch_rad = np.deg2rad(0.05)
+    R_pitch = np.array([
+        [1.0, 0.0,            0.0           ],
+        [0.0, np.cos(pitch_rad), -np.sin(pitch_rad)],
+        [0.0, np.sin(pitch_rad),  np.cos(pitch_rad)],
+    ])
+    fp_no = _fp_scan(boresight=None)
+    fp_bs = _fp_scan(boresight=R_pitch)
+
+    delta = fp_bs.along_track_angles() - fp_no.along_track_angles()
+    # Rx(+θ) rotates the nadir direction toward −y, so the apparent along-track
+    # angle of the boresight shifts by −θ (backward).
+    np.testing.assert_allclose(delta, -pitch_rad, atol=1e-6,
+                               err_msg="pitch boresight does not shift along-track angles correctly")
+
+
+def test_focal_plane_scan_geometry_shape_and_times():
+    """scan_geometry produces correctly shaped fovs and times arrays."""
+    n_scans, L, N = 3, 4, 20
+    fp = _fp_scan(lines_per_scan=L)
+    geom = fp.scan_geometry(n_scans=n_scans)
+    assert geom.fovs.shape == (2, n_scans * L, N)
+    assert geom._times.shape == (n_scans * L, N)
+    assert geom.lines_per_scan == L
+
+
+def test_focal_plane_structural_invariants_preserved():
+    """Cross-track angles are identical for all rows; along-track is constant across pixels."""
+    fp = _fp_scan(lines_per_scan=4, det_position=(1.5, 2.0))
+    geom = fp.scan_geometry(n_scans=2)
+    # Cross-track: all rows in a scan must be the same
+    for row in range(1, 4):
+        np.testing.assert_array_equal(geom.fovs[0, 0, :], geom.fovs[0, row, :],
+                                      err_msg=f"cross-track row {row} differs from row 0")
+    # Along-track: constant across pixels within each row
+    along = geom.fovs[1]         # (n_scans*L, N)
+    assert np.all(along == along[:, 0:1]), "along-track angles vary across pixels"
+
+
+def test_along_track_spacing_is_independent_of_cross_track_angle():
+    """Along-track pixel spacing must not depend on the cross-track scan angle.
+
+    Before the rotation-order fix, the along-track component of the pointing
+    vector was compressed by cos(scan_angle), giving ~57% of the correct value
+    at 55°.  After the fix, along_track · r == -sin(alpha) regardless of theta.
+
+    Geometry: equatorial satellite above the x-axis with northward velocity.
+    This gives a clean analytical frame:
+        nadir       = [-1,  0,  0]
+        along_track = [ 0,  1,  0]  (northward)
+        cross_track = [ 0,  0, -1]
+    so the expected along-track component is exactly -sin(alpha).
+
+    Uses the 3-D broadcast path (fovs.shape = (2, n_rows, n_pixels)) so that
+    along-track angles vary per row while cross-track angles vary per pixel.
+    """
+    alpha = 1.0 / 830.0        # typical MERSI along-track step (rad)
+    theta = np.deg2rad(55.13)  # full-swath edge scan angle
+
+    # 2 rows x 2 pixels:
+    #   row 0: no along-track offset;  row 1: alpha offset
+    #   col 0: nadir (theta=0);        col 1: swath edge (theta)
+    fovs = np.array([
+        [[0.0, theta], [0.0, theta]],   # fovs[0]: cross-track, same per row
+        [[0.0, 0.0],   [alpha, alpha]], # fovs[1]: along-track, same per col
+    ])  # shape (2, 2, 2)
+    geom = ScanGeometry(fovs, np.zeros((2, 2)), lines_per_scan=2)
+
+    # Equatorial satellite with northward velocity; use same position for both rows
+    # (rows are separated by microseconds — no measurable orbital movement).
+    R_orbit = 7208.0  # km (altitude ~830 km)
+    pos = np.array([[R_orbit, R_orbit], [0.0, 0.0], [0.0, 0.0]])
+    vel = np.array([[0.0, 0.0], [7.34, 7.34], [0.0, 0.0]])  # km/s, northward
+
+    vectors = geom.vectors(pos, vel)  # (3, 4): [r0-nadir, r0-edge, r1-nadir, r1-edge]
+
+    # For this geometry, along_track = [0, 1, 0] analytically.
+    along_track = np.array([0.0, 1.0, 0.0])
+
+    at_r0_nadir = along_track @ vectors[:, 0]  # row 0, nadir:  expect ~0
+    at_r1_nadir = along_track @ vectors[:, 2]  # row 1, nadir:  expect ~-sin(alpha)
+    at_r1_edge  = along_track @ vectors[:, 3]  # row 1, edge:   expect ~-sin(alpha)
+
+    np.testing.assert_allclose(at_r0_nadir, 0.0,           atol=1e-6,
+                               err_msg="row-0 nadir along-track component should be ~0")
+    np.testing.assert_allclose(at_r1_nadir, -np.sin(alpha), rtol=1e-5,
+                               err_msg="row-1 nadir along-track component should be -sin(alpha)")
+    np.testing.assert_allclose(at_r1_edge,  -np.sin(alpha), rtol=1e-5,
+                               err_msg="swath-edge along-track component must equal nadir (rotation-order fix)")

@@ -322,28 +322,186 @@ class MultiLineWhiskbroomScan:
 
 # FY-3 MERSI-2 / MERSI-3 (same scan geometry for both series)
 # Sources: WMO OSCAR; scan rate from EV_start_time in L1B data (1.5 s/scan)
-# Orbit altitude ~850 km; pixel size 1 km → along_track_step = 1/850 rad
-# pixel_dwell_time ≈ 1.48 s sweep / pixels_per_scan (1km sweep, 1.5s scan rate)
+# Calibrated against FY-3F NSMC L1B reference data (2026-03-20 08:25 pass):
+#   scan_angle  = 55.1349° (WMO OSCAR lists 55.4° which is ~0.27° off)
+#   along_track = 1/883 rad (orbital altitude 883 km, not 850)
+#   sync_time   = −(381 pixels × 1.48 s / 2048) = −0.2753 s
+#     The raw VCDU timestamp marks pixel 381 of the EV sweep (not pixel 0).
 _MERSI_SWEEP_TIME = 1.48  # seconds of active sweep per scan
-_MERSI_ALTITUDE_KM = 850.0
+_MERSI_SYNC_TIME = -(381 * _MERSI_SWEEP_TIME / 2048)   # ≈ −0.2753 s
+_MERSI_ALTITUDE_KM = 830.0                              # calibrated orbital altitude
 
 MERSI_1KM_SCAN = MultiLineWhiskbroomScan(
     pixels_per_scan=2048,
-    scan_angle=55.4,
+    scan_angle=55.1349,
     scan_rate=1.5,
     pixel_dwell_time=_MERSI_SWEEP_TIME / 2048,
     lines_per_scan=10,
-    along_track_step=1.0 / _MERSI_ALTITUDE_KM,
+    along_track_step= 1 / _MERSI_ALTITUDE_KM,
+    sync_time=_MERSI_SYNC_TIME,
 )
 
 MERSI_250M_SCAN = MultiLineWhiskbroomScan(
     pixels_per_scan=8192,
-    scan_angle=55.4,
+    scan_angle=55.1349,
     scan_rate=1.5,
     pixel_dwell_time=_MERSI_SWEEP_TIME / 8192,
     lines_per_scan=40,
     along_track_step=0.25 / _MERSI_ALTITUDE_KM,
+    sync_time=_MERSI_SYNC_TIME,
 )
+
+
+@dataclass
+class FocalPlaneWhiskbroomScan:
+    """Multi-line whiskbroom scan with explicit focal-plane geometry and boresight.
+
+    Extends the capability of :class:`MultiLineWhiskbroomScan` by deriving
+    per-detector along-track angles directly from the instrument's focal-plane
+    geometry, and by applying an optional boresight rotation matrix that maps
+    the instrument frame to the spacecraft body frame.
+
+    This is the appropriate model for instruments like FY-3 MERSI where
+    different spectral bands sit at different along-track positions in the focal
+    plane, causing per-band geolocation differences that the simpler
+    ``along_track_step`` approximation cannot capture.
+
+    The focal-plane model follows the reference implementation in
+    CalTelescoppViewVector1KM (mepgps_F3D.c).  For detector row *i* (0-based,
+    forward-looking rows first)::
+
+        y_i = ((lines_per_scan - 1) / 2 - i) * det_space + det_position[1]
+        x_i = det_position[0]
+        z_i = focal_length
+        unit_vec = [x_i, y_i, z_i] / norm([x_i, y_i, z_i])
+
+    All length units (``focal_length``, ``det_space``, ``det_position``) must
+    be consistent (e.g. all mm); only the ratios matter because vectors are
+    normalised.
+
+    Args:
+        pixels_per_scan: Number of pixels per scan line (across-track).
+        scan_angle: Half-swath angle in degrees (positive). Pixels run from
+            +scan_angle (left edge) to −scan_angle (right edge).
+        scan_rate: Duration of one complete scan cycle in seconds.
+        pixel_dwell_time: Time per pixel measurement in seconds.
+        lines_per_scan: Number of detector rows along-track per sweep.
+        focal_length: Telescope focal length in consistent length units.
+        det_space: Along-track detector pitch in the same length units.
+        sync_time: Delay before the first pixel measurement in seconds.
+        det_position: ``(x, y)`` band-centre offset in the focal plane,
+            in the same length units.  *x* is the cross-track offset,
+            *y* is the along-track offset.  Defaults to ``(0.0, 0.0)``.
+        boresight: Optional 3×3 rotation matrix **T_inst2sc** that maps the
+            instrument telescope frame to the spacecraft body frame.  When
+            ``None`` the identity is used.
+    """
+
+    pixels_per_scan: int
+    scan_angle: float
+    scan_rate: float
+    pixel_dwell_time: float
+    lines_per_scan: int
+    focal_length: float
+    det_space: float
+    sync_time: float = 0.0
+    det_position: tuple = (0.0, 0.0)
+    boresight: "np.ndarray | None" = None
+
+    def _focal_plane_unit_vectors(self):
+        """Return (3, L) unit vectors in the instrument telescope frame."""
+        rows = np.arange(self.lines_per_scan, dtype=float)
+        y = (self.lines_per_scan - 1) / 2.0 - rows
+        y = y * self.det_space + self.det_position[1]
+        x = np.full(self.lines_per_scan, self.det_position[0], dtype=float)
+        z = np.full(self.lines_per_scan, self.focal_length, dtype=float)
+        vecs = np.stack([x, y, z])                         # (3, L)
+        return vecs / np.linalg.norm(vecs, axis=0)         # normalised
+
+    def _body_frame_vectors(self):
+        """Return (3, L) unit vectors in the spacecraft body frame."""
+        vecs = self._focal_plane_unit_vectors()
+        if self.boresight is not None:
+            vecs = np.asarray(self.boresight, dtype=float) @ vecs
+        return vecs
+
+    def along_track_angles(self):
+        """Compute along-track angles for each detector row.
+
+        Derived from the focal-plane geometry and the boresight matrix.
+        Positive angles point in the forward flight direction.
+
+        Returns:
+            Along-track angles in radians, one per detector row.
+        """
+        vecs = self._body_frame_vectors()                  # (3, L)
+        # Convention: axis 1 = along-track, axis 2 = nadir/boresight
+        return np.arctan2(vecs[1], vecs[2])
+
+    def cross_track_angles(self, scan_points=None):
+        """Compute cross-track angles for the given pixel positions.
+
+        The standard linear scan-angle formula is used, with a scalar
+        band-centre cross-track offset derived from the boresighted focal-plane
+        geometry (``det_position[0]`` after applying the boresight matrix).
+
+        Returns:
+            Cross-track angles in radians, running from +scan_angle to
+            −scan_angle as pixel index increases.
+        """
+        if scan_points is None:
+            scan_points = np.arange(self.pixels_per_scan)
+        scan_points = np.asanyarray(scan_points)
+        base = (scan_points / (self.pixels_per_scan * 0.5 - 0.5) - 1) * np.deg2rad(-self.scan_angle)
+        vecs = self._body_frame_vectors()                  # (3, L)
+        # Mean cross-track offset of the band centre across all detector rows
+        ct_offset = float(np.arctan2(vecs[0], vecs[2]).mean())
+        return base + ct_offset
+
+    def scan_geometry(self, n_scans, scan_points=None):
+        """Generate a ScanGeometry for the given number of complete scans.
+
+        Each scan produces *lines_per_scan* output lines.
+
+        Args:
+            n_scans: Number of scan cycles.
+            scan_points: Optional subset of pixel indices.
+
+        Returns:
+            A :class:`~pyorbital.geoloc.ScanGeometry` with ``fovs`` shape
+            ``(2, n_scans*lines_per_scan, n_pixels)`` and ``times`` shape
+            ``(n_scans*lines_per_scan, n_pixels)``.
+        """
+        if scan_points is None:
+            scan_points = np.arange(self.pixels_per_scan)
+        scan_points = np.asanyarray(scan_points)
+        n_scans = int(n_scans)
+        fovs = self._build_fovs(scan_points, n_scans)
+        times = self._build_times(scan_points, n_scans)
+        return ScanGeometry(fovs, times, lines_per_scan=self.lines_per_scan)
+
+    def _build_fovs(self, scan_points, n_scans):
+        """Build (2, n_scans*L, n_pixels) FOV array."""
+        L = self.lines_per_scan
+        cross = self.cross_track_angles(scan_points)            # (N,)
+        along = self.along_track_angles()                       # (L,)
+        cross_tiled = np.tile(cross, (n_scans * L, 1))         # (n_scans*L, N)
+        along_block = np.tile(along[:, np.newaxis], (1, len(scan_points)))  # (L, N)
+        along_tiled = np.tile(along_block, (n_scans, 1))       # (n_scans*L, N)
+        return np.stack([cross_tiled, along_tiled])             # (2, n_scans*L, N)
+
+    def _build_times(self, scan_points, n_scans):
+        """Build (n_scans*L, n_pixels) time array.
+
+        All detector rows within the same scan share identical per-pixel times
+        (the mirror position is the same for all rows at each instant).
+        """
+        L = self.lines_per_scan
+        pixel_times = scan_points * self.pixel_dwell_time + self.sync_time  # (N,)
+        scan_offsets = np.arange(n_scans) * self.scan_rate                  # (n_scans,)
+        per_scan_times = (np.tile(pixel_times, (n_scans, 1))
+                          + scan_offsets[:, np.newaxis])                    # (n_scans, N)
+        return np.repeat(per_scan_times, L, axis=0)                         # (n_scans*L, N)
 
 
 ################################################################

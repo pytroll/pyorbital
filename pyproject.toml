@@ -5,13 +5,14 @@ description = "Scheduling satellite passes in Python"
 authors = [
     { name = "The Pytroll Team", email = "pytroll@googlegroups.com" }
 ]
-dependencies = ["numpy>=1.19.0",
-                "scipy",
-                "requests",
-                "defusedxml",
-                "pyproj>=3.7.1",
-                "donfig",
-                ]
+dependencies = [
+    "numpy>=1.19.0",
+    "scipy",
+    "requests",
+    "defusedxml",
+    "pyproj>=3.7.1",
+    "donfig",
+]
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
@@ -38,6 +39,10 @@ test = [
     "dask>=2025.3.0",
     "pytest>=8.3.5",
     "xarray>=2025.3.1",
+    "numba>=0.65.0",
+]
+numba = [
+    "numba>=0.65.0",
 ]
 
 [build-system]
@@ -101,4 +106,13 @@ omit = ["pyorbital/version.py"]
 filterwarnings = [
     "error",
     "ignore:numpy.ndarray size changed:RuntimeWarning",
+]
+
+[dependency-groups]
+dev = [
+    "build>=1.3.0",
+    "h5py>=3.16.0",
+    "numba>=0.65.0",
+    "numexpr>=2.14.1",
+    "pytest-benchmark>=5.2.3",
 ]

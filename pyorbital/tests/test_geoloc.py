@@ -537,6 +537,15 @@ def test_olci_scan_constant_matches_olci_function():
     np.testing.assert_allclose(new_geom._times.astype(float), legacy_geom._times.astype(float), atol=1)
 
 
+def test_olci_scan_step_scales_time_offsets():
+    """Test that OLCI scan decimation preserves elapsed observation time."""
+    from pyorbital.geoloc_instrument_definitions import olci
+
+    geom = olci(2, scan_points=[0, 3999], scan_step=100)
+
+    assert geom._times[1, 0] == np.timedelta64(4400, "ms")
+
+
 def test_slstr_nadir_scan_constant():
     """Test that SLSTR_NADIR_SCAN constant produces geometry matching legacy slstr_nadir()."""
     from pyorbital.geoloc_instrument_definitions import SLSTR_NADIR_SCAN

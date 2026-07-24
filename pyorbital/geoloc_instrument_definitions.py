@@ -879,11 +879,17 @@ OLCI_SWATH = PushbroomSwath(
     scanline=OLCI_SCAN, time_sampling=np.timedelta64(44, "ms"))
 
 
-def olci(scans_nb, scan_points=None, apply_offset=True):
+def olci(scans_nb, scan_points=None, apply_offset=True, scan_step=1):
     """Definition of the OLCI instrument.
 
     Source: Sentinel-3 OLCI Coverage
     https://sentinel.esa.int/web/sentinel/user-guides/sentinel-3-olci/coverage
+
+    Args:
+        scans_nb: Number of scan lines to generate.
+        scan_points: Optional cross-track pixel positions.
+        apply_offset: Whether to apply scan-line time offsets.
+        scan_step: Distance between generated scan lines.
     """
     if scan_points is not None:
         scan = SingleLinePushbroomScan(
@@ -893,7 +899,8 @@ def olci(scans_nb, scan_points=None, apply_offset=True):
     else:
         scan = OLCI_SCAN
     swath = PushbroomSwath(scanline=scan, time_sampling=OLCI_SWATH.time_sampling)
-    geom = swath.scan_geometry(scan_lines=slice(int(scans_nb)))
+    scan_lines = slice(0, int(scans_nb) * scan_step, scan_step)
+    geom = swath.scan_geometry(scan_lines=scan_lines)
     if not apply_offset:
         geom._times[:] = 0
     return geom

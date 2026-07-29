@@ -93,6 +93,13 @@ class TestAstronomy:
             np.testing.assert_allclose(sun_theta, exp_theta, atol=abs_tolerance)
             assert isinstance(sun_theta, type(lon))
 
+    def test_sun_azimuth_angle(self):
+        """Solar azimuth is exposed clockwise from north for array coordinates."""
+        time_slot = dt.datetime(2020, 3, 20, 9, 0)
+        azimuth = astr.sun_azimuth_angle(time_slot, np.array([0.0, 10.0]), np.array([0.0, 45.0]))
+
+        np.testing.assert_allclose(azimuth, [89.87886063, 133.28324397], atol=1e-8)
+
     def test_sun_earth_distance_correction(self):
         """Test the sun-earth distance correction."""
         utc_time = dt.datetime(2022, 6, 15, 12, 0, 0)

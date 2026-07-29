@@ -712,6 +712,126 @@ def test_compute_pixels_2d_matches_1d_reference():
     np.testing.assert_allclose(lats_2d, lats_ref, atol=0.01)
 
 
+def test_geolocate_multiline_scan_matches_per_pixel_orbit_propagation():
+    """A compact scan must retain the orbital motion during its sweep."""
+    from pyorbital.geoloc import ScanGeometry, geolocate
+
+    tle = (
+        "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+        "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875",
+    )
+    start = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    pixel_times = np.linspace(0.0, 1.48, 129)
+    cross_track = np.linspace(np.deg2rad(55.0), np.deg2rad(-55.0), 129)
+
+    compact = ScanGeometry(
+        np.stack([cross_track, np.zeros_like(cross_track)])[:, np.newaxis, :],
+        pixel_times[np.newaxis, :],
+    )
+    exact = ScanGeometry(np.stack([cross_track, np.zeros_like(cross_track)]), pixel_times)
+
+    compact_lon, compact_lat, _ = geolocate(tle, compact, compact.times(start))
+    exact_lon, exact_lat, _ = geolocate(tle, exact, exact.times(start))
+
+    np.testing.assert_allclose(compact_lon, exact_lon, atol=9e-5)
+    np.testing.assert_allclose(compact_lat, exact_lat, atol=9e-5)
+
+
+def test_geolocate_compact_scan_samples_only_orbit_endpoints():
+    """Compact scans must not require one propagated orbit state per pixel."""
+    from pyorbital.geoloc import ScanGeometry, geolocate
+
+    epoch = np.datetime64("2020-01-01T00:00:00")
+
+    class EndpointOrbit:
+        def get_position(self, times, normalize=False):
+            assert np.asarray(times).size <= 2
+            seconds = (np.asarray(times) - epoch) / np.timedelta64(1, "s")
+            position = np.vstack([np.full_like(seconds, 7000.0), 7.5 * seconds, np.zeros_like(seconds)])
+            velocity = np.vstack([np.zeros_like(seconds), np.full_like(seconds, 7.5), np.zeros_like(seconds)])
+            return position, velocity
+
+    pixel_times = np.linspace(0.0, 1.48, 17)
+    geometry = ScanGeometry(
+        np.zeros((2, 1, pixel_times.size)),
+        pixel_times[np.newaxis, :],
+    )
+
+    lon, lat, alt = geolocate(EndpointOrbit(), geometry, geometry.times(epoch))
+
+    assert np.all(np.isfinite((lon, lat, alt)))
+
+
+def test_geolocate_compact_pass_bounds_orbit_sampling_batches():
+    """A compact pass must bound temporary orbit-state batches."""
+    from pyorbital.geoloc import ScanGeometry, geolocate
+
+    epoch = np.datetime64("2020-01-01T00:00:00")
+
+    class BoundedOrbit:
+        def get_position(self, times, normalize=False):
+            assert np.asarray(times).size <= 32
+            seconds = (np.asarray(times) - epoch) / np.timedelta64(1, "s")
+            position = np.vstack([np.full_like(seconds, 7000.0), 7.5 * seconds, np.zeros_like(seconds)])
+            velocity = np.vstack([np.zeros_like(seconds), np.full_like(seconds, 7.5), np.zeros_like(seconds)])
+            return position, velocity
+
+    pixel_offsets = np.linspace(0.0, 1.48, 17)
+    row_offsets = np.arange(100)[:, np.newaxis] * 1.5 + pixel_offsets
+    geometry = ScanGeometry(np.zeros((2, 100, 17)), row_offsets)
+
+    lon, lat, alt = geolocate(BoundedOrbit(), geometry, geometry.times(epoch))
+
+    assert np.all(np.isfinite((lon, lat, alt)))
+
+
+def test_get_sensor_angles_accepts_orbit_provider():
+    """Sensor zenith and azimuth work with any public orbit provider."""
+    from pyorbital.geoloc import get_sensor_angles
+    from pyorbital.orbital import Orbital
+
+    tle = (
+        "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+        "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875",
+    )
+    time = np.datetime64("2012-12-12T04:16:01.575")
+    orbit = Orbital("satellite", line1=tle[0], line2=tle[1])
+    longitude = np.array([12.0])
+    latitude = np.array([55.0])
+    expected_azimuth, expected_elevation = orbit.get_observer_look(time, longitude, latitude, 0.0)
+
+    zenith, azimuth = get_sensor_angles(orbit, time, longitude, latitude)
+
+    np.testing.assert_allclose([zenith, azimuth], [90.0 - expected_elevation, expected_azimuth])
+
+
+def test_geolocate_accepts_per_scan_attitude():
+    """Per-scan RPY arrays match independent single-scan geolocation."""
+    from pyorbital.geoloc import geolocate
+    from pyorbital.geoloc_instrument_definitions import MultiLineWhiskbroomScan
+
+    tle = (
+        "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+        "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875",
+    )
+    start = np.datetime64("2012-12-12T04:16:01.575")
+    scan = MultiLineWhiskbroomScan(20, 55.0, 1.5, 0.001, 1, 1.0 / 830.0)
+    attitudes = np.array([[0.001, 0.0, 0.0], [-0.001, 0.0, 0.0]])
+    combined_geometry = scan.scan_geometry(2)
+
+    combined = geolocate(tle, combined_geometry, combined_geometry.times(start), rpy=attitudes)
+    independent = [
+        geolocate(tle, geometry, geometry.times(start), rpy=attitude)
+        for geometry, attitude in zip(
+            [scan.scan_geometry(1, scan_offsets=[0.0]), scan.scan_geometry(1, scan_offsets=[1.5])],
+            attitudes,
+            strict=True,
+        )
+    ]
+
+    np.testing.assert_allclose(combined[:2], [np.concatenate([part[i] for part in independent]) for i in range(2)])
+
+
 def test_whiskbroom_scan_constants_match_legacy_functions():
     """Test that whiskbroom instrument constants produce geometry matching the legacy functions."""
     from pyorbital.geoloc_instrument_definitions import (
@@ -832,7 +952,7 @@ def test_compute_pixel_works():
 
 
 def test_geolocate_matches_compute_pixels_get_lonlatalt():
-    """Check that geolocate() agrees with compute_pixels+get_lonlatalt to < 1e-6 deg / < 0.1 m."""
+    """Check that short-arc geolocation agrees with per-pixel propagation within 10 m."""
     pytest.importorskip("numba")
     from pyorbital.geoloc import _HAS_NUMBA, compute_pixels, geolocate, get_lonlatalt
     if not _HAS_NUMBA:
@@ -847,15 +967,16 @@ def test_geolocate_matches_compute_pixels_get_lonlatalt():
     sgeom = MERSI_1KM_SCAN.scan_geometry(n_scans)
     s_times = sgeom.times(t)
 
-    # Reference: the established pipeline
-    pixels = compute_pixels((tle1, tle2), sgeom, s_times)
-    lon_ref, lat_ref, alt_ref = get_lonlatalt(pixels, s_times)
+    # Reference: full orbit propagation at every pixel acquisition time
+    flat_geometry = ScanGeometry(sgeom.fovs.reshape(2, -1), s_times.reshape(-1) - s_times.reshape(-1)[0])
+    pixels = compute_pixels((tle1, tle2), flat_geometry, s_times.reshape(-1))
+    lon_ref, lat_ref, alt_ref = get_lonlatalt(pixels, s_times.reshape(-1))
 
     # New fused path
     lon_fused, lat_fused, alt_fused = geolocate((tle1, tle2), sgeom, s_times)
 
     assert lon_fused.shape == lon_ref.shape
-    np.testing.assert_allclose(lon_fused, lon_ref, atol=1e-6,
+    np.testing.assert_allclose(lon_fused, lon_ref, atol=9e-5,
                                err_msg="geolocate lon disagrees with reference")
     np.testing.assert_allclose(lat_fused, lat_ref, atol=1e-6,
                                err_msg="geolocate lat disagrees with reference")
@@ -864,7 +985,7 @@ def test_geolocate_matches_compute_pixels_get_lonlatalt():
 
 
 def test_geolocate_with_yaw_steering_matches_reference():
-    """Check that geolocate(yaw_steering=True) fused path agrees with compute_pixels reference."""
+    """Check yaw-steered short-arc geolocation against per-pixel propagation."""
     pytest.importorskip("numba")
     from pyorbital.geoloc import _HAS_NUMBA, compute_pixels, geolocate, get_lonlatalt
     if not _HAS_NUMBA:
@@ -879,15 +1000,16 @@ def test_geolocate_with_yaw_steering_matches_reference():
     sgeom = MERSI_1KM_SCAN.scan_geometry(n_scans)
     s_times = sgeom.times(t)
 
-    # Reference: established pipeline with yaw steering
-    pixels = compute_pixels((tle1, tle2), sgeom, s_times, yaw_steering=True)
-    lon_ref, lat_ref, alt_ref = get_lonlatalt(pixels, s_times)
+    # Reference: full orbit propagation at every pixel acquisition time
+    flat_geometry = ScanGeometry(sgeom.fovs.reshape(2, -1), s_times.reshape(-1) - s_times.reshape(-1)[0])
+    pixels = compute_pixels((tle1, tle2), flat_geometry, s_times.reshape(-1), yaw_steering=True)
+    lon_ref, lat_ref, alt_ref = get_lonlatalt(pixels, s_times.reshape(-1))
 
     # Fused numba path with yaw steering
     lon_f, lat_f, alt_f = geolocate((tle1, tle2), sgeom, s_times, yaw_steering=True)
 
     assert lon_f.shape == lon_ref.shape
-    np.testing.assert_allclose(lon_f, lon_ref, atol=1e-6,
+    np.testing.assert_allclose(lon_f, lon_ref, atol=9e-5,
                                err_msg="yaw-steered lon disagrees with reference")
     np.testing.assert_allclose(lat_f, lat_ref, atol=1e-6,
                                err_msg="yaw-steered lat disagrees with reference")
@@ -950,6 +1072,81 @@ def test_focal_plane_det_position_y_shifts_along_track():
 
     np.testing.assert_allclose(fp_base.along_track_angles(), expected_base, atol=1e-12)
     np.testing.assert_allclose(fp_off.along_track_angles(), expected_off, atol=1e-12)
+
+
+def test_focal_plane_accepts_effective_detector_along_track_offsets():
+    """Effective detector offsets augment nominal focal-plane angles."""
+    from dataclasses import replace
+
+    base = _fp_scan(lines_per_scan=4)
+    offsets = np.array([[0.0, -0.003], [0.0, -0.001], [0.0, 0.001], [0.0, 0.003]])
+    corrected = replace(base, detector_offsets_rad=offsets)
+
+    np.testing.assert_allclose(corrected.along_track_angles(), base.along_track_angles() + offsets[:, 1])
+    np.testing.assert_allclose(corrected.scan_geometry(1).fovs[1], base.scan_geometry(1).fovs[1] + offsets[:, 1:])
+
+
+def test_focal_plane_accepts_effective_detector_cross_track_offsets():
+    """Cross-track detector offsets are retained in the generated geometry."""
+    from dataclasses import replace
+
+    base = _fp_scan(lines_per_scan=4)
+    offsets = np.array([[-0.003, 0.0], [-0.001, 0.0], [0.001, 0.0], [0.003, 0.0]])
+    corrected = replace(base, detector_offsets_rad=offsets)
+    expected = base.cross_track_angles()[np.newaxis, :] + offsets[:, :1]
+
+    np.testing.assert_allclose(corrected.scan_geometry(1).fovs[0], expected)
+
+
+def test_focal_plane_accepts_polynomial_scan_angle_corrections():
+    """Odd and even scan-law corrections use normalized scan position."""
+    from dataclasses import replace
+
+    base = _fp_scan()
+    coefficients = (0.0, 0.002, 0.003)
+    corrected = replace(base, scan_angle_correction_coefficients_rad=coefficients)
+    scan_position = np.linspace(1.0, -1.0, base.pixels_per_scan)
+    expected = base.cross_track_angles() + np.polynomial.polynomial.polyval(scan_position, coefficients)
+
+    np.testing.assert_allclose(corrected.cross_track_angles(), expected)
+
+
+def test_focal_plane_accepts_detector_scan_position_slopes():
+    """Detector LOS slopes vary linearly across normalized scan position."""
+    from dataclasses import replace
+
+    base = _fp_scan(lines_per_scan=4)
+    slopes = np.array([[0.001, -0.002], [0.002, -0.001], [-0.001, 0.002], [-0.002, 0.001]])
+    corrected = replace(base, detector_scan_slopes_rad=slopes)
+    scan_position = np.linspace(1.0, -1.0, base.pixels_per_scan)
+    expected = base.scan_geometry(1).fovs + np.stack(
+        [slopes[:, :1] * scan_position, slopes[:, 1:] * scan_position],
+    )
+
+    np.testing.assert_allclose(corrected.scan_geometry(1).fovs, expected)
+
+
+def test_focal_plane_scan_geometry_accepts_explicit_scan_offsets():
+    """Telemetry-derived scan offsets replace nominal scan-rate spacing."""
+    scan = _fp_scan(lines_per_scan=2)
+
+    geometry = scan.scan_geometry(2, scan_offsets=np.array([0.25, 2.25]))
+
+    np.testing.assert_allclose(
+        geometry._times.astype("timedelta64[ns]").astype(float)[:, 0] / 1e9,
+        [0.25, 0.25, 2.25, 2.25],
+    )
+
+
+def test_focal_plane_scan_geometry_accepts_per_scan_los_offsets():
+    """Per-scan LOS offsets can represent mirror-side geometry."""
+    scan = _fp_scan(lines_per_scan=2)
+    los_offsets = np.array([[0.001, -0.002], [-0.003, 0.004]])
+    base = scan.scan_geometry(2).fovs.reshape(2, 2, 2, scan.pixels_per_scan)
+
+    corrected = scan.scan_geometry(2, scan_los_offsets_rad=los_offsets).fovs.reshape(base.shape)
+
+    np.testing.assert_allclose(corrected - base, np.broadcast_to(los_offsets.T[:, :, None, None], base.shape))
 
 
 def test_focal_plane_det_position_x_shifts_cross_track_uniformly():

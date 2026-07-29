@@ -22,6 +22,14 @@ from numpy.typing import ArrayLike
 from pyorbital.geoloc import ScanGeometry
 
 
+def _apply_scan_los_offsets(cross_angles, along_angles, scan_los_offsets_rad, lines_per_scan):
+    """Add per-scan cross/along LOS offsets to expanded angle arrays."""
+    if scan_los_offsets_rad is None:
+        return cross_angles, along_angles
+    offsets = np.repeat(np.asarray(scan_los_offsets_rad, dtype=float), lines_per_scan, axis=0)
+    return cross_angles + offsets[:, :1], along_angles + offsets[:, 1:]
+
+
 @dataclass
 class SingleLinePushbroomScan:
     """Definition of a single-line pushbroom instrument scan geometry.
@@ -272,7 +280,7 @@ class MultiLineWhiskbroomScan:
         rows = np.arange(self.lines_per_scan)
         return ((self.lines_per_scan - 1) / 2.0 - rows) * self.along_track_step
 
-    def scan_geometry(self, n_scans, scan_points=None):
+    def scan_geometry(self, n_scans, scan_points=None, scan_offsets=None, scan_los_offsets_rad=None):
         """Generate a ScanGeometry for the given number of complete scans.
 
         Each scan produces *lines_per_scan* output lines.
@@ -280,6 +288,8 @@ class MultiLineWhiskbroomScan:
         Args:
             n_scans: Number of scan cycles.
             scan_points: Optional subset of pixel indices.
+            scan_offsets: Optional telemetry-derived scan offsets in seconds.
+            scan_los_offsets_rad: Optional cross/along LOS offset per scan.
 
         Returns:
             A ScanGeometry with fovs shape ``(2, n_scans*lines_per_scan, n_pixels)``
@@ -289,11 +299,11 @@ class MultiLineWhiskbroomScan:
             scan_points = np.arange(self.pixels_per_scan)
         scan_points = np.asanyarray(scan_points)
         n_scans = int(n_scans)
-        fovs = self._build_fovs(scan_points, n_scans)
-        times = self._build_times(scan_points, n_scans)
+        fovs = self._build_fovs(scan_points, n_scans, scan_los_offsets_rad)
+        times = self._build_times(scan_points, n_scans, scan_offsets)
         return ScanGeometry(fovs, times, lines_per_scan=self.lines_per_scan)
 
-    def _build_fovs(self, scan_points, n_scans):
+    def _build_fovs(self, scan_points, n_scans, scan_los_offsets_rad=None):
         """Build (2, n_scans*L, n_pixels) FOV array."""
         L = self.lines_per_scan
         cross = self.cross_track_angles(scan_points)           # (N,)
@@ -303,9 +313,12 @@ class MultiLineWhiskbroomScan:
         # along-track: repeating L-row block, constant across pixels
         along_block = np.tile(along[:, np.newaxis], (1, len(scan_points)))  # (L, N)
         along_tiled = np.tile(along_block, (n_scans, 1))      # (n_scans*L, N)
+        cross_tiled, along_tiled = _apply_scan_los_offsets(
+            cross_tiled, along_tiled, scan_los_offsets_rad, L,
+        )
         return np.stack([cross_tiled, along_tiled])            # (2, n_scans*L, N)
 
-    def _build_times(self, scan_points, n_scans):
+    def _build_times(self, scan_points, n_scans, scan_offsets=None):
         """Build (n_scans*L, n_pixels) time array.
 
         All detector rows within the same scan share identical per-pixel times
@@ -313,7 +326,9 @@ class MultiLineWhiskbroomScan:
         """
         L = self.lines_per_scan
         pixel_times = scan_points * self.pixel_dwell_time + self.sync_time  # (N,)
-        scan_offsets = np.arange(n_scans) * self.scan_rate                  # (n_scans,)
+        if scan_offsets is None:
+            scan_offsets = np.arange(n_scans) * self.scan_rate
+        scan_offsets = np.asarray(scan_offsets)
         # one row per scan line (n_scans*L rows total, L identical per scan)
         per_scan_times = (np.tile(pixel_times, (n_scans, 1))
                           + scan_offsets[:, np.newaxis])                    # (n_scans, N)
@@ -407,6 +422,35 @@ class FocalPlaneWhiskbroomScan:
     sync_time: float = 0.0
     det_position: tuple = (0.0, 0.0)
     boresight: "np.ndarray | None" = None
+    detector_offsets_rad: "np.ndarray | None" = None
+    detector_scan_slopes_rad: "np.ndarray | None" = None
+    scan_angle_correction_coefficients_rad: tuple = (0.0,)
+
+    def _effective_detector_offsets(self):
+        """Return configured detector offsets or a zero-valued table."""
+        if self.detector_offsets_rad is None:
+            return np.zeros((self.lines_per_scan, 2), dtype=float)
+        return np.asarray(self.detector_offsets_rad, dtype=float)
+
+    def _normalized_scan_position(self, scan_points):
+        """Return scan position from +1 at the first pixel to -1 at the last."""
+        return 1.0 - 2.0 * scan_points / (self.pixels_per_scan - 1)
+
+    def _effective_detector_slopes(self):
+        """Return configured detector slopes or a zero-valued table."""
+        if self.detector_scan_slopes_rad is None:
+            return np.zeros((self.lines_per_scan, 2), dtype=float)
+        return np.asarray(self.detector_scan_slopes_rad, dtype=float)
+
+    def _detector_angle_corrections(self, scan_points):
+        """Return cross/along detector corrections over the requested pixels."""
+        offsets = self._effective_detector_offsets()
+        return offsets[:, :, np.newaxis] + self._detector_slope_corrections(scan_points)
+
+    def _detector_slope_corrections(self, scan_points):
+        """Return scan-dependent detector corrections."""
+        scan_position = self._normalized_scan_position(scan_points)
+        return self._effective_detector_slopes()[:, :, np.newaxis] * scan_position
 
     def _focal_plane_unit_vectors(self):
         """Return (3, L) unit vectors in the instrument telescope frame."""
@@ -436,7 +480,8 @@ class FocalPlaneWhiskbroomScan:
         """
         vecs = self._body_frame_vectors()                  # (3, L)
         # Convention: axis 1 = along-track, axis 2 = nadir/boresight
-        return np.arctan2(vecs[1], vecs[2])
+        angles = np.arctan2(vecs[1], vecs[2])
+        return angles + self._effective_detector_offsets()[:, 1]
 
     def cross_track_angles(self, scan_points=None):
         """Compute cross-track angles for the given pixel positions.
@@ -456,9 +501,14 @@ class FocalPlaneWhiskbroomScan:
         vecs = self._body_frame_vectors()                  # (3, L)
         # Mean cross-track offset of the band centre across all detector rows
         ct_offset = float(np.arctan2(vecs[0], vecs[2]).mean())
-        return base + ct_offset
+        scan_position = self._normalized_scan_position(scan_points)
+        correction = np.polynomial.polynomial.polyval(
+            scan_position,
+            self.scan_angle_correction_coefficients_rad,
+        )
+        return base + ct_offset + correction
 
-    def scan_geometry(self, n_scans, scan_points=None):
+    def scan_geometry(self, n_scans, scan_points=None, scan_offsets=None, scan_los_offsets_rad=None):
         """Generate a ScanGeometry for the given number of complete scans.
 
         Each scan produces *lines_per_scan* output lines.
@@ -466,6 +516,8 @@ class FocalPlaneWhiskbroomScan:
         Args:
             n_scans: Number of scan cycles.
             scan_points: Optional subset of pixel indices.
+            scan_offsets: Optional telemetry-derived scan offsets in seconds.
+            scan_los_offsets_rad: Optional cross/along LOS offset per scan.
 
         Returns:
             A :class:`~pyorbital.geoloc.ScanGeometry` with ``fovs`` shape
@@ -476,21 +528,26 @@ class FocalPlaneWhiskbroomScan:
             scan_points = np.arange(self.pixels_per_scan)
         scan_points = np.asanyarray(scan_points)
         n_scans = int(n_scans)
-        fovs = self._build_fovs(scan_points, n_scans)
-        times = self._build_times(scan_points, n_scans)
+        fovs = self._build_fovs(scan_points, n_scans, scan_los_offsets_rad)
+        times = self._build_times(scan_points, n_scans, scan_offsets)
         return ScanGeometry(fovs, times, lines_per_scan=self.lines_per_scan)
 
-    def _build_fovs(self, scan_points, n_scans):
+    def _build_fovs(self, scan_points, n_scans, scan_los_offsets_rad=None):
         """Build (2, n_scans*L, n_pixels) FOV array."""
         L = self.lines_per_scan
         cross = self.cross_track_angles(scan_points)            # (N,)
         along = self.along_track_angles()                       # (L,)
-        cross_tiled = np.tile(cross, (n_scans * L, 1))         # (n_scans*L, N)
-        along_block = np.tile(along[:, np.newaxis], (1, len(scan_points)))  # (L, N)
+        detector_corrections = self._detector_angle_corrections(scan_points)
+        cross_block = cross[np.newaxis, :] + detector_corrections[:, 0]
+        cross_tiled = np.tile(cross_block, (n_scans, 1))       # (n_scans*L, N)
+        along_block = along[:, np.newaxis] + self._detector_slope_corrections(scan_points)[:, 1]
         along_tiled = np.tile(along_block, (n_scans, 1))       # (n_scans*L, N)
+        cross_tiled, along_tiled = _apply_scan_los_offsets(
+            cross_tiled, along_tiled, scan_los_offsets_rad, L,
+        )
         return np.stack([cross_tiled, along_tiled])             # (2, n_scans*L, N)
 
-    def _build_times(self, scan_points, n_scans):
+    def _build_times(self, scan_points, n_scans, scan_offsets=None):
         """Build (n_scans*L, n_pixels) time array.
 
         All detector rows within the same scan share identical per-pixel times
@@ -498,7 +555,9 @@ class FocalPlaneWhiskbroomScan:
         """
         L = self.lines_per_scan
         pixel_times = scan_points * self.pixel_dwell_time + self.sync_time  # (N,)
-        scan_offsets = np.arange(n_scans) * self.scan_rate                  # (n_scans,)
+        if scan_offsets is None:
+            scan_offsets = np.arange(n_scans) * self.scan_rate
+        scan_offsets = np.asarray(scan_offsets)
         per_scan_times = (np.tile(pixel_times, (n_scans, 1))
                           + scan_offsets[:, np.newaxis])                    # (n_scans, N)
         return np.repeat(per_scan_times, L, axis=0)                         # (n_scans*L, N)

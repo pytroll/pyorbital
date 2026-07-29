@@ -37,6 +37,7 @@ def _get_transformer():
     return _GEOCENT_TO_LATLONG
 
 OMEGA_EARTH = 7.2921159e-5  # Earth's rotation rate (rad/s)
+_MAX_SCAN_ROWS_PER_CHUNK = 16
 
 
 def geodetic_lat(point, a=A, b=B):
@@ -575,6 +576,24 @@ def get_lonlatalt(pos, utc_time):
     lon = np.where(lon < -180, lon + 360, lon)
     return lon, lat, alt
 
+
+def get_sensor_angles(orb, utc_time, lon, lat, alt=0.0):
+    """Return sensor zenith and azimuth angles for ground coordinates.
+
+    Coordinates are degrees and ground altitude is kilometres above the geoid.
+    The orbit provider must implement ``get_position(utc_time, normalize=False)``.
+    """
+    from pyorbital.orbital import get_observer_look
+
+    if isinstance(orb, (list, tuple)):
+        orb = Orbital("mysatellite", line1=orb[0], line2=orb[1])
+    pos, _ = orb.get_position(utc_time, normalize=False)
+    pos = np.asarray(pos).reshape(3, -1)
+    sat_lon, sat_lat, sat_alt = get_lonlatalt(pos, utc_time)
+    azimuth, elevation = get_observer_look(sat_lon, sat_lat, sat_alt / 1000.0, utc_time, lon, lat, alt)
+    return 90.0 - elevation, azimuth % 360.0
+
+
 # END OF DIRTY STUFF
 
 
@@ -594,20 +613,93 @@ def geolocate(orb, sgeom, times, rpy=(0.0, 0.0, 0.0), yaw_steering=False):
         sgeom: :class:`~pyorbital.geoloc.ScanGeometry` instance.
         times: Per-pixel UTC times — 2-D array ``(N_rows, N_pixels)`` returned
             by :meth:`~pyorbital.geoloc.ScanGeometry.times`.
-        rpy: ``(roll, pitch, yaw)`` attitude corrections in radians.
+        rpy: ``(roll, pitch, yaw)`` attitude corrections in radians, or one
+            such row per instrument scan.
         yaw_steering: If ``True``, compute yaw from orbit geometry to
             counteract Earth rotation.
 
     Returns:
         Tuple ``(lon_deg, lat_deg, alt_m)`` as flat 1-D arrays.
     """
+    rpy_array = np.asarray(rpy)
+    if rpy_array.ndim == 2:
+        return _geolocate_per_scan_attitude(orb, sgeom, times, rpy_array, yaw_steering)
     roll, pitch, yaw = rpy
+
+    times_arr = np.asanyarray(times)
+    if _requires_per_pixel_orbit(sgeom, times_arr):
+        return _geolocate_with_per_pixel_orbit(orb, sgeom, times_arr, rpy, yaw_steering)
 
     if _HAS_NUMBA and sgeom.fovs.ndim == 3:
         return _geolocate_fused(orb, sgeom, times, roll, pitch, yaw, yaw_steering)
 
     pixels = compute_pixels(orb, sgeom, times, rpy, yaw_steering)
     return get_lonlatalt(pixels, times)
+
+
+def _geolocate_per_scan_attitude(orb, sgeom, times, attitudes, yaw_steering):
+    """Geolocate compact scans carrying independent attitude corrections."""
+    rows_per_scan = sgeom.lines_per_scan
+    parts = []
+    for scan_index, attitude in enumerate(attitudes):
+        row_start = scan_index * rows_per_scan
+        row_stop = row_start + rows_per_scan
+        scan_times = np.asanyarray(times)[row_start:row_stop]
+        scan_geometry = ScanGeometry(
+            sgeom.fovs[:, row_start:row_stop],
+            scan_times - scan_times[0, 0],
+            lines_per_scan=rows_per_scan,
+        )
+        parts.append(geolocate(orb, scan_geometry, scan_times, tuple(attitude), yaw_steering))
+    return tuple(np.concatenate(values) for values in zip(*parts))
+
+
+def _requires_per_pixel_orbit(sgeom, times):
+    """Return whether pixels within a compact scan have distinct acquisition times."""
+    return sgeom.fovs.ndim == 3 and times.ndim == 2 and np.any(times != times[:, :1])
+
+
+def _geolocate_with_per_pixel_orbit(orb, sgeom, times, rpy, yaw_steering):
+    """Geolocate a compact scan without discarding its intra-scan orbital motion."""
+    results = []
+    for start in range(0, times.shape[0], _MAX_SCAN_ROWS_PER_CHUNK):
+        stop = min(start + _MAX_SCAN_ROWS_PER_CHUNK, times.shape[0])
+        chunk_geometry = ScanGeometry(sgeom.fovs[:, start:stop], times[start:stop] - times[start, 0])
+        results.append(_geolocate_scan_chunk(orb, chunk_geometry, times[start:stop], rpy, yaw_steering))
+    return tuple(np.concatenate(parts) for parts in zip(*results))
+
+
+def _geolocate_scan_chunk(orb, sgeom, times, rpy, yaw_steering):
+    """Geolocate a bounded group of compact scan rows."""
+    pixel_times = times.reshape(-1)
+    flat_geometry = ScanGeometry(sgeom.fovs.reshape(2, -1), pixel_times - pixel_times[0])
+    pos, vel = _interpolate_scan_endpoint_states(orb, times)
+    vectors = flat_geometry.vectors(pos, vel, *rpy, yaw_steering=yaw_steering)
+    radius = np.array([[1 / A, 1 / A, 1 / B]]).T
+    pixels = _ellipsoid_intersection(vectors, pos, radius)
+    return get_lonlatalt(pixels, pixel_times)
+
+
+def _interpolate_scan_endpoint_states(orb, times):
+    """Interpolate short scan arcs from propagated endpoint states."""
+    if isinstance(orb, (list, tuple)):
+        orb = Orbital("mysatellite", line1=orb[0], line2=orb[1])
+    endpoint_times = times[:, [0, -1]]
+    endpoint_pos, endpoint_vel = orb.get_position(endpoint_times.reshape(-1), normalize=False)
+    n_rows, n_pixels = times.shape
+    positions = endpoint_pos.reshape(3, n_rows, 2)
+    velocities = endpoint_vel.reshape(3, n_rows, 2)
+    fraction = _scan_fraction(times, endpoint_times)
+    pos = positions[:, :, :1] + np.diff(positions, axis=2) * fraction[np.newaxis]
+    vel = velocities[:, :, :1] + np.diff(velocities, axis=2) * fraction[np.newaxis]
+    return pos.reshape(3, n_rows * n_pixels), vel.reshape(3, n_rows * n_pixels)
+
+
+def _scan_fraction(times, endpoints):
+    """Return each pixel's fractional position between its scan endpoints."""
+    duration = (endpoints[:, 1] - endpoints[:, 0]).astype("timedelta64[ns]").astype(float)
+    elapsed = (times - endpoints[:, :1]).astype("timedelta64[ns]").astype(float)
+    return np.divide(elapsed, duration[:, None], out=np.zeros_like(elapsed), where=duration[:, None] != 0)
 
 
 def _geolocate_fused(orb, sgeom, times, roll, pitch, yaw=0.0, yaw_steering=False):

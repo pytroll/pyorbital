@@ -160,10 +160,17 @@ def _local_frame(pos, vel, nadir_convention=None):
         else:
             nadir = subpoint(pos) - pos
             nadir = nadir / vnorm(nadir)
-        # Gram-Schmidt: remove the along_track component from nadir so that
-        # nadir ⊥ along_track (required by _vectors_broadcast simplified formula).
-        nadir = nadir - along_track * np.sum(nadir * along_track, axis=0, keepdims=True)
-        nadir = nadir / vnorm(nadir)
+        # The rotations need an orthonormal triad, but the requested nadir is the
+        # whole point of the convention, so the along-track axis absorbs the
+        # correction rather than the nadir.  A real orbit always has some radial
+        # velocity -- the J2 short-period oscillation alone gives a flight-path
+        # angle of order 1e-3 rad -- and tilting the nadir by that would put ~1 km
+        # on the ground, flipping sign between the ascending and descending legs.
+        cross_track = np.cross(nadir, vel, 0, 0, 0)
+        cross_track = cross_track / vnorm(cross_track)
+        along_track = np.cross(cross_track, nadir, 0, 0, 0)
+        along_track = along_track / vnorm(along_track)
+        return nadir, along_track, cross_track
     cross_track = np.cross(nadir, vel, 0, 0, 0)
     cross_track = cross_track / vnorm(cross_track)
     return nadir, along_track, cross_track
@@ -801,14 +808,147 @@ def _geolocate_scan_chunk(orb, sgeom, times, rpy, yaw_steering, nadir_convention
                           rotation_order=None):
     """Geolocate a bounded group of compact scan rows."""
     pixel_times = times.reshape(-1)
-    flat_geometry = ScanGeometry(sgeom.fovs.reshape(2, -1), pixel_times - pixel_times[0])
+    flat_fovs = sgeom.fovs.reshape(2, -1)
     pos, vel = _interpolate_scan_endpoint_states(orb, times)
+
+    # The fused kernel covers the configuration FY-3 MERSI uses. Anything else
+    # — yaw steering, the legacy conventions — falls through to the array path,
+    # which remains the reference implementation.
+    if (_HAS_NUMBA and not yaw_steering
+            and nadir_convention == "geocentric" and rotation_order == "pitch_first"):
+        roll, pitch, yaw = rpy
+        return _geocentric_scan_chunk_numba(
+            np.ascontiguousarray(flat_fovs),
+            np.ascontiguousarray(pos),
+            np.ascontiguousarray(vel),
+            float(roll), float(pitch), float(yaw),
+            np.ascontiguousarray(_gmst_per_pixel(pixel_times)),
+            bool(np.any(flat_fovs[1] + pitch)),
+        )
+
+    flat_geometry = ScanGeometry(flat_fovs, pixel_times - pixel_times[0])
     vectors = flat_geometry.vectors(pos, vel, *rpy, yaw_steering=yaw_steering,
                                     nadir_convention=nadir_convention,
                                     rotation_order=rotation_order)
     radius = np.array([[1 / A, 1 / A, 1 / B]]).T
     pixels = _ellipsoid_intersection(vectors, pos, radius)
     return get_lonlatalt(pixels, pixel_times)
+
+
+if _HAS_NUMBA:
+    @nb.njit(inline="always", cache=True)
+    def _qrot_scalar(vx, vy, vz, ax, ay, az, angle):
+        """Rotate one vector about one axis, reproducing :func:`qrotate`.
+
+        Mirrors the quaternion -> rotation-matrix -> contraction sequence,
+        including the axis re-normalisation qrotate always performs, so the
+        kernel agrees with the array path to the last bits rather than merely
+        to an algebraic identity.
+        """
+        n = math.sqrt(ax * ax + ay * ay + az * az)
+        nx, ny, nz = ax / n, ay / n, az / n
+        sin_half = math.sin(angle / 2)
+        w = math.cos(angle / 2)
+        x, y, z = nx * sin_half, ny * sin_half, nz * sin_half
+        r00 = w * w + x * x - y * y - z * z
+        r01 = 2 * x * y + 2 * z * w
+        r02 = 2 * x * z - 2 * y * w
+        r10 = 2 * x * y - 2 * z * w
+        r11 = w * w - x * x + y * y - z * z
+        r12 = 2 * y * z + 2 * x * w
+        r20 = 2 * x * z + 2 * y * w
+        r21 = 2 * y * z - 2 * x * w
+        r22 = w * w - x * x - y * y + z * z
+        return (vx * r00 + vy * r01 + vz * r02,
+                vx * r10 + vy * r11 + vz * r12,
+                vx * r20 + vy * r21 + vz * r22)
+
+    @nb.njit(parallel=True, cache=True)
+    def _geocentric_scan_chunk_numba(fovs, pos, vel, roll, pitch, yaw, gmst, has_along_track):
+        """Fused per-pixel-orbit geolocation for the geocentric nadir convention.
+
+        One pass over pixels doing local frame, rotations, ellipsoid
+        intersection and the geodetic conversion, with no large intermediates.
+        The satellite state is per-pixel, so each scan's intra-scan motion is
+        preserved exactly as in the array path.
+        """
+        a = 6378.137
+        b = 6356.752314245
+        bow_e2 = 1.0 - (b / a) ** 2
+        bow_ep2 = (a / b) ** 2 - 1.0
+        r2d = 180.0 / math.pi
+        inv_a, inv_b = 1.0 / a, 1.0 / b
+
+        n = fovs.shape[1]
+        lon_out = np.empty(n)
+        lat_out = np.empty(n)
+        alt_out = np.empty(n)
+
+        for i in nb.prange(n):
+            px, py, pz = pos[0, i], pos[1, i], pos[2, i]
+            vx, vy, vz = vel[0, i], vel[1, i], vel[2, i]
+
+            # Geocentric nadir: straight at the centre of the Earth.  It is kept
+            # exact and the along-track axis absorbs the orthogonalisation, as in
+            # _local_frame -- orthogonalising the *nadir* against the velocity
+            # instead would tilt it by the flight-path angle (~1e-3 rad from the
+            # J2 short-period oscillation alone, ~1 km on the ground, flipping
+            # sign between the ascending and descending legs).
+            pnorm = math.sqrt(px * px + py * py + pz * pz)
+            nad_x, nad_y, nad_z = -px / pnorm, -py / pnorm, -pz / pnorm
+
+            ct_x = nad_y * vz - nad_z * vy
+            ct_y = nad_z * vx - nad_x * vz
+            ct_z = nad_x * vy - nad_y * vx
+            cn = math.sqrt(ct_x * ct_x + ct_y * ct_y + ct_z * ct_z)
+            ct_x, ct_y, ct_z = ct_x / cn, ct_y / cn, ct_z / cn
+
+            at_x = ct_y * nad_z - ct_z * nad_y
+            at_y = ct_z * nad_x - ct_x * nad_z
+            at_z = ct_x * nad_y - ct_y * nad_x
+            an = math.sqrt(at_x * at_x + at_y * at_y + at_z * at_z)
+            at_x, at_y, at_z = at_x / an, at_y / an, at_z / an
+
+            # pitch_first: about cross-track, then roll about along-track.
+            if has_along_track:
+                rx, ry, rz = _qrot_scalar(nad_x, nad_y, nad_z, ct_x, ct_y, ct_z, fovs[1, i] + pitch)
+                rx, ry, rz = _qrot_scalar(rx, ry, rz, at_x, at_y, at_z, fovs[0, i] + roll)
+            else:
+                rx, ry, rz = _qrot_scalar(nad_x, nad_y, nad_z, at_x, at_y, at_z, fovs[0, i] + roll)
+            rx, ry, rz = _qrot_scalar(rx, ry, rz, nad_x, nad_y, nad_z, yaw)
+
+            xr0, xr1, xr2 = rx * inv_a, ry * inv_a, rz * inv_b
+            cr0, cr1, cr2 = -px * inv_a, -py * inv_a, -pz * inv_b
+            ldotc = xr0 * cr0 + xr1 * cr1 + xr2 * cr2
+            lsq = xr0 * xr0 + xr1 * xr1 + xr2 * xr2
+            csq = cr0 * cr0 + cr1 * cr1 + cr2 * cr2
+            disc = ldotc * ldotc - csq * lsq + lsq
+            if disc < 0.0:
+                disc = 0.0
+            d1 = (ldotc - math.sqrt(disc)) / lsq
+            ex, ey, ez = rx * d1 + px, ry * d1 + py, rz * d1 + pz
+
+            lon_deg = math.atan2(ey, ex) * r2d
+            p_xy = math.sqrt(ex * ex + ey * ey)
+            za, pb = ez * a, p_xy * b
+            r_t = math.sqrt(za * za + pb * pb)
+            sin_t, cos_t = za / r_t, pb / r_t
+            lat = math.atan2(ez + bow_ep2 * b * sin_t ** 3, p_xy - bow_e2 * a * cos_t ** 3)
+            lat_out[i] = lat * r2d
+
+            sin_lat, cos_lat = math.sin(lat), math.cos(lat)
+            nrad = a / math.sqrt(1.0 - bow_e2 * sin_lat * sin_lat)
+            if abs(sin_lat) > 0.9998476951563913:
+                alt_out[i] = (abs(ez) / abs(sin_lat) - nrad * (1.0 - bow_e2)) * 1000.0
+            else:
+                alt_out[i] = (p_xy / cos_lat - nrad) * 1000.0
+
+            lon_deg -= gmst[i] * r2d
+            if lon_deg < -180.0:
+                lon_deg += 360.0
+            lon_out[i] = lon_deg
+
+        return lon_out, lat_out, alt_out
 
 
 def _interpolate_scan_endpoint_states(orb, times):

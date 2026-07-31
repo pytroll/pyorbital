@@ -4,10 +4,12 @@
 import contextlib
 import datetime as dt
 import warnings
+from unittest import mock
 
 import numpy as np
 import pytest
 
+from pyorbital import geoloc
 from pyorbital.config import config
 from pyorbital.geoloc import (
     ScanGeometry,
@@ -72,6 +74,21 @@ def _configured_convention(convention):
     if convention is None:
         return contextlib.nullcontext()
     return config.set(nadir_convention=convention)
+
+
+_NUMBA_AVAILABLE = geoloc._HAS_NUMBA
+@pytest.fixture(params=[pytest.param(True, id="numba"), pytest.param(False, id="array")])
+def numba_path(request):
+    """Run the test on both the numba kernel and the array reference path.
+
+    The kernels are optimisations that must not change the answer, but each one
+    duplicates the local-frame and rotation logic.  A test that exercises only
+    whichever path happens to be available cannot see the two drifting apart --
+    which is exactly how a nadir orthogonalised the wrong way survived in the
+    geocentric kernel while the array path was correct.
+    """
+    with mock.patch.object(geoloc, "_HAS_NUMBA", request.param and _NUMBA_AVAILABLE):
+        yield request.param
 
 
 def _expect_convention_warning(warns):
@@ -262,7 +279,7 @@ def test_local_frame_nadir_is_perpendicular_to_ellipsoid():
 
 
 @pytest.mark.parametrize(("convention", "warns"), NADIR_CONFIG_CASES)
-def test_arbitrary_point_geoloc(convention, warns):
+def test_arbitrary_point_geoloc(convention, warns, numba_path):
     """Test geolocating an arbitrary point in the swath."""
     context = _expect_convention_warning(warns)
     with _configured_convention(convention), context:
@@ -290,8 +307,8 @@ def test_arbitrary_point_geoloc(convention, warns):
             # pre-0abe19f revision of this test asserted -34.69996894 / 56.69799502
             "legacy": ((-34.6999689108117, 56.6979949863614),
                        (-27.5730527370977, 55.6267408763376)),
-            "geocentric": ((-34.6982153937553, 56.6970880483636),
-                           (-27.5720035629012, 55.6258963697574)),
+            "geocentric": ((-34.6988836623391, 56.6948898583210),
+                           (-27.5730297181214, 55.6238075773936)),
         }[convention or "legacy"]
         assert lons[0] == pytest.approx(expected[0][0])
         assert lats[0] == pytest.approx(expected[0][1])
@@ -726,7 +743,7 @@ def test_yaw_steering_applied_in_vectors(kwargs, warns):
 
 
 @pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_compute_pixels_with_yaw_steering(kwargs, warns):
+def test_compute_pixels_with_yaw_steering(kwargs, warns, numba_path):
     """Test that compute_pixels passes yaw_steering through to vectors."""
     context = _expect_convention_warning(warns)
     with context:
@@ -751,7 +768,7 @@ def test_compute_pixels_with_yaw_steering(kwargs, warns):
 
 
 @pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_compute_pixels_with_2d_scan_times(kwargs, warns):
+def test_compute_pixels_with_2d_scan_times(kwargs, warns, numba_path):
     """Test that compute_pixels works with multi-scan 2D time arrays (avhrr-style).
 
     avhrr() produces fovs of shape (2, N_SCANS, N_PX) and times of shape
@@ -785,7 +802,7 @@ def test_compute_pixels_with_2d_scan_times(kwargs, warns):
 
 
 @pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_compute_pixels_2d_matches_1d_reference(kwargs, warns):
+def test_compute_pixels_2d_matches_1d_reference(kwargs, warns, numba_path):
     """Test that the 2D-times path gives the same result as the 1D reference path.
 
     The 1D reference path (flat ScanGeometry, per-pixel SGP4) is the
@@ -824,7 +841,7 @@ def test_compute_pixels_2d_matches_1d_reference(kwargs, warns):
 
 
 @pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_geolocate_multiline_scan_matches_per_pixel_orbit_propagation(kwargs, warns):
+def test_geolocate_multiline_scan_matches_per_pixel_orbit_propagation(kwargs, warns, numba_path):
     """A compact scan must retain the orbital motion during its sweep."""
     context = _expect_convention_warning(warns)
     with context:
@@ -852,7 +869,7 @@ def test_geolocate_multiline_scan_matches_per_pixel_orbit_propagation(kwargs, wa
 
 
 @pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_geolocate_compact_scan_samples_only_orbit_endpoints(kwargs, warns):
+def test_geolocate_compact_scan_samples_only_orbit_endpoints(kwargs, warns, numba_path):
     """Compact scans must not require one propagated orbit state per pixel."""
     context = _expect_convention_warning(warns)
     with context:
@@ -880,7 +897,7 @@ def test_geolocate_compact_scan_samples_only_orbit_endpoints(kwargs, warns):
 
 
 @pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_geolocate_compact_pass_bounds_orbit_sampling_batches(kwargs, warns):
+def test_geolocate_compact_pass_bounds_orbit_sampling_batches(kwargs, warns, numba_path):
     """A compact pass must bound temporary orbit-state batches."""
     context = _expect_convention_warning(warns)
     with context:
@@ -926,7 +943,7 @@ def test_get_sensor_angles_accepts_orbit_provider():
 
 
 @pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_geolocate_accepts_per_scan_attitude(kwargs, warns):
+def test_geolocate_accepts_per_scan_attitude(kwargs, warns, numba_path):
     """Per-scan RPY arrays match independent single-scan geolocation."""
     context = _expect_convention_warning(warns)
     with context:
@@ -1052,7 +1069,7 @@ def test_get_lonlatalt_produces_same_results_with_numba():
                                err_msg="numba alt disagrees with pyproj")
 
 @pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_compute_pixel_works(kwargs, warns):
+def test_compute_pixel_works(kwargs, warns, numba_path):
     """Check that compute_pixels works for MultiLineWhiskbroomScan without OOM or crash."""
     context = _expect_convention_warning(warns)
     # MERSI carries non-zero along-track detector angles, so the rotation order
@@ -1080,7 +1097,7 @@ def test_compute_pixel_works(kwargs, warns):
 
 
 @pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_geolocate_matches_compute_pixels_get_lonlatalt(kwargs, warns):
+def test_geolocate_matches_compute_pixels_get_lonlatalt(kwargs, warns, numba_path):
     """Check that short-arc geolocation agrees with per-pixel propagation within 10 m."""
     context = _expect_convention_warning(warns)
     # these exercise a non-zero pitch, so pin the rotation order and let the
@@ -1118,7 +1135,7 @@ def test_geolocate_matches_compute_pixels_get_lonlatalt(kwargs, warns):
 
 
 @pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_geolocate_with_yaw_steering_matches_reference(kwargs, warns):
+def test_geolocate_with_yaw_steering_matches_reference(kwargs, warns, numba_path):
     """Check yaw-steered short-arc geolocation against per-pixel propagation."""
     context = _expect_convention_warning(warns)
     # these exercise a non-zero pitch, so pin the rotation order and let the
@@ -1525,7 +1542,7 @@ def test_scan_geometry_vectors_honours_the_nadir_convention(kwargs, warns, conve
 
 
 @pytest.mark.parametrize(("kwargs", "warns", "convention"), NADIR_CONVENTIONS)
-def test_compute_pixels_honours_the_nadir_convention(kwargs, warns, convention):
+def test_compute_pixels_honours_the_nadir_convention(kwargs, warns, convention, numba_path):
     """``compute_pixels`` must expose the convention to its callers.
 
     pygac and other downstream users reach the geometry through this function,
@@ -1552,7 +1569,7 @@ def test_compute_pixels_honours_the_nadir_convention(kwargs, warns, convention):
 
 
 @pytest.mark.parametrize(("kwargs", "warns", "convention"), NADIR_CONVENTIONS)
-def test_geolocate_honours_the_nadir_convention(kwargs, warns, convention):
+def test_geolocate_honours_the_nadir_convention(kwargs, warns, convention, numba_path):
     """``geolocate`` is the top-level entry point and must carry the choice through.
 
     It dispatches to several internal paths (fused, per-pixel-orbit, per-scan
@@ -1667,7 +1684,7 @@ def test_scan_geometry_vectors_honours_the_rotation_order(kwargs, warns):
 
 
 @pytest.mark.parametrize("rotation_order", ["legacy", "pitch_first"])
-def test_fused_path_honours_the_rotation_order(rotation_order):
+def test_fused_path_honours_the_rotation_order(rotation_order, numba_path):
     """The numba kernel must apply the same rotation order as the array path.
 
     ``geolocate`` dispatches to a fused kernel for 3-D fovs whose times are
@@ -1809,3 +1826,63 @@ def test_broadcast_path_honours_the_rotation_order(rotation_order):
                              nadir_convention="geocentric", rotation_order=rotation_order)
 
     np.testing.assert_allclose(broadcast, reference, rtol=1e-10, atol=1e-10)
+
+
+def test_geocentric_nadir_stays_geocentric_when_velocity_is_not_perpendicular():
+    """The geocentric nadir must point at the Earth centre for a *real* orbit.
+
+    A real orbit is never exactly circular: the J2 short-period radial
+    oscillation alone gives a flight-path angle of order 1e-3 rad, so the
+    velocity is not perpendicular to the position.  Orthogonalising by rotating
+    the nadir would then tilt it away from the Earth centre by that angle --
+    about 1.1 km on the ground at 836 km, flipping sign between the ascending
+    and descending legs.  The orthogonality has to be recovered by adjusting the
+    along-track axis instead, leaving the requested nadir exactly as asked.
+    """
+    from pyorbital.geoloc import _local_frame, vnorm
+
+    pos = np.array([[4507.0], [1200.0], [5000.0]])
+    # a velocity with a deliberate radial component, as J2 produces
+    perpendicular = np.cross(np.array([0.0, -0.99, 0.14]), pos[:, 0])
+    perpendicular = perpendicular / np.sqrt((perpendicular**2).sum())
+    radial = (pos[:, 0] / np.sqrt((pos[:, 0] ** 2).sum())) * 1.0e-3
+    vel = ((perpendicular + radial) * 7.5).reshape(3, 1)
+
+    nadir, along_track, cross_track = _local_frame(pos, vel, nadir_convention="geocentric")
+
+    np.testing.assert_allclose(nadir, -pos / vnorm(pos), rtol=1e-12, atol=1e-12)
+    # and the frame is still orthonormal, which the rotations require
+    assert abs(float(np.sum(nadir * along_track))) < 1e-12
+    assert abs(float(np.sum(nadir * cross_track))) < 1e-12
+
+
+def test_fast_geocentric_path_agrees_with_the_reference_path():
+    """The numba fast path is an optimisation, so it must not change the answer.
+
+    ``_geolocate_scan_chunk`` diverts the geocentric/pitch_first configuration --
+    the one FY-3 MERSI uses in production -- to a hand-written kernel.  The array
+    path stays the reference implementation, so the two must agree; a kernel that
+    silently reimplements the local frame differently is a geolocation error no
+    unit test of either path alone would catch.
+    """
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    n_rows, n_pixels = 6, 64
+    fovs = np.zeros((2, n_rows, n_pixels))
+    fovs[0] = np.deg2rad(np.linspace(-55.0, 55.0, n_pixels))[np.newaxis, :]
+    fovs[1] = np.deg2rad(np.linspace(-0.1, 0.1, n_rows))[:, np.newaxis]
+    geometry = ScanGeometry(fovs, np.zeros(n_rows))
+    start = np.datetime64(dt.datetime(2012, 12, 12, 4, 16, 1, 575000))
+    times = start + (np.arange(n_rows * n_pixels)
+                     * np.timedelta64(1000, "us")).reshape(n_rows, n_pixels)
+    orbital = Orbital("mysatellite", line1=tle1, line2=tle2)
+    kwargs = dict(rpy=(0.0006, -0.0006, 0.0022),
+                  nadir_convention="geocentric", rotation_order="pitch_first")
+
+    fast_lon, fast_lat, fast_alt = geoloc.geolocate(orbital, geometry, times, **kwargs)
+    with mock.patch.object(geoloc, "_HAS_NUMBA", False):
+        ref_lon, ref_lat, ref_alt = geoloc.geolocate(orbital, geometry, times, **kwargs)
+
+    np.testing.assert_allclose(fast_lat, ref_lat, atol=1e-9)
+    np.testing.assert_allclose(fast_lon, ref_lon, atol=1e-9)
+    np.testing.assert_allclose(fast_alt, ref_alt, atol=1e-3)

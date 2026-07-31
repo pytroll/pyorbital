@@ -4,6 +4,7 @@
 from __future__ import print_function
 
 import math
+import warnings
 from warnings import warn
 
 import numpy as np
@@ -19,6 +20,7 @@ except ImportError:
 # DIRTY STUFF. Needed the get_lonlatalt function to work on pos directly if
 # we want to print out lonlats in the end.
 from pyorbital import astronomy
+from pyorbital.config import config
 from pyorbital.orbital import Orbital
 
 A = 6378.137  # WGS84 and GRS80 Equatorial radius (km)
@@ -87,26 +89,83 @@ def compute_yaw_steering(pos, vel):
     return np.arctan2(OMEGA_EARTH * A * np.cos(lat), v)
 
 
-def _local_frame(pos, vel):
+def _warn_legacy_convention(what, replacement):
+    """Warn that a legacy geometry convention is in use, and how to opt out."""
+    warnings.warn(
+        f"pyorbital is using the legacy {what}. It is the default so that products "
+        "generated with earlier versions remain reproducible, but validation against "
+        f"reference geolocation shows it is less accurate; pass {replacement} for the "
+        "corrected computation. The default will change in a future release.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+
+
+def _resolve_convention(value, config_key, description, replacement):
+    """Resolve a geometry convention from the argument, then the config, then legacy.
+
+    Downstream libraries call into the geolocation without forwarding these
+    arguments, so the process-wide config is what lets an archive reprocessing
+    select a convention.  Both an explicit argument and a config entry count as a
+    deliberate choice and stay silent; only falling through to the legacy default
+    warns.
+    """
+    if value is not None:
+        return value
+    configured = config.get(config_key, None)
+    if configured is not None:
+        return configured
+    _warn_legacy_convention(description, replacement)
+    return "legacy"
+
+
+def _local_frame(pos, vel, nadir_convention=None):
     """Compute the satellite's local orbital reference frame.
 
     Returns (nadir, along_track, cross_track) as unit column vectors.
 
-    The nadir is the geodetic sub-satellite direction: from the satellite to
-    the foot of the perpendicular on the WGS84 ellipsoid (``subpoint(pos)``).
-    It is re-orthogonalised against ``along_track`` via Gram-Schmidt to maintain
-    the orthonormality required by the broadcast rotation in :class:`ScanGeometry`.
+    *nadir_convention* selects the "down" direction:
+
+    ``"legacy"``
+        The historical direction, the normalised position of the ellipsoid
+        subpoint of the antipode.  Used when *nadir_convention* is left
+        unspecified, so that products already generated with pyorbital reproduce
+        unchanged.  Relying on that default emits a :exc:`DeprecationWarning`,
+        because the convention is measurably less accurate; requesting
+        ``"legacy"`` explicitly is treated as an informed choice and is silent.
+    ``"geocentric"``
+        Straight at the centre of the Earth.  Validation of FY-3 MERSI against
+        reference geolocation selects this one.
+    ``"geodetic"``
+        Along the ellipsoid normal, from the satellite to ``subpoint(pos)``.
+
+    The nadir is re-orthogonalised against ``along_track`` via Gram-Schmidt to
+    maintain the orthonormality required by the broadcast rotation in
+    :class:`ScanGeometry`.
     """
-    sub = subpoint(pos)
-    nadir = sub - pos
-    nadir /= vnorm(nadir)
+    nadir_convention = _resolve_convention(
+        nadir_convention, "nadir_convention", "nadir convention", "nadir_convention='geocentric'"
+    )
     along_track = vel / vnorm(vel)
-    # Gram-Schmidt: remove the along_track component from nadir so that
-    # nadir ⊥ along_track (required by _vectors_broadcast simplified formula).
-    nadir = nadir - along_track * np.sum(nadir * along_track, axis=0, keepdims=True)
-    nadir /= vnorm(nadir)
+    if nadir_convention == "legacy":
+        # Reproduce released pyorbital exactly, which means *not* re-orthogonalising:
+        # the Gram-Schmidt below is itself a behavioural change, worth up to ~2.7 km
+        # once a pitch bias is involved.  Callers asking for the legacy convention
+        # are asking for the released numbers, so they get the released frame.
+        nadir = subpoint(-pos)
+        nadir = nadir / vnorm(nadir)
+    else:
+        if nadir_convention == "geocentric":
+            nadir = -pos / vnorm(pos)
+        else:
+            nadir = subpoint(pos) - pos
+            nadir = nadir / vnorm(nadir)
+        # Gram-Schmidt: remove the along_track component from nadir so that
+        # nadir ⊥ along_track (required by _vectors_broadcast simplified formula).
+        nadir = nadir - along_track * np.sum(nadir * along_track, axis=0, keepdims=True)
+        nadir = nadir / vnorm(nadir)
     cross_track = np.cross(nadir, vel, 0, 0, 0)
-    cross_track /= vnorm(cross_track)
+    cross_track = cross_track / vnorm(cross_track)
     return nadir, along_track, cross_track
 
 
@@ -206,7 +265,8 @@ class ScanGeometry(object):
             self._times = np.asanyarray(times).astype("timedelta64[ns]")
         self.attitude = attitude
 
-    def vectors(self, pos, vel, roll=0.0, pitch=0.0, yaw=0.0, yaw_steering=False):
+    def vectors(self, pos, vel, roll=0.0, pitch=0.0, yaw=0.0, yaw_steering=False,
+                nadir_convention=None, rotation_order=None):
         """Get unit vectors pointing to the different pixels.
 
         *pos* and *vel* are column vectors, or matrices of column
@@ -221,19 +281,44 @@ class ScanGeometry(object):
         rotation is used to avoid repeating the local frame computation for
         every pixel.  The result is then flattened to ``(3, N_total)``.
         """
-        if self.fovs.ndim == 3 and pos.ndim == 2 and pos.shape[1] == self.fovs.shape[1]:
-            return self._vectors_broadcast(pos, vel, roll, pitch, yaw, yaw_steering)
+        nadir_convention = _resolve_convention(
+            nadir_convention, "nadir_convention", "nadir convention",
+            "nadir_convention='geocentric'"
+        )
+        per_scan_state = (self.fovs.ndim == 3 and pos.ndim == 2
+                          and pos.shape[1] == self.fovs.shape[1])
+        if per_scan_state and nadir_convention != "legacy":
+            return self._vectors_broadcast(pos, vel, roll, pitch, yaw, yaw_steering,
+                                           nadir_convention, rotation_order)
+        if per_scan_state:
+            # The broadcast rotation simplifies using nadir ⊥ along_track, which the
+            # legacy frame deliberately does not satisfy, so legacy takes the general
+            # path instead -- which needs the orbit state repeated for every pixel.
+            pixels_per_row = self.fovs.shape[2]
+            pos = np.repeat(pos, pixels_per_row, axis=1)
+            vel = np.repeat(vel, pixels_per_row, axis=1)
         fovs = self.fovs.reshape(2, -1)
-        nadir, along_track, cross_track = _local_frame(pos, vel)
+        nadir, along_track, cross_track = _local_frame(pos, vel, nadir_convention)
         effective_yaw = _effective_yaw(yaw, yaw_steering, pos, vel, self.fovs[0].shape)
-        if np.any(fovs[1] + pitch):
+        if not np.any(fovs[1] + pitch):
+            # with no along-track angle the two orders are identical, so the
+            # choice is irrelevant and not worth deprecating at the caller
+            rotated = qrotate(nadir, along_track, fovs[0] + roll)
+            return qrotate(rotated, nadir, effective_yaw)
+        rotation_order = _resolve_convention(
+            rotation_order, "rotation_order", "rotation order", "rotation_order='pitch_first'"
+        )
+        if rotation_order == "legacy":
+            # as released: roll (about along-track) first, then pitch
+            rotated = qrotate(nadir, along_track, fovs[0] + roll)
+            rotated = qrotate(rotated, cross_track, fovs[1] + pitch)
+        else:
             rotated = qrotate(nadir, cross_track, fovs[1] + pitch)
             rotated = qrotate(rotated, along_track, fovs[0] + roll)
-        else:
-            rotated = qrotate(nadir, along_track, fovs[0] + roll)
         return qrotate(rotated, nadir, effective_yaw)
 
-    def _vectors_broadcast(self, pos, vel, roll, pitch, yaw, yaw_steering):
+    def _vectors_broadcast(self, pos, vel, roll, pitch, yaw, yaw_steering,
+                           nadir_convention=None, rotation_order=None):
         """Broadcast rotation for per-scan pos/vel and per-pixel fovs.
 
         Two structural invariants of all 3-D fov scan geometries are exploited:
@@ -252,7 +337,7 @@ class ScanGeometry(object):
            multiply-add operations:
            ``r1 = nadir * cos(α) - along_track * sin(α)``
         """
-        nadir, along_track, cross_track = _local_frame(pos, vel)
+        nadir, along_track, cross_track = _local_frame(pos, vel, nadir_convention)
         effective_yaw = _effective_yaw(yaw, yaw_steering, pos, vel, self.fovs[0].shape)
 
         nadir_3d = nadir[:, :, np.newaxis]                      # (3, M, 1)
@@ -268,18 +353,32 @@ class ScanGeometry(object):
         along_angles = (self.fovs[1] + pitch)[:, 0:1]          # (M, 1)
 
         if np.any(along_angles):
-            # --- Step 1: along-track (simplified Rodrigues around cross_track) ---
-            # Exploit nadir ⊥ cross_track: r1 = nadir*cos(α) - along_track*sin(α)
+            rotation_order = _resolve_convention(
+                rotation_order, "rotation_order", "rotation order",
+                "rotation_order='pitch_first'"
+            )
             cos_a = np.cos(along_angles)[np.newaxis]            # (1, M, 1)
             sin_a = np.sin(along_angles)[np.newaxis]            # (1, M, 1)
-            r1 = nadir_3d * cos_a - at_3d * sin_a              # (3, M, 1)
+            if rotation_order == "legacy":
+                # Cross-track first (nadir ⊥ along_track makes that the simple one),
+                # then along-track.  Closed form, matching the flat path and kernel:
+                # r = nadir*cos(θ)*cos(α) - along_track*cos(θ)*sin(α)
+                #     + cross_track*sin(θ)
+                rotated = (nadir_3d * cos_c[np.newaxis] * cos_a
+                           - at_3d * cos_c[np.newaxis] * sin_a
+                           + ct_3d * sin_c[np.newaxis])
+            else:
+                # --- Step 1: along-track (simplified Rodrigues around cross_track) ---
+                # Exploit nadir ⊥ cross_track: r1 = nadir*cos(α) - along_track*sin(α)
+                r1 = nadir_3d * cos_a - at_3d * sin_a              # (3, M, 1)
 
-            # --- Step 2: cross-track (compact full-Rodrigues around along_track) ---
-            # r2 = r1*cos(θ) + cross_track*cos(α)*sin(θ) - along_track*sin(α)*(1-cos(θ))
-            one_m_cos_c = 1.0 - cos_c                          # (1, N)
-            rotated = (r1 * cos_c[np.newaxis]
-                       + ct_3d * cos_a * sin_c[np.newaxis]
-                       - at_3d * sin_a * one_m_cos_c[np.newaxis])
+                # --- Step 2: cross-track (compact full-Rodrigues around along_track) ---
+                # r2 = r1*cos(θ) + cross_track*cos(α)*sin(θ)
+                #      - along_track*sin(α)*(1-cos(θ))
+                one_m_cos_c = 1.0 - cos_c                          # (1, N)
+                rotated = (r1 * cos_c[np.newaxis]
+                           + ct_3d * cos_a * sin_c[np.newaxis]
+                           - at_3d * sin_a * one_m_cos_c[np.newaxis])
         else:
             # No along-track offset: simplified cross-track only (nadir ⊥ along_track).
             rotated = nadir_3d * cos_c[np.newaxis] + ct_3d * sin_c[np.newaxis]
@@ -414,6 +513,7 @@ if _HAS_NUMBA:
 
     @nb.njit(parallel=True, cache=True)
     def _fused_geolocate_numba(pos, nadir, cross_track, cos_c, sin_c, along_angles,
+                               pitch_first,
                                yaw_angles, gmst_scan, lon_out, lat_out, alt_out):
         """Fused rotation + ellipsoid intersection + geodetic in one parallel kernel.
 
@@ -435,6 +535,8 @@ if _HAS_NUMBA:
                 :func:`_local_frame`, shape ``(3, M)``.
             cross_track: Pre-computed cross-track unit vectors from
                 :func:`_local_frame`, shape ``(3, M)``.
+            pitch_first: Whether to apply pitch before roll; ``False`` selects
+                the released roll-then-pitch order.
             cos_c: cos of (cross-track scan angle + roll), shape ``(N,)``.
             sin_c: sin of (cross-track scan angle + roll), shape ``(N,)``.
             along_angles: Along-track detector angle + pitch per scan line,
@@ -485,13 +587,23 @@ if _HAS_NUMBA:
             gmst_m = gmst_scan[m]
 
             for k in range(N):
-                # --- Step 2: cross-track (compact full-Rodrigues around along_track) ---
-                # r2 = r1*cos(θ) + cross_track*cos(α)*sin(θ) - along_track*sin(α)*(1-cos(θ))
                 cc, sc = cos_c[k], sin_c[k]
-                one_m_cc = 1.0 - cc
-                rx = r1x * cc + ctx * cos_a * sc - atx * sin_a * one_m_cc
-                ry = r1y * cc + cty * cos_a * sc - aty * sin_a * one_m_cc
-                rz = r1z * cc + ctz * cos_a * sc - atz * sin_a * one_m_cc
+                if pitch_first:
+                    # --- Step 2: cross-track (compact full-Rodrigues around along_track) ---
+                    # r2 = r1*cos(θ) + cross_track*cos(α)*sin(θ)
+                    #      - along_track*sin(α)*(1-cos(θ))
+                    one_m_cc = 1.0 - cc
+                    rx = r1x * cc + ctx * cos_a * sc - atx * sin_a * one_m_cc
+                    ry = r1y * cc + cty * cos_a * sc - aty * sin_a * one_m_cc
+                    rz = r1z * cc + ctz * cos_a * sc - atz * sin_a * one_m_cc
+                else:
+                    # Legacy order: cross-track first (nadir ⊥ along_track, so that
+                    # rotation is the simple one), then along-track.  Closed form:
+                    # r = nadir*cos(θ)*cos(α) - along_track*cos(θ)*sin(α)
+                    #     + cross_track*sin(θ)
+                    rx = nx * cc * cos_a - atx * cc * sin_a + ctx * sc
+                    ry = ny * cc * cos_a - aty * cc * sin_a + cty * sc
+                    rz = nz * cc * cos_a - atz * cc * sin_a + ctz * sc
 
                 # --- 3rd rotation: CW Rodrigues around nadir by yaw angle ---
                 yaw_m = yaw_angles[m]
@@ -561,7 +673,7 @@ else:
         raise RuntimeError("numba is not installed")
 
     def _fused_geolocate_numba(pos, nadir, cross_track, cos_c, sin_c, along_angles,  # type: ignore[misc]
-                               yaw_angles, gmst_scan, lon_out, lat_out, alt_out):
+                               pitch_first, yaw_angles, gmst_scan, lon_out, lat_out, alt_out):
         """Stub: numba not available."""
         raise RuntimeError("numba is not installed")
 
@@ -597,7 +709,8 @@ def get_sensor_angles(orb, utc_time, lon, lat, alt=0.0):
 # END OF DIRTY STUFF
 
 
-def geolocate(orb, sgeom, times, rpy=(0.0, 0.0, 0.0), yaw_steering=False):
+def geolocate(orb, sgeom, times, rpy=(0.0, 0.0, 0.0), yaw_steering=False,
+              nadir_convention=None, rotation_order=None):
     """Compute (lon, lat, alt) for every pixel in one shot.
 
     When numba is available **and** the scan geometry has 3-D fovs (any
@@ -617,27 +730,39 @@ def geolocate(orb, sgeom, times, rpy=(0.0, 0.0, 0.0), yaw_steering=False):
             such row per instrument scan.
         yaw_steering: If ``True``, compute yaw from orbit geometry to
             counteract Earth rotation.
+        nadir_convention: Which "down" direction the local frame uses; see
+            :func:`_local_frame`.  Left unspecified it keeps the legacy
+            convention and emits a :exc:`DeprecationWarning`.
+        rotation_order: ``"legacy"`` applies roll before pitch, as released;
+            ``"pitch_first"`` applies pitch before roll so the along-track
+            component does not depend on the scan angle.  Left unspecified it
+            keeps the legacy order and emits a :exc:`DeprecationWarning`.
 
     Returns:
         Tuple ``(lon_deg, lat_deg, alt_m)`` as flat 1-D arrays.
     """
     rpy_array = np.asarray(rpy)
     if rpy_array.ndim == 2:
-        return _geolocate_per_scan_attitude(orb, sgeom, times, rpy_array, yaw_steering)
+        return _geolocate_per_scan_attitude(orb, sgeom, times, rpy_array, yaw_steering,
+                                            nadir_convention, rotation_order)
     roll, pitch, yaw = rpy
 
     times_arr = np.asanyarray(times)
     if _requires_per_pixel_orbit(sgeom, times_arr):
-        return _geolocate_with_per_pixel_orbit(orb, sgeom, times_arr, rpy, yaw_steering)
+        return _geolocate_with_per_pixel_orbit(orb, sgeom, times_arr, rpy, yaw_steering,
+                                               nadir_convention, rotation_order)
 
     if _HAS_NUMBA and sgeom.fovs.ndim == 3:
-        return _geolocate_fused(orb, sgeom, times, roll, pitch, yaw, yaw_steering)
+        return _geolocate_fused(orb, sgeom, times, roll, pitch, yaw, yaw_steering,
+                                nadir_convention, rotation_order)
 
-    pixels = compute_pixels(orb, sgeom, times, rpy, yaw_steering)
+    pixels = compute_pixels(orb, sgeom, times, rpy, yaw_steering, nadir_convention,
+                            rotation_order)
     return get_lonlatalt(pixels, times)
 
 
-def _geolocate_per_scan_attitude(orb, sgeom, times, attitudes, yaw_steering):
+def _geolocate_per_scan_attitude(orb, sgeom, times, attitudes, yaw_steering,
+                                 nadir_convention=None, rotation_order=None):
     """Geolocate compact scans carrying independent attitude corrections."""
     rows_per_scan = sgeom.lines_per_scan
     parts = []
@@ -650,7 +775,8 @@ def _geolocate_per_scan_attitude(orb, sgeom, times, attitudes, yaw_steering):
             scan_times - scan_times[0, 0],
             lines_per_scan=rows_per_scan,
         )
-        parts.append(geolocate(orb, scan_geometry, scan_times, tuple(attitude), yaw_steering))
+        parts.append(geolocate(orb, scan_geometry, scan_times, tuple(attitude), yaw_steering,
+                               nadir_convention, rotation_order))
     return tuple(np.concatenate(values) for values in zip(*parts))
 
 
@@ -659,22 +785,27 @@ def _requires_per_pixel_orbit(sgeom, times):
     return sgeom.fovs.ndim == 3 and times.ndim == 2 and np.any(times != times[:, :1])
 
 
-def _geolocate_with_per_pixel_orbit(orb, sgeom, times, rpy, yaw_steering):
+def _geolocate_with_per_pixel_orbit(orb, sgeom, times, rpy, yaw_steering,
+                                    nadir_convention=None, rotation_order=None):
     """Geolocate a compact scan without discarding its intra-scan orbital motion."""
     results = []
     for start in range(0, times.shape[0], _MAX_SCAN_ROWS_PER_CHUNK):
         stop = min(start + _MAX_SCAN_ROWS_PER_CHUNK, times.shape[0])
         chunk_geometry = ScanGeometry(sgeom.fovs[:, start:stop], times[start:stop] - times[start, 0])
-        results.append(_geolocate_scan_chunk(orb, chunk_geometry, times[start:stop], rpy, yaw_steering))
+        results.append(_geolocate_scan_chunk(orb, chunk_geometry, times[start:stop], rpy,
+                                             yaw_steering, nadir_convention, rotation_order))
     return tuple(np.concatenate(parts) for parts in zip(*results))
 
 
-def _geolocate_scan_chunk(orb, sgeom, times, rpy, yaw_steering):
+def _geolocate_scan_chunk(orb, sgeom, times, rpy, yaw_steering, nadir_convention=None,
+                          rotation_order=None):
     """Geolocate a bounded group of compact scan rows."""
     pixel_times = times.reshape(-1)
     flat_geometry = ScanGeometry(sgeom.fovs.reshape(2, -1), pixel_times - pixel_times[0])
     pos, vel = _interpolate_scan_endpoint_states(orb, times)
-    vectors = flat_geometry.vectors(pos, vel, *rpy, yaw_steering=yaw_steering)
+    vectors = flat_geometry.vectors(pos, vel, *rpy, yaw_steering=yaw_steering,
+                                    nadir_convention=nadir_convention,
+                                    rotation_order=rotation_order)
     radius = np.array([[1 / A, 1 / A, 1 / B]]).T
     pixels = _ellipsoid_intersection(vectors, pos, radius)
     return get_lonlatalt(pixels, pixel_times)
@@ -702,7 +833,8 @@ def _scan_fraction(times, endpoints):
     return np.divide(elapsed, duration[:, None], out=np.zeros_like(elapsed), where=duration[:, None] != 0)
 
 
-def _geolocate_fused(orb, sgeom, times, roll, pitch, yaw=0.0, yaw_steering=False):
+def _geolocate_fused(orb, sgeom, times, roll, pitch, yaw=0.0, yaw_steering=False,
+                     nadir_convention=None, rotation_order=None):
     """Inner fused-path implementation for :func:`geolocate`."""
     if isinstance(orb, (list, tuple)):
         tle1, tle2 = orb
@@ -715,7 +847,7 @@ def _geolocate_fused(orb, sgeom, times, roll, pitch, yaw=0.0, yaw_steering=False
     N = sgeom.fovs.shape[2]   # pixels per row
 
     # Local orbital frame: uses geodetic nadir (subpoint) matching _local_frame
-    nadir, _along, cross_track = _local_frame(pos, vel)
+    nadir, _along, cross_track = _local_frame(pos, vel, nadir_convention)
 
     # Cross-track trig: same for every scan row → compute on N values only
     cos_c = np.cos(sgeom.fovs[0][0, :] + roll).astype(np.float64)    # (N,)
@@ -723,6 +855,11 @@ def _geolocate_fused(orb, sgeom, times, roll, pitch, yaw=0.0, yaw_steering=False
 
     # Along-track angle: same for every pixel in a row → one value per row
     along_angles = (sgeom.fovs[1][:, 0] + pitch).astype(np.float64)  # (M,)
+    if np.any(along_angles):
+        rotation_order = _resolve_convention(
+            rotation_order, "rotation_order", "rotation order", "rotation_order='pitch_first'"
+        )
+    pitch_first = rotation_order != "legacy"
 
     # Effective yaw per scan line: explicit bias + optional steering term
     if yaw_steering:
@@ -745,7 +882,7 @@ def _geolocate_fused(orb, sgeom, times, roll, pitch, yaw=0.0, yaw_steering=False
         np.ascontiguousarray(pos, dtype=np.float64),
         np.ascontiguousarray(nadir, dtype=np.float64),
         np.ascontiguousarray(cross_track, dtype=np.float64),
-        cos_c, sin_c, along_angles, yaw_angles, gmst_scan,
+        cos_c, sin_c, along_angles, pitch_first, yaw_angles, gmst_scan,
         lon_out, lat_out, alt_out,
     )
     return lon_out, lat_out, alt_out
@@ -799,7 +936,8 @@ def _get_satpos(orb, times, lines_per_scan=1):
     return orb.get_position(times, normalize=False)
 
 
-def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0), yaw_steering=False):
+def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0), yaw_steering=False,
+                   nadir_convention=None, rotation_order=None):
     """Compute cartesian coordinates of the pixels in instrument scan."""
     if isinstance(orb, (list, tuple)):
         tle1, tle2 = orb
@@ -807,7 +945,9 @@ def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0), yaw_steering=False):
 
     pos, vel = _get_satpos(orb, times, lines_per_scan=sgeom.lines_per_scan)
 
-    vectors = sgeom.vectors(pos, vel, *rpy, yaw_steering=yaw_steering)
+    vectors = sgeom.vectors(pos, vel, *rpy, yaw_steering=yaw_steering,
+                            nadir_convention=nadir_convention,
+                            rotation_order=rotation_order)
 
     # Compute intersection of pixel lines with the WGS-84 ellipsoid.
     # http://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection

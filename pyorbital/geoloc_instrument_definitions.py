@@ -1023,5 +1023,5 @@ def slstr_nadir(scans_nb, scan_points=None):
             pixels_per_scan=len(scan_points))
     else:
         scan = SLSTR_NADIR_SCAN
-    swath = PushbroomSwath(scanline=scan, time_sampling=np.timedelta64(0))
+    swath = PushbroomSwath(scanline=scan, time_sampling=np.timedelta64(0, "ms"))
     return swath.scan_geometry(scan_lines=slice(int(scans_nb)))

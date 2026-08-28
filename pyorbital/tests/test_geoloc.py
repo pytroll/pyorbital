@@ -586,8 +586,8 @@ class TestGeolocDefs:
             assert geom.fovs[0, 1, -1] == pytest.approx(np.deg2rad(-22.1))
             assert geom.fovs[1, 0, 0] == 0
             assert geom._times.shape == (2, 33)
-            assert geom._times[0, 0] == 0
-            assert geom._times[0, -1] == 0
+            assert geom._times[0, 0] == np.timedelta64(0, "ns")
+            assert geom._times[0, -1] == np.timedelta64(0, "ns")
             assert geom._times[1, 0] == time_sampling * 10
             assert geom._times[1, -1] == time_sampling * 10
             assert geom._times.dtype == np.timedelta64(1, "ns").dtype
@@ -633,8 +633,9 @@ def test_pushbroom_swath_generates_scan_geometry():
     assert geom.fovs[0, 0, 0] == pytest.approx(np.deg2rad(46.5))
     assert geom.fovs[0, 0, -1] == pytest.approx(np.deg2rad(-22.1))
     assert geom.fovs[1, 0, 0] == 0
-    assert geom._times[0, 0] == np.timedelta64(0)
-    assert geom._times[0, -1] == np.timedelta64(0)
+    zero = np.zeros((), dtype=geom._times.dtype)
+    assert geom._times[0, 0] == zero
+    assert geom._times[0, -1] == zero
     assert geom._times[1, 0] == time_sampling * 10
     assert geom._times[1, -1] == time_sampling * 10
 
@@ -664,7 +665,7 @@ def test_slstr_nadir_scan_constant():
     from pyorbital.geoloc_instrument_definitions import SLSTR_NADIR_SCAN
 
     legacy_geom = slstr_nadir(10)
-    swath = PushbroomSwath(scanline=SLSTR_NADIR_SCAN, time_sampling=np.timedelta64(0))
+    swath = PushbroomSwath(scanline=SLSTR_NADIR_SCAN, time_sampling=np.timedelta64(0, "ms"))
     new_geom = swath.scan_geometry(scan_lines=slice(10))
     np.testing.assert_allclose(new_geom.fovs, legacy_geom.fovs)
     np.testing.assert_equal(new_geom._times, legacy_geom._times)

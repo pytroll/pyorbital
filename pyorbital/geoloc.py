@@ -1190,7 +1190,7 @@ def hnorm(m):
 
 def _n_scans_from_duration(duration, time_sampling):
     """Compute the number of scan lines covering a given duration."""
-    if time_sampling <= np.timedelta64(0):
+    if time_sampling <= np.timedelta64(0, "ns"):
         return 1
     return max(1, int(duration / time_sampling))
 

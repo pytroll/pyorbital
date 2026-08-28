@@ -2,7 +2,6 @@
 
 
 # TODO: write formal unit tests.
-from __future__ import print_function, with_statement
 
 import datetime as dt
 import logging

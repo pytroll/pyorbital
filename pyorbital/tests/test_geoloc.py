@@ -77,6 +77,9 @@ def _configured_convention(convention):
 
 
 _NUMBA_AVAILABLE = geoloc._HAS_NUMBA
+# numba refuses to import against an unsupported numpy, raising a plain ImportError
+# rather than ModuleNotFoundError, which pytest.importorskip no longer skips on.
+requires_numba = pytest.mark.skipif(not _NUMBA_AVAILABLE, reason="numba is not available")
 @pytest.fixture(params=[pytest.param(True, id="numba"), pytest.param(False, id="array")])
 def numba_path(request):
     """Run the test on both the numba kernel and the array reference path.
@@ -1081,9 +1084,9 @@ def test_importing_geoloc_without_numba_is_silent():
     assert result.returncode == 0, result.stderr
 
 
+@requires_numba
 def test_get_lonlatalt_recovers_points_on_the_wgs84_surface():
     """Check that both code paths recover the known lat/alt of WGS84 surface points."""
-    pytest.importorskip("numba")
     from pyproj import Transformer
 
     rng = np.random.default_rng(0)
@@ -1155,13 +1158,13 @@ def test_compute_pixel_works(kwargs, warns, numba_path):
 
 
 @pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
+@requires_numba
 def test_geolocate_matches_compute_pixels_get_lonlatalt(kwargs, warns, numba_path):
     """Check that short-arc geolocation agrees with per-pixel propagation within 10 m."""
     context = _expect_convention_warning(warns)
     # these exercise a non-zero pitch, so pin the rotation order and let the
     # parametrisation vary only the nadir convention
     with config.set(rotation_order="legacy"), context:
-        pytest.importorskip("numba")
         from pyorbital.geoloc import _HAS_NUMBA, compute_pixels, geolocate, get_lonlatalt
         if not _HAS_NUMBA:
             pytest.skip("numba not available")
@@ -1193,13 +1196,13 @@ def test_geolocate_matches_compute_pixels_get_lonlatalt(kwargs, warns, numba_pat
 
 
 @pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
+@requires_numba
 def test_geolocate_with_yaw_steering_matches_reference(kwargs, warns, numba_path):
     """Check yaw-steered short-arc geolocation against per-pixel propagation."""
     context = _expect_convention_warning(warns)
     # these exercise a non-zero pitch, so pin the rotation order and let the
     # parametrisation vary only the nadir convention
     with config.set(rotation_order="legacy"), context:
-        pytest.importorskip("numba")
         from pyorbital.geoloc import _HAS_NUMBA, compute_pixels, geolocate, get_lonlatalt
         if not _HAS_NUMBA:
             pytest.skip("numba not available")
@@ -1742,6 +1745,7 @@ def test_scan_geometry_vectors_honours_the_rotation_order(kwargs, warns):
 
 
 @pytest.mark.parametrize("rotation_order", ["legacy", "pitch_first"])
+@requires_numba
 def test_fused_path_honours_the_rotation_order(rotation_order, numba_path):
     """The numba kernel must apply the same rotation order as the array path.
 
@@ -1751,7 +1755,6 @@ def test_fused_path_honours_the_rotation_order(rotation_order, numba_path):
     ``ScanGeometry.vectors`` -- otherwise selecting an order would silently
     change the answer only on some instruments.
     """
-    pytest.importorskip("numba")
     from pyorbital.geoloc import _HAS_NUMBA, compute_pixels, geolocate, get_lonlatalt
 
     if not _HAS_NUMBA:

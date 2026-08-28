@@ -1,8 +1,5 @@
 """Module to compute geolocalization of a satellite scene."""
 
-
-from __future__ import print_function
-
 import logging
 import math
 import warnings

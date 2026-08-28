@@ -594,6 +594,7 @@ class TestGeolocDefs:
 
 
 def test_single_line_pushbroom_scan():
+    """Test the geometry of a single-line pushbroom scan."""
     pixels_per_scan = 4865
     left_angle = 46.5
     right_angle = -22.1

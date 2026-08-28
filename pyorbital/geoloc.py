@@ -11,6 +11,10 @@ from functools import cache
 import numpy as np
 from pyproj import Transformer
 
+from pyorbital import astronomy
+from pyorbital.config import config
+from pyorbital.orbital import Orbital
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -19,12 +23,6 @@ try:
 except ImportError:
     _HAS_NUMBA = False
     logger.warning("Numba is not available, falling back to the pyproj and numpy paths.")
-
-# DIRTY STUFF. Needed the get_lonlatalt function to work on pos directly if
-# we want to print out lonlats in the end.
-from pyorbital import astronomy
-from pyorbital.config import config
-from pyorbital.orbital import Orbital
 
 A = 6378.137  # WGS84 and GRS80 Equatorial radius (km)
 B = 6356.752314245  # km, WGS84
@@ -485,7 +483,9 @@ if _HAS_NUMBA:
         altitude — identical to pyproj's PROJ implementation.
 
         Args:
-            x, y, z: 1-D float64 arrays of ECEF coordinates in kilometres.
+            x: 1-D float64 array of ECEF x coordinates in kilometres.
+            y: 1-D float64 array of ECEF y coordinates in kilometres.
+            z: 1-D float64 array of ECEF z coordinates in kilometres.
 
         Returns:
             Tuple ``(lon_deg, lat_deg, alt_m)`` as 1-D float64 arrays.
@@ -562,8 +562,12 @@ if _HAS_NUMBA:
                 steering), shape ``(M,)`` in radians.
             gmst_scan: Greenwich Mean Sidereal Time per scan line, shape
                 ``(M,)`` in radians.
-            lon_out, lat_out, alt_out: Pre-allocated output arrays, shape
-                ``(M * N,)``.  Units: degrees, degrees, metres.
+            lon_out: Pre-allocated output array of longitudes in degrees,
+                shape ``(M * N,)``.
+            lat_out: Pre-allocated output array of latitudes in degrees,
+                shape ``(M * N,)``.
+            alt_out: Pre-allocated output array of altitudes in metres,
+                shape ``(M * N,)``.
         """
         _a = A
         _b = B
@@ -721,9 +725,6 @@ def get_sensor_angles(orb, utc_time, lon, lat, alt=0.0):
     sat_lon, sat_lat, sat_alt = get_lonlatalt(pos, utc_time)
     azimuth, elevation = get_observer_look(sat_lon, sat_lat, sat_alt / 1000.0, utc_time, lon, lat, alt)
     return 90.0 - elevation, azimuth % 360.0
-
-
-# END OF DIRTY STUFF
 
 
 def geolocate(orb, sgeom, times, rpy=(0.0, 0.0, 0.0), yaw_steering=False,
@@ -1157,8 +1158,8 @@ def _ellipsoid_intersection_broadcast(vectors, pos, radius, pixels_per_line):
     xr_ = vec3 * radius.reshape(3, 1, 1)                    # (3, M, K)
     cr_ = -pos * radius                                       # (3, M)
     ldotc = np.einsum("ijk,ij->jk", xr_, cr_)               # (M, K)
-    lsq   = np.einsum("ijk,ijk->jk", xr_, xr_)              # (M, K)
-    csq   = np.einsum("ij,ij->j", cr_, cr_)                 # (M,)
+    lsq = np.einsum("ijk,ijk->jk", xr_, xr_)                # (M, K)
+    csq = np.einsum("ij,ij->j", cr_, cr_)                   # (M,)
     csq_exp = csq[:, np.newaxis]
     discriminant = np.maximum(ldotc ** 2 - csq_exp * lsq + lsq, 0.0)
     d1_ = (ldotc - np.sqrt(discriminant)) / lsq

@@ -5,6 +5,7 @@
 from __future__ import print_function, with_statement
 
 import datetime as dt
+import logging
 import os
 import unittest
 
@@ -13,6 +14,8 @@ import numpy as np
 from pyorbital import astronomy, tlefile
 from pyorbital.orbital import _SGDP4, Orbital, OrbitElements
 from pyorbital.tlefile import ChecksumError
+
+logger = logging.getLogger(__name__)
 
 
 class LineOrbital(Orbital):
@@ -98,17 +101,16 @@ def _check_line2(f__, test_name: str, line1: str, test_line: str) -> None:
     except ChecksumError:
         assert test_line.split()[1] in ["33333", "33334", "33335"]
         return
-    print(test_name)
+    logger.debug("Testing %s", test_name)
     for delay in times:
-        print(delay)
+        logger.debug("Delay %s", delay)
         try:
             test_time = delay.astype("timedelta64[m]") + o.tle.epoch
             pos, vel = o.get_position(test_time, False)
             res = get_results(
                 int(o.tle.satnumber), float(delay))
         except NotImplementedError:
-            # Skipping deep-space
-            print("skipping")
+            logger.debug("Skipping deep-space propagation")
             break
         # except ValueError, e:
         #     from warnings import warn

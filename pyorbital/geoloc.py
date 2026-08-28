@@ -5,6 +5,7 @@ from __future__ import print_function
 
 import math
 import warnings
+from functools import cache
 from warnings import warn
 
 import numpy as np
@@ -26,17 +27,24 @@ from pyorbital.orbital import Orbital
 A = 6378.137  # WGS84 and GRS80 Equatorial radius (km)
 B = 6356.752314245  # km, WGS84
 
-# Module-level cached Transformer — avoids re-creating the PROJ context on
-# every get_lonlatalt() call.
-_GEOCENT_TO_LATLONG = None
 
-
+@cache
 def _get_transformer():
-    global _GEOCENT_TO_LATLONG
-    if _GEOCENT_TO_LATLONG is None:
-        _GEOCENT_TO_LATLONG = Transformer.from_crs(
-            dict(proj="geocent"), dict(proj="latlong"))
-    return _GEOCENT_TO_LATLONG
+    """Get a geocentric to lon/lat transformer.
+
+    The ellipsoid is taken from the module-level *A* and *B* constants, which the
+    numba kernels read too, so every path in this module shares one declaration.
+    The result is cached to avoid re-creating the PROJ context on every call.
+    """
+    return Transformer.from_crs(
+        dict(proj="geocent", a=A * 1000, b=B * 1000),
+        dict(proj="latlong", a=A * 1000, b=B * 1000))
+
+
+def _ellipsoid_radius_scaling():
+    """Return the scaling that maps the declared ellipsoid onto a unit sphere."""
+    return np.array([[1 / A, 1 / A, 1 / B]]).T
+
 
 OMEGA_EARTH = 7.2921159e-5  # Earth's rotation rate (rad/s)
 _MAX_SCAN_ROWS_PER_CHUNK = 16
@@ -480,10 +488,10 @@ if _HAS_NUMBA:
         Returns:
             Tuple ``(lon_deg, lat_deg, alt_m)`` as 1-D float64 arrays.
         """
-        _a = 6378.137
-        _b = 6356.752314245
-        _e2 = 1.0 - (_b / _a) ** 2
-        _ep2 = (_a / _b) ** 2 - 1.0
+        a = A
+        b = B
+        _e2 = 1.0 - (b / a) ** 2
+        _ep2 = (a / b) ** 2 - 1.0
         _r2d = 180.0 / math.pi
         _sin_89_9 = 0.9998476951563913  # sin(89.9°), pole threshold
 
@@ -497,20 +505,20 @@ if _HAS_NUMBA:
             lon_out[i] = math.atan2(yi, xi) * _r2d
 
             p = math.sqrt(xi * xi + yi * yi)
-            za = zi * _a
-            pb = p * _b
+            za = zi * a
+            pb = p * b
             r_t = math.sqrt(za * za + pb * pb)
             sin_t = za / r_t
             cos_t = pb / r_t
 
-            num = zi + _ep2 * _b * sin_t * sin_t * sin_t
-            den = p - _e2 * _a * cos_t * cos_t * cos_t
+            num = zi + _ep2 * b * sin_t * sin_t * sin_t
+            den = p - _e2 * a * cos_t * cos_t * cos_t
             lat = math.atan2(num, den)
             lat_out[i] = lat * _r2d
 
             sin_lat = math.sin(lat)
             cos_lat = math.cos(lat)
-            N = _a / math.sqrt(1.0 - _e2 * sin_lat * sin_lat)
+            N = a / math.sqrt(1.0 - _e2 * sin_lat * sin_lat)
             if abs(sin_lat) > _sin_89_9:
                 alt_out[i] = (abs(zi) / abs(sin_lat) - N * (1.0 - _e2)) * 1000.0
             else:
@@ -555,8 +563,8 @@ if _HAS_NUMBA:
             lon_out, lat_out, alt_out: Pre-allocated output arrays, shape
                 ``(M * N,)``.  Units: degrees, degrees, metres.
         """
-        _a = 6378.137
-        _b = 6356.752314245
+        _a = A
+        _b = B
         _e2 = 1.0 - (_b / _a) ** 2
         _ep2 = (_a / _b) ** 2 - 1.0
         _ra = 1.0 / _a
@@ -830,7 +838,7 @@ def _geolocate_scan_chunk(orb, sgeom, times, rpy, yaw_steering, nadir_convention
     vectors = flat_geometry.vectors(pos, vel, *rpy, yaw_steering=yaw_steering,
                                     nadir_convention=nadir_convention,
                                     rotation_order=rotation_order)
-    radius = np.array([[1 / A, 1 / A, 1 / B]]).T
+    radius = _ellipsoid_radius_scaling()
     pixels = _ellipsoid_intersection(vectors, pos, radius)
     return get_lonlatalt(pixels, pixel_times)
 
@@ -872,8 +880,8 @@ if _HAS_NUMBA:
         The satellite state is per-pixel, so each scan's intra-scan motion is
         preserved exactly as in the array path.
         """
-        a = 6378.137
-        b = 6356.752314245
+        a = A
+        b = B
         bow_e2 = 1.0 - (b / a) ** 2
         bow_ep2 = (a / b) ** 2 - 1.0
         r2d = 180.0 / math.pi
@@ -1089,11 +1097,9 @@ def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0), yaw_steering=False,
                             nadir_convention=nadir_convention,
                             rotation_order=rotation_order)
 
-    # Compute intersection of pixel lines with the WGS-84 ellipsoid.
+    # Compute intersection of pixel lines with the ellipsoid declared by A and B.
     # http://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
-    a__ = 6378.137  # km
-    b__ = 6356.752314245  # km, WGS84
-    radius = np.array([[1 / a__, 1 / a__, 1 / b__]]).T
+    radius = _ellipsoid_radius_scaling()
 
     n_total = vectors.shape[1]
     n_pos = pos.shape[1]

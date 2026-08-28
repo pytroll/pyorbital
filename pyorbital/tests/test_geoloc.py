@@ -1040,33 +1040,74 @@ def test_multiline_whiskbroom_lines_per_scan_in_scan_geometry():
     assert geom.lines_per_scan == 4
 
 
-def test_get_lonlatalt_produces_same_results_with_numba():
-    """Check that get_lonlatalt with numba produces the same lon/lat/alt as pyproj (< 1e-6 deg, < 0.1 m)."""
+@pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
+def test_compute_pixels_lands_on_the_declared_ellipsoid(kwargs, warns, monkeypatch):
+    """Check that pixel positions satisfy the ellipsoid equation of the declared radii."""
+    from pyorbital import geoloc
+    from pyorbital.geoloc_instrument_definitions import avhrr
+
+    declared_equatorial_radius = 6300.0
+    declared_polar_radius = 6200.0
+    monkeypatch.setattr(geoloc, "A", declared_equatorial_radius)
+    monkeypatch.setattr(geoloc, "B", declared_polar_radius)
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    sgeom = avhrr(5, np.arange(10))
+    s_times = sgeom.times(dt.datetime(2012, 12, 12, 4, 16, 1, 575000))
+
+    with _expect_convention_warning(warns):
+        x, y, z = geoloc.compute_pixels((tle1, tle2), sgeom, s_times, **kwargs)
+
+    on_ellipsoid = ((x / declared_equatorial_radius) ** 2
+                    + (y / declared_equatorial_radius) ** 2
+                    + (z / declared_polar_radius) ** 2)
+    np.testing.assert_allclose(on_ellipsoid, 1.0, atol=1e-9)
+
+
+def test_get_lonlatalt_recovers_points_on_the_wgs84_surface():
+    """Check that both code paths recover the known lat/alt of WGS84 surface points."""
     pytest.importorskip("numba")
     from pyproj import Transformer
 
-    from pyorbital.geoloc import _numba_ecef_to_lonlatalt
-
-    # Build 1 000 random ECEF surface points (alt=0)
     rng = np.random.default_rng(0)
-    lons_t = rng.uniform(-179, 179, 1000)
-    lats_t = rng.uniform(-89, 89, 1000)
-    trf_fwd = Transformer.from_crs(dict(proj="latlong"), dict(proj="geocent"))
-    x_m, y_m, z_m = trf_fwd.transform(lons_t, lats_t, np.zeros(1000))
+    known_lats = rng.uniform(-89, 89, 1000)
+    to_ecef = Transformer.from_crs(dict(proj="latlong"), dict(proj="geocent"))
+    on_the_surface = np.array(to_ecef.transform(rng.uniform(-179, 179, 1000),
+                                                known_lats,
+                                                np.zeros(1000))) / 1000
+    utc_time = dt.datetime(2024, 1, 1, 12, 0)
 
-    # Reference: pyproj geocent -> latlong
-    trf_inv = Transformer.from_crs(dict(proj="geocent"), dict(proj="latlong"))
-    lon_pp, lat_pp, alt_pp = trf_inv.transform(x_m, y_m, z_m)
+    with mock.patch.object(geoloc, "_HAS_NUMBA", True):
+        lon_nb, lat_nb, alt_nb = geoloc.get_lonlatalt(on_the_surface, utc_time)
+    with mock.patch.object(geoloc, "_HAS_NUMBA", False):
+        lon_ref, lat_ref, alt_ref = geoloc.get_lonlatalt(on_the_surface, utc_time)
 
-    # Numba kernel takes km, returns degrees + meters
-    lon_nb, lat_nb, alt_nb = _numba_ecef_to_lonlatalt(x_m / 1000, y_m / 1000, z_m / 1000)
+    for lat, alt in ((lat_nb, alt_nb), (lat_ref, alt_ref)):
+        np.testing.assert_allclose(lat, known_lats, atol=1e-6)
+        np.testing.assert_allclose(alt, 0.0, atol=0.1)
+    np.testing.assert_allclose(lon_nb, lon_ref, atol=1e-6)
 
-    np.testing.assert_allclose(lon_nb, lon_pp, atol=1e-6,
-                               err_msg="numba lon disagrees with pyproj")
-    np.testing.assert_allclose(lat_nb, lat_pp, atol=1e-6,
-                               err_msg="numba lat disagrees with pyproj")
-    np.testing.assert_allclose(alt_nb, alt_pp, atol=0.1,
-                               err_msg="numba alt disagrees with pyproj")
+
+def test_get_lonlatalt_uses_the_module_ellipsoid(numba_path):
+    """Check that get_lonlatalt places the ellipsoid poles and equator at zero altitude.
+
+    Both the numba kernel and the pyproj path must use the A/B ellipsoid this
+    module declares, not whatever ellipsoid PROJ happens to default to.
+    """
+    from pyorbital.geoloc import get_lonlatalt
+
+    utc_time = dt.datetime(2024, 1, 1, 12, 0)
+    wgs84_equatorial_radius = 6378.137  # km
+    wgs84_polar_radius = 6356.752314245  # km
+    on_equator_and_pole = np.array([[wgs84_equatorial_radius, 0.0],
+                                    [0.0, 0.0],
+                                    [0.0, wgs84_polar_radius]])
+
+    _, lat, alt = get_lonlatalt(on_equator_and_pole, utc_time)
+
+    np.testing.assert_allclose(lat, [0.0, 90.0], atol=1e-9)
+    np.testing.assert_allclose(alt, [0.0, 0.0], atol=1e-3)
+
 
 @pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
 def test_compute_pixel_works(kwargs, warns, numba_path):

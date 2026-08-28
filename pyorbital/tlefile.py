@@ -30,6 +30,16 @@ TLE_GROUPS = ("active",
 TLE_URLS = [f"https://celestrak.org/NORAD/elements/gp.php?GROUP={group}&FORMAT=tle"
             for group in TLE_GROUPS]
 
+# Timeout for TLE downloads from the internet (seconds). Kept in sync with the
+# timeout used by Downloader.fetch_plain_tle so a stalled connection fails
+# loudly instead of hanging the caller forever.
+_TLE_FETCH_TIMEOUT = 15
+
+
+def _urlopen_with_timeout(url):
+    """Open a URL with a bounded timeout so a stalled connection cannot hang forever."""
+    return urlopen(url, timeout=_TLE_FETCH_TIMEOUT)  # nosec
+
 
 LOGGER = logging.getLogger(__name__)
 PKG_CONFIG_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), "etc")
@@ -136,7 +146,7 @@ def fetch(destination):
         for url in TLE_URLS:
             if not url.lower().startswith("http"):
                 raise ValueError(f"{str(url)} is not accepted!")
-            response = urlopen(url)  # nosec
+            response = _urlopen_with_timeout(url)
             dest.write(response.read().decode("utf-8"))
 
 
@@ -364,7 +374,7 @@ def _get_local_uris_and_open_method(local_tle_path):
 
 def _get_internet_uris_and_open_method():
     LOGGER.debug("Fetch TLE from the internet.")
-    return TLE_URLS, urlopen
+    return TLE_URLS, _urlopen_with_timeout
 
 
 def _get_first_tle(uris, open_func, platform=""):

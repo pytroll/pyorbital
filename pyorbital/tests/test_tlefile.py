@@ -2,10 +2,12 @@
 
 
 import datetime as dt
+import io
 import logging
 import os
 import time
 import unittest
+import urllib.error
 from contextlib import suppress
 from pathlib import Path
 from tempfile import mkstemp
@@ -885,3 +887,39 @@ def test_tle_instance_printing():
     expected = "{'arg_perigee': 130.536,\n 'bstar': -1.1606e-05,\n 'classification': 'U',\n 'eccentricity': 0.0006703,\n 'element_number': 292,\n 'ephemeris_type': 0,\n 'epoch': np.datetime64('2008-09-20T12:25:40.104192'),\n 'epoch_day': 264.51782528,\n 'epoch_year': '08',\n 'id_launch_number': '067',\n 'id_launch_piece': 'A  ',\n 'id_launch_year': '98',\n 'inclination': 51.6416,\n 'mean_anomaly': 325.0288,\n 'mean_motion': 15.72125391,\n 'mean_motion_derivative': -2.182e-05,\n 'mean_motion_sec_derivative': 0.0,\n 'orbit': 56353,\n 'right_ascension': 247.4627,\n 'satnumber': '25544'}"  # noqa
 
     assert str(tle) == expected
+
+
+def test_internet_tle_fetch_applies_timeout(monkeypatch):
+    """Regression test for #218: internet TLE downloads must use a bounded timeout.
+
+    A stalled Celestrak connection used to hang ``Orbital(...)`` forever on the
+    first invocation, because the default internet TLE path called
+    ``urllib.request.urlopen`` without a timeout.
+    """
+    from pyorbital import tlefile
+
+    calls = []
+
+    def _fake_urlopen(url, timeout=None):
+        calls.append((url, timeout))
+        return io.StringIO("")
+
+    monkeypatch.setattr(tlefile, "urlopen", _fake_urlopen)
+
+    _, open_func = tlefile._get_internet_uris_and_open_method()
+    open_func("https://celestrak.example/group")
+    assert calls == [("https://celestrak.example/group", 15)]
+
+
+def test_fetch_fails_loudly_on_stalled_connection(monkeypatch, tmp_path):
+    """A stalled TLE download raises instead of hanging the caller forever."""
+    from pyorbital import tlefile
+
+    def _stalled(url, timeout=None):
+        raise urllib.error.URLError("timed out")
+
+    monkeypatch.setattr(tlefile, "urlopen", _stalled)
+
+    destination = tmp_path / "tles.txt"
+    with pytest.raises(urllib.error.URLError):
+        tlefile.fetch(str(destination))

@@ -476,8 +476,8 @@ class TestGeolocDefs:
             """Test the definition of the amsua instrument."""
             geom = amsua(1)
             expected_fovs = np.array([
-                [[0.84,  0.78,  0.73,  0.67,  0.61,  0.55,  0.49,  0.44,  0.38,
-                  0.32,  0.26,  0.2,  0.15,  0.09,  0.03, -0.03, -0.09, -0.15,
+                [[0.84, 0.78, 0.73, 0.67, 0.61, 0.55, 0.49, 0.44, 0.38,
+                  0.32, 0.26, 0.2, 0.15, 0.09, 0.03, -0.03, -0.09, -0.15,
                   -0.2, -0.26, -0.32, -0.38, -0.44, -0.49, -0.55, -0.61, -0.67,
                   -0.73, -0.78, -0.84]],
                 np.zeros((1, 30))], dtype=np.float64)
@@ -487,11 +487,11 @@ class TestGeolocDefs:
             """Test the definition of the mhs instrument."""
             geom = mhs(1)
             expected_fovs = np.array([
-                [[0.86,  0.84,  0.82,  0.8,  0.79,  0.77,  0.75,  0.73,  0.71,
-                  0.69,  0.67,  0.65,  0.63,  0.61,  0.59,  0.57,  0.55,  0.53,
-                  0.51,  0.49,  0.48,  0.46,  0.44,  0.42,  0.4,  0.38,  0.36,
-                  0.34,  0.32,  0.3,  0.28,  0.26,  0.24,  0.22,  0.2,  0.18,
-                  0.16,  0.15,  0.13,  0.11,  0.09,  0.07,  0.05,  0.03,  0.01,
+                [[0.86, 0.84, 0.82, 0.8, 0.79, 0.77, 0.75, 0.73, 0.71,
+                  0.69, 0.67, 0.65, 0.63, 0.61, 0.59, 0.57, 0.55, 0.53,
+                  0.51, 0.49, 0.48, 0.46, 0.44, 0.42, 0.4, 0.38, 0.36,
+                  0.34, 0.32, 0.3, 0.28, 0.26, 0.24, 0.22, 0.2, 0.18,
+                  0.16, 0.15, 0.13, 0.11, 0.09, 0.07, 0.05, 0.03, 0.01,
                   -0.01, -0.03, -0.05, -0.07, -0.09, -0.11, -0.13, -0.15, -0.16,
                   -0.18, -0.2, -0.22, -0.24, -0.26, -0.28, -0.3, -0.32, -0.34,
                   -0.36, -0.38, -0.4, -0.42, -0.44, -0.46, -0.48, -0.49, -0.51,
@@ -505,9 +505,9 @@ class TestGeolocDefs:
             """Test the definition of the hirs4 instrument."""
             geom = hirs4(1)
             expected_fovs = np.array([
-                [[0.86,  0.83,  0.8,  0.77,  0.74,  0.71,  0.68,  0.64,  0.61,
-                  0.58,  0.55,  0.52,  0.49,  0.46,  0.42,  0.39,  0.36,  0.33,
-                  0.3,  0.27,  0.24,  0.2,  0.17,  0.14,  0.11,  0.08,  0.05,
+                [[0.86, 0.83, 0.8, 0.77, 0.74, 0.71, 0.68, 0.64, 0.61,
+                  0.58, 0.55, 0.52, 0.49, 0.46, 0.42, 0.39, 0.36, 0.33,
+                  0.3, 0.27, 0.24, 0.2, 0.17, 0.14, 0.11, 0.08, 0.05,
                   0.02, -0.02, -0.05, -0.08, -0.11, -0.14, -0.17, -0.2, -0.24,
                   -0.27, -0.3, -0.33, -0.36, -0.39, -0.42, -0.46, -0.49, -0.52,
                   -0.55, -0.58, -0.61, -0.64, -0.68, -0.71, -0.74, -0.77, -0.8,
@@ -520,12 +520,12 @@ class TestGeolocDefs:
             """Test the definition of the atms instrument."""
             geom = atms(1)
             expected_fovs = np.array([
-                [[0.92,  0.9,  0.88,  0.86,  0.84,  0.82,  0.8,  0.78,  0.76,
-                  0.75,  0.73,  0.71,  0.69,  0.67,  0.65,  0.63,  0.61,  0.59,
-                  0.57,  0.55,  0.53,  0.51,  0.49,  0.47,  0.46,  0.44,  0.42,
-                  0.4,  0.38,  0.36,  0.34,  0.32,  0.3,  0.28,  0.26,  0.24,
-                  0.22,  0.2,  0.18,  0.16,  0.15,  0.13,  0.11,  0.09,  0.07,
-                  0.05,  0.03,  0.01, -0.01, -0.03, -0.05, -0.07, -0.09, -0.11,
+                [[0.92, 0.9, 0.88, 0.86, 0.84, 0.82, 0.8, 0.78, 0.76,
+                  0.75, 0.73, 0.71, 0.69, 0.67, 0.65, 0.63, 0.61, 0.59,
+                  0.57, 0.55, 0.53, 0.51, 0.49, 0.47, 0.46, 0.44, 0.42,
+                  0.4, 0.38, 0.36, 0.34, 0.32, 0.3, 0.28, 0.26, 0.24,
+                  0.22, 0.2, 0.18, 0.16, 0.15, 0.13, 0.11, 0.09, 0.07,
+                  0.05, 0.03, 0.01, -0.01, -0.03, -0.05, -0.07, -0.09, -0.11,
                   -0.13, -0.15, -0.16, -0.18, -0.2, -0.22, -0.24, -0.26, -0.28,
                   -0.3, -0.32, -0.34, -0.36, -0.38, -0.4, -0.42, -0.44, -0.46,
                   -0.47, -0.49, -0.51, -0.53, -0.55, -0.57, -0.59, -0.61, -0.63,
@@ -539,11 +539,11 @@ class TestGeolocDefs:
             """Test the definition of the ASCAT instrument onboard Metop."""
             geom = ascat(1)
             expected_fovs = np.array([
-                [[0.9250245,  0.90058989,  0.87615528,  0.85172067,
-                  0.82728607,  0.80285146,  0.77841685,  0.75398224,
-                  0.72954763,  0.70511302,  0.68067841,  0.6562438,
-                  0.63180919,  0.60737458,  0.58293997,  0.55850536,
-                  0.53407075,  0.50963614,  0.48520153,  0.46076692,
+                [[0.9250245, 0.90058989, 0.87615528, 0.85172067,
+                  0.82728607, 0.80285146, 0.77841685, 0.75398224,
+                  0.72954763, 0.70511302, 0.68067841, 0.6562438,
+                  0.63180919, 0.60737458, 0.58293997, 0.55850536,
+                  0.53407075, 0.50963614, 0.48520153, 0.46076692,
                   0.43633231, -0.43633231, -0.46076692, -0.48520153,
                   -0.50963614, -0.53407075, -0.55850536, -0.58293997,
                   -0.60737458, -0.63180919, -0.6562438, -0.68067841,
@@ -554,8 +554,8 @@ class TestGeolocDefs:
             np.testing.assert_allclose(
                 geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2)
             geom = ascat(1, np.array([0, 41]))
-            expected_fovs = np.array([[[0.9250245,  -0.9250245]],
-                                      [[0.,  0.]]], dtype=np.float64)
+            expected_fovs = np.array([[[0.9250245, -0.9250245]],
+                                      [[0., 0.]]], dtype=np.float64)
             np.testing.assert_allclose(
                 geom.fovs, expected_fovs, rtol=1e-2, atol=1e-2)
 
@@ -1384,9 +1384,9 @@ def test_focal_plane_pure_pitch_boresight_shifts_along_track():
     """A pure pitch rotation in the boresight shifts all along-track angles by that angle."""
     pitch_rad = np.deg2rad(0.05)
     R_pitch = np.array([
-        [1.0, 0.0,            0.0           ],
+        [1.0, 0.0, 0.0],
         [0.0, np.cos(pitch_rad), -np.sin(pitch_rad)],
-        [0.0, np.sin(pitch_rad),  np.cos(pitch_rad)],
+        [0.0, np.sin(pitch_rad), np.cos(pitch_rad)],
     ])
     fp_no = _fp_scan(boresight=None)
     fp_bs = _fp_scan(boresight=R_pitch)
@@ -1447,8 +1447,8 @@ def test_along_track_spacing_depends_on_the_rotation_order(rotation_order):
         #   row 0: no along-track offset;  row 1: alpha offset
         #   col 0: nadir (theta=0);        col 1: swath edge (theta)
         fovs = np.array([
-            [[0.0, theta], [0.0, theta]],   # fovs[0]: cross-track, same per row
-            [[0.0, 0.0],   [alpha, alpha]], # fovs[1]: along-track, same per col
+            [[0.0, theta], [0.0, theta]],  # fovs[0]: cross-track, same per row
+            [[0.0, 0.0], [alpha, alpha]],  # fovs[1]: along-track, same per col
         ])  # shape (2, 2, 2)
         geom = ScanGeometry(fovs, np.zeros((2, 2)), lines_per_scan=2)
 
@@ -1466,9 +1466,9 @@ def test_along_track_spacing_depends_on_the_rotation_order(rotation_order):
 
         at_r0_nadir = along_track @ vectors[:, 0]  # row 0, nadir:  expect ~0
         at_r1_nadir = along_track @ vectors[:, 2]  # row 1, nadir:  expect ~-sin(alpha)
-        at_r1_edge  = along_track @ vectors[:, 3]  # row 1, edge:   expect ~-sin(alpha)
+        at_r1_edge = along_track @ vectors[:, 3]  # row 1, edge:   expect ~-sin(alpha)
 
-        np.testing.assert_allclose(at_r0_nadir, 0.0,           atol=1e-6,
+        np.testing.assert_allclose(at_r0_nadir, 0.0, atol=1e-6,
                                    err_msg="row-0 nadir along-track component should be ~0")
         np.testing.assert_allclose(at_r1_nadir, -np.sin(alpha), rtol=1e-5,
                                    err_msg="row-1 nadir along-track component should be -sin(alpha)")

@@ -1064,6 +1064,21 @@ def test_compute_pixels_lands_on_the_declared_ellipsoid(kwargs, warns, monkeypat
     np.testing.assert_allclose(on_ellipsoid, 1.0, atol=1e-9)
 
 
+def test_importing_geoloc_without_numba_is_silent():
+    """Check that importing geoloc without numba emits no warning."""
+    import pathlib
+    import subprocess
+    import sys
+
+    repo_root = pathlib.Path(geoloc.__file__).resolve().parents[2]
+    blocked = "import sys; sys.modules['numba'] = None; import pyorbital.geoloc"
+
+    result = subprocess.run([sys.executable, "-W", "error", "-c", blocked],
+                            capture_output=True, text=True, cwd=repo_root)
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_get_lonlatalt_recovers_points_on_the_wgs84_surface():
     """Check that both code paths recover the known lat/alt of WGS84 surface points."""
     pytest.importorskip("numba")

@@ -3,20 +3,22 @@
 
 from __future__ import print_function
 
+import logging
 import math
 import warnings
 from functools import cache
-from warnings import warn
 
 import numpy as np
 from pyproj import Transformer
+
+logger = logging.getLogger(__name__)
 
 try:
     import numba as nb
     _HAS_NUMBA = True
 except ImportError:
     _HAS_NUMBA = False
-    warn("Install Numba for better performance.")
+    logger.warning("Numba is not available, falling back to the pyproj and numpy paths.")
 
 # DIRTY STUFF. Needed the get_lonlatalt function to work on pos directly if
 # we want to print out lonlats in the end.

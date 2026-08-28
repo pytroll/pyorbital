@@ -470,9 +470,15 @@ def qrotate(vector, axis, angle):
                      q__.rotation_matrix()[:3, :3]).reshape(shape)
 
 
+# The kernels below carry ``# pragma: no cover``: numba compiles them away, so
+# coverage.py's line tracer never sees them execute and reports every line as
+# missing however well they are tested.  They are covered by
+# test_fused_path_honours_the_rotation_order and
+# test_fast_geocentric_path_agrees_with_the_reference_path, which check them
+# against the array path.
 if _HAS_NUMBA:
     @nb.njit(parallel=True, cache=True)
-    def _numba_ecef_to_lonlatalt(x, y, z):
+    def _numba_ecef_to_lonlatalt(x, y, z):  # pragma: no cover
         """Convert flat ECEF arrays (km) to lon (deg), lat (deg), alt (m).
 
         Implements Bowring's one-iteration geodetic formula in a fully parallel
@@ -528,7 +534,7 @@ if _HAS_NUMBA:
     @nb.njit(parallel=True, cache=True)
     def _fused_geolocate_numba(pos, nadir, cross_track, cos_c, sin_c, along_angles,
                                pitch_first,
-                               yaw_angles, gmst_scan, lon_out, lat_out, alt_out):
+                               yaw_angles, gmst_scan, lon_out, lat_out, alt_out):  # pragma: no cover
         """Fused rotation + ellipsoid intersection + geodetic in one parallel kernel.
 
         Outer ``prange`` over M scan lines (one per CPU thread); inner sequential
@@ -845,7 +851,7 @@ def _geolocate_scan_chunk(orb, sgeom, times, rpy, yaw_steering, nadir_convention
 
 if _HAS_NUMBA:
     @nb.njit(inline="always", cache=True)
-    def _qrot_scalar(vx, vy, vz, ax, ay, az, angle):
+    def _qrot_scalar(vx, vy, vz, ax, ay, az, angle):  # pragma: no cover
         """Rotate one vector about one axis, reproducing :func:`qrotate`.
 
         Mirrors the quaternion -> rotation-matrix -> contraction sequence,
@@ -872,7 +878,7 @@ if _HAS_NUMBA:
                 vx * r20 + vy * r21 + vz * r22)
 
     @nb.njit(parallel=True, cache=True)
-    def _geocentric_scan_chunk_numba(fovs, pos, vel, roll, pitch, yaw, gmst, has_along_track):
+    def _geocentric_scan_chunk_numba(fovs, pos, vel, roll, pitch, yaw, gmst, has_along_track):  # pragma: no cover
         """Fused per-pixel-orbit geolocation for the geocentric nadir convention.
 
         One pass over pixels doing local frame, rotations, ellipsoid

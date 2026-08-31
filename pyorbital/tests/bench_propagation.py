@@ -4,14 +4,24 @@ Run with::
 
     pytest pyorbital/tests/bench_propagation.py --benchmark-only -v
 
-Record a baseline before changing the propagator::
+To judge whether a change costs anything, measure both versions back to back in
+the same session::
 
-    pytest pyorbital/tests/bench_propagation.py --benchmark-only --benchmark-save=pre-sdp4
+    git stash push pyorbital/orbital.py
+    pytest pyorbital/tests/bench_propagation.py --benchmark-only --benchmark-save=before
+    git stash pop
+    pytest pyorbital/tests/bench_propagation.py --benchmark-only --benchmark-compare=before
 
-and compare later work against it::
+Comparing against a baseline saved earlier does not work: these timings drift by
+tens of percent between sessions on an otherwise idle machine, which is several
+times larger than the effects worth detecting here. A saved baseline that is
+minutes old is already worthless as an absolute reference.
 
-    pytest pyorbital/tests/bench_propagation.py --benchmark-only \
-        --benchmark-compare=pre-sdp4 --benchmark-compare-fail=median:8%
+Even back to back the noise is large. Four consecutive runs of identical code
+gave scalar medians of 56, 81, 70 and 60 microseconds, a spread of 44%. Treat a
+single pair of runs as able to show only that a change is not catastrophic. To
+judge anything finer, interleave several runs of each version and compare the
+distributions, or pin the CPU frequency first.
 
 Three near-earth scenarios establish the reference cost of the existing SGP4
 path: a single propagation (per-call overhead), a day of propagations as one

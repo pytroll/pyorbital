@@ -37,14 +37,22 @@ NR_EPS = 1.0e-12
 
 CK2 = 5.413080e-4
 CK4 = 0.62098875e-6
-E6A = 1.0e-6
-QOMS2T = 1.88027916e-9
-S = 1.01222928
 S0 = 78.0
 XJ3 = -0.253881e-5
-XKE = 0.743669161e-1
 XKMPER = 6378.135
+XMU = 398600.8  # Earth gravitational parameter, km**3/s**2, WGS-72
 XMNPDA = 1440.0
+
+# Spacetrack Report #3 prints these two as decimals rounded to nine digits.
+# That is not enough: the rounding of the mean motion constant carries into the
+# semi-major axis, and from there into a difference of two nearly equal
+# altitudes that the atmospheric drag fit raises to the fourth power. For a
+# satellite whose perigee is low enough for that fit to apply, the amplified
+# error moves the position half a metre along track over a day, ten times the
+# accuracy the model is verified to. Compute them instead.
+SECONDS_PER_MINUTE = 60.0
+XKE = SECONDS_PER_MINUTE / np.sqrt(XKMPER**3 / XMU)
+QOMS2T = ((120.0 - S0) / XKMPER)**4
 # MFACTOR = 7.292115E-5
 AE = 1.0
 SECDAY = 8.6400E4
@@ -1049,7 +1057,7 @@ class _SGDP4:
     def propagate(self, utc_time):
         if self.mode == SGDP4_ZERO_ECC:
             raise NotImplementedError("Mode SGDP4_ZERO_ECC not implemented")
-        elif self.mode != SGDP4_NEAR_NORM:
+        elif self.mode == SGDP4_DEEP_NORM:
             raise NotImplementedError("Deep space calculations not supported")
 
         kep = _Keplerians(self._params)
@@ -1107,9 +1115,7 @@ class _Keplerians:
         self._xmp = self._params.xmo + self._params.xmdot * self._ts
         self._xnode = self._params.xnodeo + self._ts * (self._params.xnodot + self._ts * self._params.xnodcf)
 
-        delm = self._params.xmcof * \
-            ((1.0 + self._params.eta * np.cos(self._xmp))**3 - self._params.delmo)
-        self._temp0 = self._ts * self._params.omgcof + delm
+        self._temp0 = self._calculate_drag_correction()
         self._xmp += self._temp0
 
         self._calculate_omega()
@@ -1127,6 +1133,18 @@ class _Keplerians:
         kep = self._collect_return_values()
 
         return kep
+
+    def _calculate_drag_correction(self):
+        """Correct mean anomaly and argument of perigee for drag on the perigee.
+
+        The simplified drag equations leave both untouched.
+        """
+        if self._params.mode != SGDP4_NEAR_NORM:
+            return 0.0
+
+        delm = self._params.xmcof * \
+            ((1.0 + self._params.eta * np.cos(self._xmp))**3 - self._params.delmo)
+        return self._ts * self._params.omgcof + delm
 
     def _get_timedelta_in_minutes(self):
         self._ts = (dt2np(self._utc_time) - self._params.t_0) / np.timedelta64(1, "m")

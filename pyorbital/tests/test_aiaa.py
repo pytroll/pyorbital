@@ -3,11 +3,10 @@
 The satellites of ``SGP4-VER.TLE`` are propagated to every time for which
 ``aiaa_results`` gives an expected state, and the two are compared.
 
-Satellites that the propagator cannot handle yet are listed in
+Satellites the propagator does not get right yet are listed in
 ``NOT_YET_SUPPORTED``; removing a satellite from that set turns its test back
-on. Satellites that are not expected to ever pass are listed in
-``SKIP_DECAYING`` with a reason. ``test_every_reference_satellite_is_accounted_for``
-makes sure no satellite silently escapes all three treatments.
+on. ``test_every_reference_satellite_is_accounted_for`` makes sure no satellite
+silently escapes both testing and that list.
 """
 
 import datetime as dt
@@ -31,14 +30,7 @@ TIME_TOLERANCE = 1e-3  # minutes
 
 CHECKSUM_ERROR_SATELLITES = {33333, 33334, 33335}
 
-SKIP_DECAYING = {
-    29141: "SL-14 DEB is on its last orbits; decay is not modelled, and the "
-           "propagated position drifts ~0.3 mm/min away from the reference",
-}
-
 NOT_YET_SUPPORTED = {
-    # Near-earth, simplified drag equations: rejected by _SGDP4.propagate.
-    88888, 29238, 28350, 22312, 28872,
     # Deep space, non-resonant.
     28129, 16925, 28623, 23177, 23599, 4632, 20413, 11801, 23333,
     # Deep space, 12 h resonance.
@@ -166,8 +158,6 @@ def _assert_matches_reference(satnumber, delay, utc_time, position, velocity):
 @pytest.mark.parametrize("satnumber", PROPAGATION_CASES, ids=str)
 def test_aiaa_verification_case(satnumber):
     """Propagated states match the AIAA reference values."""
-    if satnumber in SKIP_DECAYING:
-        pytest.skip(SKIP_DECAYING[satnumber])
     if satnumber in NOT_YET_SUPPORTED:
         pytest.skip(f"{satnumber} is not supported by the propagator yet")
 
@@ -192,6 +182,4 @@ def test_aiaa_case_with_broken_checksum_is_rejected(satnumber):
 def test_every_reference_satellite_is_accounted_for():
     """No satellite of the reference file escapes both testing and an explicit skip."""
     assert set(REFERENCE_STATES) == set(PROPAGATION_CASES)
-    assert SKIP_DECAYING.keys() <= set(PROPAGATION_CASES)
     assert NOT_YET_SUPPORTED <= set(PROPAGATION_CASES)
-    assert not NOT_YET_SUPPORTED & SKIP_DECAYING.keys()

@@ -1,127 +1,197 @@
-"""Test cases from the AIAA article."""
+"""Verification of the propagator against the AIAA 2006-6753 test cases.
 
+The satellites of ``SGP4-VER.TLE`` are propagated to every time for which
+``aiaa_results`` gives an expected state, and the two are compared.
 
-# TODO: right formal unit tests.
-from __future__ import print_function, with_statement
+Satellites that the propagator cannot handle yet are listed in
+``NOT_YET_SUPPORTED``; removing a satellite from that set turns its test back
+on. Satellites that are not expected to ever pass are listed in
+``SKIP_DECAYING`` with a reason. ``test_every_reference_satellite_is_accounted_for``
+makes sure no satellite silently escapes all three treatments.
+"""
 
 import datetime as dt
 import os
-import unittest
+from dataclasses import dataclass
 
 import numpy as np
+import pytest
 
-from pyorbital import astronomy, tlefile
-from pyorbital.orbital import _SGDP4, Orbital, OrbitElements
+from pyorbital import astronomy
+from pyorbital.orbital import Orbital
 from pyorbital.tlefile import ChecksumError
 
-
-class LineOrbital(Orbital):
-    """Read TLE lines instead of file."""
-
-    def __init__(self, satellite, line1, line2):
-        """Initialize the class."""
-        satellite = satellite.upper()
-        self.satellite_name = satellite
-        self.tle = tlefile.read(satellite, line1=line1, line2=line2)
-        self.orbit_elements = OrbitElements(self.tle)
-        self._sgdp4 = _SGDP4(self.orbit_elements)
-
-
-def get_results(satnumber, delay):
-    """Get expected results from result file."""
-    path = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(path, "aiaa_results")) as f_2:
-        line = f_2.readline()
-        while line:
-            if line.endswith(" xx\n") and int(line[:-3]) == satnumber:
-                line = f_2.readline()
-                while (not line.startswith("%.8f" % delay)):
-                    line = f_2.readline()
-                sline = line.split()
-                if delay == 0:
-                    utc_time = None
-                else:
-                    utc_time = dt.datetime.strptime(sline[-1], "%H:%M:%S.%f")
-                    utc_time = utc_time.replace(year=int(sline[-4]),
-                                                month=int(sline[-3]),
-                                                day=int(sline[-2]))
-                    utc_time = np.datetime64(utc_time)
-                return (float(sline[1]),
-                        float(sline[2]),
-                        float(sline[3]),
-                        float(sline[4]),
-                        float(sline[5]),
-                        float(sline[6]),
-                        utc_time)
-            line = f_2.readline()
-
-
 _DATAPATH = os.path.dirname(os.path.abspath(__file__))
+_TLE_FILE = os.path.join(_DATAPATH, "SGP4-VER.TLE")
+_REFERENCE_FILE = os.path.join(_DATAPATH, "aiaa_results")
+
+POSITION_TOLERANCE = 5e-6  # km
+VELOCITY_TOLERANCE = 5e-9  # km/s
+TIME_TOLERANCE = 1e-3  # minutes
+
+CHECKSUM_ERROR_SATELLITES = {33333, 33334, 33335}
+
+SKIP_DECAYING = {
+    29141: "SL-14 DEB is on its last orbits; decay is not modelled, and the "
+           "propagated position drifts ~0.3 mm/min away from the reference",
+}
+
+NOT_YET_SUPPORTED = {
+    # Near-earth, simplified drag equations: rejected by _SGDP4.propagate.
+    88888, 29238, 28350, 22312, 28872,
+    # Deep space, non-resonant.
+    28129, 16925, 28623, 23177, 23599, 4632, 20413, 11801, 23333,
+    # Deep space, 12 h resonance.
+    9880, 8195, 26975, 21897, 22674,
+    # Deep space, 24 h (geosynchronous) resonance.
+    24208, 9998, 28626, 26900, 25954, 14128,
+}
 
 
-class AIAAIntegrationTest(unittest.TestCase):
-    """Test against the AIAA test cases."""
+@dataclass(frozen=True)
+class ReferenceState:
+    """One expected state vector from ``aiaa_results``."""
 
-    @unittest.skipIf(
-        not os.path.exists(os.path.join(_DATAPATH, "SGP4-VER.TLE")),
-        "SGP4-VER.TLE not available")
-    def test_aiaa(self):
-        """Do the tests against AIAA test cases."""
-        path = os.path.dirname(os.path.abspath(__file__))
-        with open(os.path.join(path, "SGP4-VER.TLE")) as f__:
-            test_line = f__.readline()
-            while test_line:
-                if test_line.startswith("#"):
-                    test_name = test_line
-                if test_line.startswith("1 "):
-                    line1 = test_line
-                if test_line.startswith("2 "):
-                    _check_line2(f__, test_name, line1, test_line)
-
-                test_line = f__.readline()
+    position: tuple[float, float, float]
+    velocity: tuple[float, float, float]
+    utc_time: np.datetime64 | None
 
 
-def _check_line2(f__, test_name: str, line1: str, test_line: str) -> None:
-    line2 = test_line[:69]
-    times_str = str.split(test_line[69:])
-    times = np.arange(float(times_str[0]),
-                      float(times_str[1]) + 1,
-                      float(times_str[2]))
-    if test_name.startswith("#   SL-14 DEB"):
-        # FIXME: we have to handle decaying satellites!
-        return
+@dataclass(frozen=True)
+class VerificationCase:
+    """One satellite of ``SGP4-VER.TLE``.
 
-    try:
-        o = LineOrbital("unknown", line1, line2)
-    except NotImplementedError:
-        return
-    except ChecksumError:
-        assert test_line.split()[1] in ["33333", "33334", "33335"]
-        return
+    The delays to propagate to are not taken from the trailing start/stop/step
+    of line 2 but from the reference file, which is the authority on which
+    states are actually defined: for satellites that decay during the requested
+    span the reference stops early, and one satellite asks for a second span
+    that the reference does not cover at all.
+    """
 
-    for delay in times:
-        try:
-            test_time = delay.astype("timedelta64[m]") + o.tle.epoch
-            pos, vel = o.get_position(test_time, False)
-            res = get_results(
-                int(o.tle.satnumber), float(delay))
-        except NotImplementedError:
-            # Skipping deep-space
-            break
-        # except ValueError, e:
-        #     from warnings import warn
-        #     warn(test_name + ' ' + str(e))
-        #     break
+    satnumber: int
+    name: str
+    line1: str
+    line2: str
 
-        delta_pos = 5e-6  # km =  5 mm
-        delta_vel = 5e-9  # km/s = 5 um/s
-        delta_time = 1e-3  # 1 millisecond
-        assert abs(res[0] - pos[0]) < delta_pos
-        assert abs(res[1] - pos[1]) < delta_pos
-        assert abs(res[2] - pos[2]) < delta_pos
-        assert abs(res[3] - vel[0]) < delta_vel
-        assert abs(res[4] - vel[1]) < delta_vel
-        assert abs(res[5] - vel[2]) < delta_vel
-        if res[6] is not None:
-            dt = astronomy._days(res[6] - test_time) * 24 * 60
-            assert abs(dt) < delta_time
+
+def _delay_key(delay):
+    """Key a delay by its printed value, so accumulated float error cannot miss a row."""
+    return f"{float(delay):.8f}"
+
+
+def _parse_reference_states(path):
+    """Read all expected state vectors, keyed by satellite number and delay."""
+    states: dict[int, dict[str, ReferenceState]] = {}
+    with open(path) as reference_file:
+        for line in reference_file:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.endswith(" xx"):
+                states[int(line[:-3])] = current_satellite = {}
+                continue
+            fields = line.split()
+            current_satellite[_delay_key(fields[0])] = ReferenceState(
+                position=(float(fields[1]), float(fields[2]), float(fields[3])),
+                velocity=(float(fields[4]), float(fields[5]), float(fields[6])),
+                utc_time=_parse_reference_time(fields[7:]),
+            )
+    return states
+
+
+def _parse_reference_time(fields):
+    """Read the trailing ``year mon day hh:mm:ss.ssssss`` fields, if present."""
+    if not fields:
+        return None
+    year, month, day, time_of_day = fields
+    utc_time = dt.datetime.strptime(time_of_day, "%H:%M:%S.%f")
+    return np.datetime64(utc_time.replace(year=int(year), month=int(month), day=int(day)))
+
+
+def _parse_verification_cases(path):
+    """Read the satellites to propagate and the delays requested for each.
+
+    A satellite may appear more than once, asking for a further span of delays
+    that the reference file does not cover; only its first appearance is kept.
+    """
+    cases = {}
+    name = ""
+    line1 = ""
+    with open(path) as tle_file:
+        for line in tle_file:
+            line = line.rstrip("\r\n")
+            if line.startswith("#"):
+                name = line
+            elif line.startswith("1 "):
+                line1 = line
+            elif line.startswith("2 "):
+                line2 = line[:69]
+                case = VerificationCase(satnumber=int(line2[2:7]), name=name,
+                                        line1=line1, line2=line2)
+                cases.setdefault(case.satnumber, case)
+    return cases
+
+
+REFERENCE_STATES = _parse_reference_states(_REFERENCE_FILE)
+VERIFICATION_CASES = _parse_verification_cases(_TLE_FILE)
+
+PROPAGATION_CASES = sorted(set(VERIFICATION_CASES) - CHECKSUM_ERROR_SATELLITES)
+
+
+def _reference_delays(satnumber):
+    """The delays, in minutes, for which the reference file defines a state."""
+    return sorted(float(delay) for delay in REFERENCE_STATES[satnumber])
+
+
+def _describe(satnumber, delay):
+    """Name a satellite and time the way the verification file comments on it."""
+    description = VERIFICATION_CASES[satnumber].name.lstrip("#").strip()
+    return f"{satnumber} ({description}) at {delay} min"
+
+
+def _assert_matches_reference(satnumber, delay, utc_time, position, velocity):
+    """Compare one propagated state against its reference value."""
+    expected = REFERENCE_STATES[satnumber][_delay_key(delay)]
+
+    np.testing.assert_allclose(position, expected.position, atol=POSITION_TOLERANCE, rtol=0,
+                               err_msg=f"position of {_describe(satnumber, delay)}")
+    np.testing.assert_allclose(velocity, expected.velocity, atol=VELOCITY_TOLERANCE, rtol=0,
+                               err_msg=f"velocity of {_describe(satnumber, delay)}")
+
+    if expected.utc_time is not None:
+        error_in_minutes = astronomy._days(expected.utc_time - utc_time) * 24 * 60
+        assert abs(error_in_minutes) < TIME_TOLERANCE
+
+
+@pytest.mark.parametrize("satnumber", PROPAGATION_CASES, ids=str)
+def test_aiaa_verification_case(satnumber):
+    """Propagated states match the AIAA reference values."""
+    if satnumber in SKIP_DECAYING:
+        pytest.skip(SKIP_DECAYING[satnumber])
+    if satnumber in NOT_YET_SUPPORTED:
+        pytest.skip(f"{satnumber} is not supported by the propagator yet")
+
+    case = VERIFICATION_CASES[satnumber]
+    orbital = Orbital("unknown", line1=case.line1, line2=case.line2)
+
+    for delay in _reference_delays(satnumber):
+        utc_time = np.timedelta64(round(delay * 60 * 1e6), "us") + orbital.tle.epoch
+        position, velocity = orbital.get_position(utc_time, normalize=False)
+        _assert_matches_reference(satnumber, delay, utc_time, position, velocity)
+
+
+@pytest.mark.parametrize("satnumber", sorted(CHECKSUM_ERROR_SATELLITES), ids=str)
+def test_aiaa_case_with_broken_checksum_is_rejected(satnumber):
+    """Deliberately corrupted verification TLEs are rejected when read."""
+    case = VERIFICATION_CASES[satnumber]
+
+    with pytest.raises(ChecksumError):
+        Orbital("unknown", line1=case.line1, line2=case.line2)
+
+
+def test_every_reference_satellite_is_accounted_for():
+    """No satellite of the reference file escapes both testing and an explicit skip."""
+    assert set(REFERENCE_STATES) == set(PROPAGATION_CASES)
+    assert SKIP_DECAYING.keys() <= set(PROPAGATION_CASES)
+    assert NOT_YET_SUPPORTED <= set(PROPAGATION_CASES)
+    assert not NOT_YET_SUPPORTED & SKIP_DECAYING.keys()

@@ -9,6 +9,7 @@ import numpy as np
 from scipy import optimize
 
 from pyorbital import astronomy, dt2np
+from pyorbital._sgdp4_deep import NOT_RESONANT, DeepSpace, apply_periodics
 
 try:
     import dask.array as da
@@ -37,14 +38,22 @@ NR_EPS = 1.0e-12
 
 CK2 = 5.413080e-4
 CK4 = 0.62098875e-6
-E6A = 1.0e-6
-QOMS2T = 1.88027916e-9
-S = 1.01222928
 S0 = 78.0
 XJ3 = -0.253881e-5
-XKE = 0.743669161e-1
 XKMPER = 6378.135
+XMU = 398600.8  # Earth gravitational parameter, km**3/s**2, WGS-72
 XMNPDA = 1440.0
+
+# Spacetrack Report #3 prints these two as decimals rounded to nine digits.
+# That is not enough: the rounding of the mean motion constant carries into the
+# semi-major axis, and from there into a difference of two nearly equal
+# altitudes that the atmospheric drag fit raises to the fourth power. For a
+# satellite whose perigee is low enough for that fit to apply, the amplified
+# error moves the position half a metre along track over a day, ten times the
+# accuracy the model is verified to. Compute them instead.
+SECONDS_PER_MINUTE = 60.0
+XKE = SECONDS_PER_MINUTE / np.sqrt(XKMPER**3 / XMU)
+QOMS2T = ((120.0 - S0) / XKMPER)**4
 # MFACTOR = 7.292115E-5
 AE = 1.0
 SECDAY = 8.6400E4
@@ -53,7 +62,6 @@ F = 1 / 298.257223563  # Earth flattening WGS-84
 A = 6378.137  # WGS84 Equatorial radius
 
 
-SGDP4_ZERO_ECC = 0
 SGDP4_DEEP_NORM = 1
 SGDP4_NEAR_SIMP = 2
 SGDP4_NEAR_NORM = 3
@@ -677,8 +685,8 @@ class OrbitElements:
         return corrected_mean_motion, corrected_semi_major_axis
 
 
-class _SGDP4Base:
-    """Helper class for the SGDP4 computations."""
+class _SGDP4:
+    """The orbit of one satellite, as SGP4 and SDP4 describe it."""
 
     def __init__(self, orbit_elements):
         """Initialize class."""
@@ -695,10 +703,6 @@ class _SGDP4Base:
         self.xnodeo = orbit_elements.right_ascension
         self.t_0 = orbit_elements.epoch
         self.xn_0 = orbit_elements.mean_motion
-
-        if self.eo < 0:
-            self.mode = self.SGDP4_ZERO_ECC
-            return
 
         self.cosIO = np.cos(self.xincl)
         self.sinIO = np.sin(self.xincl)
@@ -740,7 +744,7 @@ class _SGDP4Base:
         self.xnodcf = 3.5 * self._betao2 * self._xhdot1 * self.c1
         self.t2cof = 1.5 * self.c1
         self.xlcof = self._calculate_xlcof()
-        self.aycof = 0.25 * A3OVK2 * self.sinIO
+        self.aycof = _aycof(self.sinIO)
         self.cosXMO = np.cos(self.xmo)
         self.sinXMO = np.sin(self.xmo)
         self.delmo = (1.0 + self.eta * self.cosXMO)**3
@@ -753,8 +757,46 @@ class _SGDP4Base:
         self.t5cof = None
         if self.mode == SGDP4_NEAR_NORM:
             self._calculate_near_norm_parameters(tsi, s4)
-        elif self.mode == SGDP4_DEEP_NORM:
-            raise NotImplementedError("Deep space calculations not supported")
+
+        self.deep_space = None
+        if self.mode == SGDP4_DEEP_NORM:
+            self.sidereal_time_at_epoch = np.fmod(astronomy.gmst(self.t_0), 2 * np.pi)
+            self.deep_space = DeepSpace(
+                self._days_since_1949(), self.eo, self.omegao, self.xincl, self.xnodeo,
+                self.xnodp, self.xmo, self.sidereal_time_at_epoch, self.xmdot,
+                self.omgdot, self.xnodot, self.aodp)
+
+    def _days_since_1949(self):
+        """Date the epoch the way the lunar and solar ephemerides are written.
+
+        Counted straight from the epoch rather than by way of a Julian day, as
+        the article does. A Julian day of the nineteen-nineties is a number
+        around two and a half million, where the doubles either side of it lie
+        forty microseconds apart, so the count that comes back from one is
+        wrong by up to that much. Here it is right to a fraction of a
+        microsecond, against an epoch the element set only states to the
+        nearest millisecond anyway.
+
+        The difference is not quite invisible. It moves where the Sun and the
+        Moon are taken to be, and for an orbit as eccentric as that of the WIND
+        spacecraft, one of the verification satellites, it moves the satellite
+        four micrometres, which is most of the distance between what this
+        computes and what the verification file records.
+        """
+        return (self.t_0 - np.datetime64("1949-12-31T00:00:00")) / np.timedelta64(1, "D")
+
+    def propagate(self, utc_time):
+        """Give the Keplerian elements of the orbit at the given time or times."""
+        return _Keplerians(self).calculate(utc_time)
+
+    @property
+    def uses_simplified_drag(self):
+        """Tell whether drag is modelled by the simplified equations.
+
+        Those apply to a satellite whose perigee is too low for the full drag
+        expansion to be well behaved, and to every deep-space satellite.
+        """
+        return self.mode != SGDP4_NEAR_NORM
 
     def _calculate_basic_orbit_params(self):
         a1 = (XKE / self.xn_0) ** (2. / 3)
@@ -846,12 +888,7 @@ class _SGDP4Base:
         return 0.0
 
     def _calculate_xlcof(self):
-        # Check for possible divide-by-zero for X/(1+cos(xincl)) when
-        # calculating xlcof */
-        temp0 = 1.0 + self.cosIO
-        if np.abs(temp0) < EPS_COS:
-            temp0 = np.sign(temp0) * EPS_COS
-        return 0.125 * A3OVK2 * self.sinIO * (3.0 + 5.0 * self.cosIO) / temp0
+        return _xlcof(self.sinIO, self.cosIO)
 
     def _calculate_near_norm_parameters(self, tsi, s4):
         c1sq = self.c1**2
@@ -865,195 +902,6 @@ class _SGDP4Base:
             (3.0 * self.d3 + self.c1 * (12.0 * self.d2 + 10.0 * c1sq))
         self.t5cof = (0.2 * (3.0 * self.d4 + 12.0 * self.c1 * self.d3 + 6.0 * self.d2**2 +
                                 15.0 * c1sq * (2.0 * self.d2 + c1sq)))
-
-
-class _SGDP4:
-    """Class for SGDP4 computations."""
-
-    def __init__(self, orbital_elements):
-        self._params = _SGDP4Base(orbital_elements)
-
-    @property
-    def eo(self):
-        return self._params.eo
-
-    @property
-    def xincl(self):
-        return self._params.xincl
-
-    @property
-    def xno(self):
-        return self._params.xno
-
-    @property
-    def bstar(self):
-        return self._params.bstar
-
-    @property
-    def omegao(self):
-        return self._params.omegao
-
-    @property
-    def xmo(self):
-        return self._params.xmo
-
-    @property
-    def xnodeo(self):
-        return self._params.xnodeo
-
-    @property
-    def t_0(self):
-        return self._params.t_0
-
-    @property
-    def xn_0(self):
-        return self._params.xn_0
-
-    @property
-    def mode(self):
-        return self._params.mode
-
-    @property
-    def cosIO(self):
-        return self._params.cosIO
-
-    @property
-    def sinIO(self):
-        return self._params.sinIO
-
-    @property
-    def x3thm1(self):
-        return self._params.x3thm1
-
-    @property
-    def x1mth2(self):
-        return self._params.x1mth2
-
-    @property
-    def x7thm1(self):
-        return self._params.x7thm1
-
-    @property
-    def xnodp(self):
-        return self._params.xnodp
-
-    @property
-    def aodp(self):
-        return self._params.aodp
-
-    @property
-    def perigee(self):
-        return self._params.perigee
-
-    @property
-    def apogee(self):
-        return self._params.apogee
-
-    @property
-    def period(self):
-        return self._params.period
-
-    @property
-    def eta(self):
-        return self._params.eta
-
-    @property
-    def c1(self):
-        return self._params.c1
-
-    @property
-    def c2(self):
-        return self._params.c2
-
-    @property
-    def c3(self):
-        return self._params.c3
-
-    @property
-    def c4(self):
-        return self._params.c4
-
-    @property
-    def c5(self):
-        return self._params.c5
-
-    @property
-    def xmdot(self):
-        return self._params.xmdot
-
-    @property
-    def omgdot(self):
-        return self._params.omgdot
-
-    @property
-    def xnodot(self):
-        return self._params.xnodot
-
-    @property
-    def xmcof(self):
-        return self._params.xmcof
-
-    @property
-    def xnodcf(self):
-        return self._params.xnodcf
-
-    @property
-    def t2cof(self):
-        return self._params.t2cof
-
-    @property
-    def xlcof(self):
-        return self._params.xlcof
-
-    @property
-    def aycof(self):
-        return self._params.aycof
-
-    @property
-    def cosXMO(self):
-        return self._params.cosXMO
-
-    @property
-    def sinXMO(self):
-        return self._params.sinXMO
-
-    @property
-    def delmo(self):
-        return self._params.delmo
-
-    @property
-    def d2(self):
-        return self._params.d2
-
-    @property
-    def d3(self):
-        return self._params.d3
-
-    @property
-    def d4(self):
-        return self._params.d4
-
-    @property
-    def t3cof(self):
-        return self._params.t3cof
-
-    @property
-    def t4cof(self):
-        return self._params.t4cof
-
-    @property
-    def t5cof(self):
-        return self._params.t5cof
-
-
-    def propagate(self, utc_time):
-        if self.mode == SGDP4_ZERO_ECC:
-            raise NotImplementedError("Mode SGDP4_ZERO_ECC not implemented")
-        elif self.mode != SGDP4_NEAR_NORM:
-            raise NotImplementedError("Deep space calculations not supported")
-
-        kep = _Keplerians(self._params)
-        return kep.calculate(utc_time)
 
 
 class _Keplerians:
@@ -1107,14 +955,16 @@ class _Keplerians:
         self._xmp = self._params.xmo + self._params.xmdot * self._ts
         self._xnode = self._params.xnodeo + self._ts * (self._params.xnodot + self._ts * self._params.xnodcf)
 
-        delm = self._params.xmcof * \
-            ((1.0 + self._params.eta * np.cos(self._xmp))**3 - self._params.delmo)
-        self._temp0 = self._ts * self._params.omgcof + delm
+        self._temp0 = self._calculate_drag_correction()
         self._xmp += self._temp0
 
         self._calculate_omega()
         self._calculate_tempe()
         self._calculate_templ()
+
+        self._adopt_orbit_at_epoch()
+        if self._params.deep_space is not None:
+            self._add_lunisolar_perturbations()
 
         self._calculate_a()
         self._calculate_axn_and_ayn()
@@ -1128,6 +978,83 @@ class _Keplerians:
 
         return kep
 
+    def _adopt_orbit_at_epoch(self):
+        """Start from the shape and orientation the elements had at the epoch.
+
+        Only the Sun and the Moon change these, so for a near-earth satellite
+        they stay as they were computed once.
+        """
+        params = self._params
+        self._eccentricity = params.eo
+        self._inclination = params.xincl
+        self._mean_motion = params.xnodp
+        self._semi_major_axis_at_epoch = params.aodp
+        self.sinIO, self.cosIO = params.sinIO, params.cosIO
+        self.x3thm1, self.x1mth2, self.x7thm1 = params.x3thm1, params.x1mth2, params.x7thm1
+        self.aycof, self.xlcof = params.aycof, params.xlcof
+        self._mean_longitude_drift = params.xnodp * self._templ
+
+    def _add_lunisolar_perturbations(self):
+        """Move the orbit the way the Sun and the Moon do.
+
+        Their slow drift is added to the mean elements, then the mean longitude
+        is folded into one turn, and only then is their periodic wobble applied,
+        because the wobble is written in terms of the folded angles.
+        """
+        deep_space = self._params.deep_space
+        drift = deep_space.secular_drift(self._ts)
+
+        self._eccentricity += drift["eccentricity"]
+        inclination = self._params.xincl + drift["inclination"]
+        self.omega += drift["arg_perigee"]
+        self._xnode += drift["right_ascension"]
+        self._xmp += drift["mean_anomaly"]
+
+        if deep_space.resonance != NOT_RESONANT:
+            self._mean_motion, self._xmp = deep_space.resonant_correction(
+                self._ts, self._xnode, self.omega, self._params.sidereal_time_at_epoch)
+
+        self._xmp += self._mean_longitude_drift
+        self._mean_longitude_drift = 0.0
+
+        mean_longitude = np.fmod(self._xmp + self.omega + self._xnode, 2 * np.pi)
+        self._xnode = np.fmod(self._xnode, 2 * np.pi)
+        self.omega = np.fmod(self.omega, 2 * np.pi)
+        self._xmp = np.fmod(mean_longitude - self.omega - self._xnode, 2 * np.pi)
+
+        shift = deep_space.periodic_shift(self._ts)
+        (self._eccentricity, inclination, self._xnode, self.omega,
+         self._xmp) = apply_periodics(shift, self._eccentricity, inclination,
+                                      self._xnode, self.omega, self._xmp)
+
+        inclination, self._xnode, self.omega = _fold_negative_inclination(
+            inclination, self._xnode, self.omega)
+        self._adopt_inclination(inclination)
+        self._semi_major_axis_at_epoch = (XKE / self._mean_motion) ** (2.0 / 3)
+
+    def _adopt_inclination(self, inclination):
+        """Recompute what depends on the inclination, which the Moon has moved."""
+        self._inclination = inclination
+        self.sinIO, self.cosIO = np.sin(inclination), np.cos(inclination)
+        theta2 = self.cosIO**2
+        self.x3thm1 = 3.0 * theta2 - 1.0
+        self.x1mth2 = 1.0 - theta2
+        self.x7thm1 = 7.0 * theta2 - 1.0
+        self.aycof = _aycof(self.sinIO)
+        self.xlcof = _xlcof(self.sinIO, self.cosIO)
+
+    def _calculate_drag_correction(self):
+        """Correct mean anomaly and argument of perigee for drag on the perigee.
+
+        The simplified drag equations leave both untouched.
+        """
+        if self._params.uses_simplified_drag:
+            return 0.0
+
+        delm = self._params.xmcof * \
+            ((1.0 + self._params.eta * np.cos(self._xmp))**3 - self._params.delmo)
+        return self._ts * self._params.omgcof + delm
+
     def _get_timedelta_in_minutes(self):
         self._ts = (dt2np(self._utc_time) - self._params.t_0) / np.timedelta64(1, "m")
 
@@ -1135,14 +1062,14 @@ class _Keplerians:
         self.omega = self._params.omegao + self._params.omgdot * self._ts - self._temp0
 
     def _calculate_tempe(self):
-        if self._params.mode == SGDP4_NEAR_SIMP:
+        if self._params.uses_simplified_drag:
             self._tempe = self._params.bstar * self._ts * self._params.c4
         else:
             self._tempe = self._params.bstar * \
                 (self._params.c4 * self._ts + self._params.c5 * (np.sin(self._xmp) - self._params.sinXMO))
 
     def _calculate_templ(self):
-        if self._params.mode == SGDP4_NEAR_SIMP:
+        if self._params.uses_simplified_drag:
             self._templ = self._ts * self._ts * self._params.t2cof
         else:
             self._templ = self._ts * self._ts * \
@@ -1150,14 +1077,14 @@ class _Keplerians:
                 (self._params.t3cof + self._ts * (self._params.t4cof + self._ts * self._params.t5cof)))
 
     def _calculate_a(self):
-        if self._params.mode == SGDP4_NEAR_SIMP:
+        if self._params.uses_simplified_drag:
             tempa = 1.0 - self._ts * self._params.c1
         else:
             tempa = 1.0 - \
                 (self._ts *
                  (self._params.c1 + self._ts * (self._params.d2 + self._ts *
                   (self._params.d3 + self._ts * self._params.d4))))
-        self._a = self._params.aodp * tempa**2
+        self._a = self._semi_major_axis_at_epoch * tempa**2
 
         if np.any(self._a < 1):
             raise Exception("Satellite crashed at time %s", self._utc_time)
@@ -1172,10 +1099,10 @@ class _Keplerians:
 
         self._temp0 = 1.0 / (self._a * beta2)
         self._axn = e * cosOMG
-        self._ayn = e * sinOMG + self._temp0 * self._params.aycof
+        self._ayn = e * sinOMG + self._temp0 * self.aycof
 
     def _calculate_e(self, tempe):
-        e = self._params.eo - tempe
+        e = self._eccentricity - tempe
 
         if np.any(e < ECC_LIMIT_LOW):
             raise ValueError("Satellite modified eccentricity too low: %s < %e"
@@ -1187,8 +1114,8 @@ class _Keplerians:
         return e
 
     def _calculate_preliminary_short_period(self):
-        xl = self._xmp + self.omega + self._xnode + self._params.xnodp * self._templ
-        self._xlt = xl + self._temp0 * self._params.xlcof * self._axn
+        xl = self._xmp + self.omega + self._xnode + self._mean_longitude_drift
+        self._xlt = xl + self._temp0 * self.xlcof * self._axn
 
         self._iterate_newton_raphson()
 
@@ -1211,6 +1138,11 @@ class _Keplerians:
         self._temp2 = self._temp1 * self._temp0
 
     def _iterate_newton_raphson(self):
+        """Solve Kepler's equation for the eccentric anomaly.
+
+        A time that has converged is left alone while the others catch up, so
+        that it ends up where it would have had it been asked for by itself.
+        """
         epw = np.fmod(self._xlt - self._xnode, 2 * np.pi)
         # needs a copy in case of an array
         capu = np.array(epw)
@@ -1221,7 +1153,8 @@ class _Keplerians:
             self._ecosE = self._axn * self._cosEPW + self._ayn * self._sinEPW
             self._esinE = self._axn * self._sinEPW - self._ayn * self._cosEPW
             f = capu - epw + self._esinE
-            if np.all(np.abs(f) < NR_EPS):
+            still_converging = np.abs(f) >= NR_EPS
+            if not np.any(still_converging):
                 break
 
             df = 1.0 - self._ecosE
@@ -1233,15 +1166,15 @@ class _Keplerians:
             nr = np.where(np.logical_and(i == 0, np.abs(nr) > 1.25 * self.ecc),
                           np.sign(nr) * self.ecc,
                           f / (df + 0.5 * self._esinE * nr))
-            epw += nr
+            epw = np.where(still_converging, epw + nr, epw)
 
 
     def _update_short_period(self):
-        self.rk = self._r * (1.0 - 1.5 * self._temp2 * self._betal * self._params.x3thm1) + \
-            0.5 * self._temp1 * self._params.x1mth2 * self._cos2u
-        self.uk = self._u - 0.25 * self._temp2 * self._params.x7thm1 * self._sin2u
-        self.xnodek = self._xnode + 1.5 * self._temp2 * self._params.cosIO * self._sin2u
-        self.xinc = self._params.xincl + 1.5 * self._temp2 * self._params.cosIO * self._params.sinIO * self._cos2u
+        self.rk = self._r * (1.0 - 1.5 * self._temp2 * self._betal * self.x3thm1) + \
+            0.5 * self._temp1 * self.x1mth2 * self._cos2u
+        self.uk = self._u - 0.25 * self._temp2 * self.x7thm1 * self._sin2u
+        self.xnodek = self._xnode + 1.5 * self._temp2 * self.cosIO * self._sin2u
+        self.xinc = self._inclination + 1.5 * self._temp2 * self.cosIO * self.sinIO * self._cos2u
 
         if np.any(self.rk < 1):
             raise Exception("Satellite crashed at time %s", self._utc_time)
@@ -1250,10 +1183,10 @@ class _Keplerians:
         temp2 = XKE / (self._a * self._temp0)
         self.rdotk = (
             (XKE * self._temp0 * self._esinE * self._invR -
-                temp2 * self._temp1 * self._params.x1mth2 * self._sin2u) *
+                temp2 * self._temp1 * self.x1mth2 * self._sin2u) *
             (XKMPER / AE * XMNPDA / 86400.0))
         self.rfdotk = ((XKE * np.sqrt(self._pl) * self._invR + temp2 * self._temp1 *
-                   (self._params.x1mth2 * self._cos2u + 1.5 * self._params.x3thm1)) *
+                   (self.x1mth2 * self._cos2u + 1.5 * self.x3thm1)) *
                   (XKMPER / AE * XMNPDA / 86400.0))
 
     def _collect_return_values(self):
@@ -1278,6 +1211,34 @@ def _check_orbital_elements(orbit_elements):
         raise OrbitalError("Mean motion out of range: %e" % orbit_elements.original_mean_motion)
     if not (0 < orbit_elements.inclination < np.pi):
         raise OrbitalError("Inclination out of range: %e" % orbit_elements.inclination)
+
+
+def _fold_negative_inclination(inclination, right_ascension, arg_perigee):
+    """Bring an orbit the perturbations tipped past the equator back the right way up.
+
+    A negative inclination describes the same orbit as its positive counterpart
+    turned half way around, and the rest of the model expects the latter.
+    """
+    tipped_over = inclination < 0.0
+    return (np.where(tipped_over, -inclination, inclination),
+            np.where(tipped_over, right_ascension + np.pi, right_ascension),
+            np.where(tipped_over, arg_perigee - np.pi, arg_perigee))
+
+
+def _aycof(sin_inclination):
+    """Give the coefficient of the long period periodic in the y direction."""
+    return 0.25 * A3OVK2 * sin_inclination
+
+
+def _xlcof(sin_inclination, cos_inclination):
+    """Give the coefficient of the long period periodic in the mean longitude.
+
+    The expression divides by one plus the cosine of the inclination, which a
+    retrograde equatorial orbit drives to zero.
+    """
+    temp0 = 1.0 + cos_inclination
+    temp0 = np.where(np.abs(temp0) < EPS_COS, np.sign(temp0) * EPS_COS, temp0)
+    return 0.125 * A3OVK2 * sin_inclination * (3.0 + 5.0 * cos_inclination) / temp0
 
 
 def _calculate_elsq(axn, ayn, utc_time):

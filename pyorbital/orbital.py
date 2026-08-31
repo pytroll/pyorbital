@@ -1175,10 +1175,6 @@ class _Keplerians:
         because the wobble is written in terms of the folded angles.
         """
         deep_space = self._params.deep_space
-        if np.size(self._ts) > 1:
-            raise NotImplementedError(
-                "A deep-space satellite can only be propagated to one time at a time")
-
         drift = deep_space.secular_drift(self._ts)
 
         self._eccentricity += drift["eccentricity"]
@@ -1390,9 +1386,10 @@ def _fold_negative_inclination(inclination, right_ascension, arg_perigee):
     A negative inclination describes the same orbit as its positive counterpart
     turned half way around, and the rest of the model expects the latter.
     """
-    if inclination >= 0.0:
-        return inclination, right_ascension, arg_perigee
-    return -inclination, right_ascension + np.pi, arg_perigee - np.pi
+    tipped_over = inclination < 0.0
+    return (np.where(tipped_over, -inclination, inclination),
+            np.where(tipped_over, right_ascension + np.pi, right_ascension),
+            np.where(tipped_over, arg_perigee - np.pi, arg_perigee))
 
 
 def _aycof(sin_inclination):
@@ -1407,8 +1404,7 @@ def _xlcof(sin_inclination, cos_inclination):
     retrograde equatorial orbit drives to zero.
     """
     temp0 = 1.0 + cos_inclination
-    if np.abs(temp0) < EPS_COS:
-        temp0 = np.sign(temp0) * EPS_COS
+    temp0 = np.where(np.abs(temp0) < EPS_COS, np.sign(temp0) * EPS_COS, temp0)
     return 0.125 * A3OVK2 * sin_inclination * (3.0 + 5.0 * cos_inclination) / temp0
 
 

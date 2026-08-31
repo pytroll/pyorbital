@@ -315,26 +315,39 @@ def _integrate_resonance(minutes_since_epoch, longitude_at_epoch, mean_motion_at
     The pull depends on where the orbit has drifted to, so it has to be followed
     step by step rather than evaluated in one go.
     """
-    step = RESONANCE_STEP if minutes_since_epoch > 0.0 else -RESONANCE_STEP
+    minutes = np.asarray(minutes_since_epoch, dtype=float)
     half_step_squared = 0.5 * RESONANCE_STEP * RESONANCE_STEP
 
-    longitude = longitude_at_epoch
-    mean_motion = mean_motion_at_epoch
-    elapsed = 0.0
+    # Every time marches from the epoch in whole steps until less than one step
+    # is left, so the number of steps it takes follows from the time alone.
+    step = np.where(minutes < 0.0, -RESONANCE_STEP, RESONANCE_STEP)
+    steps_to_take = np.floor(np.abs(minutes) / RESONANCE_STEP)
 
-    while True:
+    longitude = np.broadcast_to(float(longitude_at_epoch), minutes.shape).copy()
+    mean_motion = np.broadcast_to(float(mean_motion_at_epoch), minutes.shape).copy()
+    elapsed = np.zeros(minutes.shape)
+
+    for step_number in range(int(steps_to_take.max())):
         rate, acceleration = _resonance_rates(resonance, amplitudes, longitude,
                                               arg_perigee_at_epoch, arg_perigee_rate,
                                               elapsed, mean_motion,
                                               longitude_rate_offset)
         longitude_rate = mean_motion + longitude_rate_offset
-        if np.abs(minutes_since_epoch - elapsed) < RESONANCE_STEP:
-            break
-        longitude += longitude_rate * step + rate * half_step_squared
-        mean_motion += rate * step + acceleration * half_step_squared
-        elapsed += step
+        still_marching = steps_to_take > step_number
+        longitude = np.where(still_marching,
+                             longitude + longitude_rate * step + rate * half_step_squared,
+                             longitude)
+        mean_motion = np.where(still_marching,
+                               mean_motion + rate * step + acceleration * half_step_squared,
+                               mean_motion)
+        elapsed = np.where(still_marching, elapsed + step, elapsed)
 
-    remaining = minutes_since_epoch - elapsed
+    rate, acceleration = _resonance_rates(resonance, amplitudes, longitude,
+                                          arg_perigee_at_epoch, arg_perigee_rate,
+                                          elapsed, mean_motion, longitude_rate_offset)
+    longitude_rate = mean_motion + longitude_rate_offset
+
+    remaining = minutes - elapsed
     return (longitude + longitude_rate * remaining + rate * remaining * remaining * 0.5,
             mean_motion + rate * remaining + acceleration * remaining * remaining * 0.5)
 
@@ -580,21 +593,40 @@ def compute_periodics(geometry, minutes_since_epoch):
 
 def apply_periodics(shift, eccentricity, inclination, right_ascension, arg_perigee,
                     mean_anomaly):
-    """Add the periodic shift to the orbital elements (second half of ``dpper``)."""
+    """Add the periodic shift to the orbital elements (second half of ``dpper``).
+
+    Both ways of adding it are worked out and then chosen between, so that a
+    whole array of times can be propagated at once even when some of them have
+    the orbit tipped over the inclination that separates the two.
+    """
     inclination = inclination + shift["inclination"]
     eccentricity = eccentricity + shift["eccentricity"]
     sin_inc, cos_inc = np.sin(inclination), np.cos(inclination)
 
-    if inclination >= LYDDANE_INCLINATION_LIMIT:
-        node_shift = shift["right_ascension"] / sin_inc
-        arg_perigee = arg_perigee + shift["arg_perigee"] - cos_inc * node_shift
-        right_ascension = right_ascension + node_shift
-        mean_anomaly = mean_anomaly + shift["mean_anomaly"]
-        return eccentricity, inclination, right_ascension, arg_perigee, mean_anomaly
+    tilted = _apply_periodics_directly(shift, sin_inc, cos_inc, right_ascension,
+                                       arg_perigee, mean_anomaly)
+    flat = _apply_periodics_near_equator(shift, sin_inc, cos_inc, right_ascension,
+                                         arg_perigee, mean_anomaly)
 
-    return (eccentricity, inclination,
-            *_apply_periodics_near_equator(shift, sin_inc, cos_inc, right_ascension,
-                                           arg_perigee, mean_anomaly))
+    is_tilted = inclination >= LYDDANE_INCLINATION_LIMIT
+    right_ascension, arg_perigee, mean_anomaly = (
+        np.where(is_tilted, from_tilted, from_flat)
+        for from_tilted, from_flat in zip(tilted, flat))
+    return eccentricity, inclination, right_ascension, arg_perigee, mean_anomaly
+
+
+def _apply_periodics_directly(shift, sin_inc, cos_inc, right_ascension, arg_perigee,
+                              mean_anomaly):
+    """Add the shift to the elements themselves, for an orbit that is tilted enough."""
+    node_shift = shift["right_ascension"] / _without_zeros(sin_inc)
+    return (right_ascension + node_shift,
+            arg_perigee + shift["arg_perigee"] - cos_inc * node_shift,
+            mean_anomaly + shift["mean_anomaly"])
+
+
+def _without_zeros(divisor):
+    """Replace zeros by ones, for a division whose result is about to be discarded."""
+    return np.where(divisor == 0.0, 1.0, divisor)
 
 
 def _turn_to_positive(angle):
@@ -605,7 +637,7 @@ def _turn_to_positive(angle):
     turn changes the result. The operational software measures it from zero, and
     the element sets this model is fed come from that software.
     """
-    return angle + TWO_PI if angle < 0.0 else angle
+    return np.where(angle < 0.0, angle + TWO_PI, angle)
 
 
 def _apply_periodics_near_equator(shift, sin_inc, cos_inc, right_ascension, arg_perigee,
@@ -628,12 +660,18 @@ def _apply_periodics_near_equator(shift, sin_inc, cos_inc, right_ascension, arg_
 
     previous_node = right_ascension
     right_ascension = _turn_to_positive(np.arctan2(plane_x, plane_y))
-    if np.abs(previous_node - right_ascension) > np.pi:
-        right_ascension += TWO_PI if right_ascension < previous_node else -TWO_PI
+    right_ascension = _keep_on_the_same_turn(right_ascension, previous_node)
 
     mean_anomaly = mean_anomaly + shift["mean_anomaly"]
     arg_perigee = mean_longitude - mean_anomaly - cos_inc * right_ascension
     return right_ascension, arg_perigee, mean_anomaly
+
+
+def _keep_on_the_same_turn(angle, previous):
+    """Undo the jump a whole turn makes when the node crosses the end of its range."""
+    jumped = np.abs(previous - angle) > np.pi
+    return np.where(jumped, np.where(angle < previous, angle + TWO_PI, angle - TWO_PI),
+                    angle)
 
 
 def _periodic_coefficients(solar, lunar, emsq):

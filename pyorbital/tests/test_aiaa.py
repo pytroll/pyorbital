@@ -30,9 +30,13 @@ TIME_TOLERANCE = 1e-3  # minutes
 
 CHECKSUM_ERROR_SATELLITES = {33333, 33334, 33335}
 
+# UTC gained a leap second at the end of 2005. The reference file prints
+# calendar times that count it, while the propagator counts uniform minutes
+# from the epoch and knows nothing of it, so the two part company by exactly one
+# second as soon as a satellite is propagated across the turn of that year.
+LEAP_SECONDS = (np.datetime64("2006-01-01T00:00:00"),)
+
 NOT_YET_SUPPORTED = {
-    # Deep space, non-resonant.
-    28129, 16925, 28623, 23177, 23599, 4632, 20413, 11801, 23333,
     # Deep space, 12 h resonance.
     9880, 8195, 26975, 21897, 22674,
     # Deep space, 24 h (geosynchronous) resonance.
@@ -141,7 +145,13 @@ def _describe(satnumber, delay):
     return f"{satnumber} ({description}) at {delay} min"
 
 
-def _assert_matches_reference(satnumber, delay, utc_time, position, velocity):
+def _leap_seconds_between(epoch, utc_time):
+    """Count the leap seconds UTC gained while the satellite was propagated."""
+    crossed = sum(1 for leap in LEAP_SECONDS if epoch < leap <= utc_time)
+    return np.timedelta64(crossed, "s")
+
+
+def _assert_matches_reference(satnumber, delay, epoch, utc_time, position, velocity):
     """Compare one propagated state against its reference value."""
     expected = REFERENCE_STATES[satnumber][_delay_key(delay)]
 
@@ -151,7 +161,8 @@ def _assert_matches_reference(satnumber, delay, utc_time, position, velocity):
                                err_msg=f"velocity of {_describe(satnumber, delay)}")
 
     if expected.utc_time is not None:
-        error_in_minutes = astronomy._days(expected.utc_time - utc_time) * 24 * 60
+        expected_time = expected.utc_time + _leap_seconds_between(epoch, utc_time)
+        error_in_minutes = astronomy._days(expected_time - utc_time) * 24 * 60
         assert abs(error_in_minutes) < TIME_TOLERANCE
 
 
@@ -167,7 +178,8 @@ def test_aiaa_verification_case(satnumber):
     for delay in _reference_delays(satnumber):
         utc_time = np.timedelta64(round(delay * 60 * 1e6), "us") + orbital.tle.epoch
         position, velocity = orbital.get_position(utc_time, normalize=False)
-        _assert_matches_reference(satnumber, delay, utc_time, position, velocity)
+        _assert_matches_reference(satnumber, delay, orbital.tle.epoch, utc_time,
+                                  position, velocity)
 
 
 @pytest.mark.parametrize("satnumber", sorted(CHECKSUM_ERROR_SATELLITES), ids=str)

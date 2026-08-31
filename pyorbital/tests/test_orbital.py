@@ -422,3 +422,16 @@ def test_get_last_an_time_wrong_input(dtime):
     expected = "UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!"
     with pytest.raises(ValueError, match=expected):
         _ = orb.get_last_an_time(dtime)
+
+
+def test_deep_space_rejects_several_times_at_once():
+    """Propagating a deep-space satellite to many times at once is not supported yet."""
+    from pyorbital.orbital import Orbital
+    orb = Orbital("MOLNIYA 2-14",
+                  line1="1 08195U 75081A   06176.33215444  .00000099  00000-0  11873-3 0   813",
+                  line2="2 08195  64.1586 279.0717 6877146 264.7651  20.2257  2.00491383225656")
+
+    times = orb.tle.epoch + np.array([0, 120], dtype="timedelta64[m]")
+
+    with pytest.raises(NotImplementedError, match="one time at a time"):
+        orb.get_position(times)

@@ -47,12 +47,64 @@ class DeepSpace:
     """
 
     def __init__(self, days_since_1949, eccentricity, arg_perigee, inclination,
-                 right_ascension, mean_motion):
+                 right_ascension, mean_motion, mean_anomaly, sidereal_time_at_epoch,
+                 mean_anomaly_rate, arg_perigee_rate, right_ascension_rate,
+                 semi_major_axis):
         """Work out the geometry and the coefficients that follow from it."""
         self._geometry = compute_lunisolar_geometry(
             days_since_1949, eccentricity, arg_perigee, inclination, right_ascension,
             mean_motion)
         self._secular_rates = compute_secular_rates(self._geometry)
+        self._mean_motion_at_epoch = mean_motion
+        self._arg_perigee_at_epoch = arg_perigee
+        self._arg_perigee_rate = arg_perigee_rate
+        self.resonance = classify_resonance(mean_motion, eccentricity)
+        if self.resonance != NOT_RESONANT:
+            self._prepare_resonance(eccentricity, arg_perigee, right_ascension,
+                                    mean_anomaly, sidereal_time_at_epoch, mean_motion,
+                                    mean_anomaly_rate, arg_perigee_rate,
+                                    right_ascension_rate, semi_major_axis)
+
+    def _prepare_resonance(self, eccentricity, arg_perigee, right_ascension, mean_anomaly,
+                           sidereal_time_at_epoch, mean_motion, mean_anomaly_rate,
+                           arg_perigee_rate, right_ascension_rate, semi_major_axis):
+        """Work out how strongly the orbit beats against the Earth, and from where."""
+        rates = self._secular_rates
+        aonv = 1.0 / semi_major_axis
+        theta = sidereal_time_at_epoch
+
+        if self.resonance != RESONANT_TWICE_A_DAY:
+            raise NotImplementedError(
+                "A satellite that circles once a day is not supported yet")
+
+        self._amplitudes = _twice_daily_resonance(self._geometry, eccentricity,
+                                                  mean_motion, aonv)
+        self._longitude_at_epoch = np.fmod(
+            mean_anomaly + right_ascension + right_ascension - theta - theta, TWO_PI)
+        self._longitude_rate_offset = (
+            mean_anomaly_rate + rates["dmdt"]
+            + 2.0 * (right_ascension_rate + rates["dnodt"] - EARTH_ROTATION)
+            - mean_motion)
+
+    def resonant_correction(self, minutes_since_epoch, right_ascension, arg_perigee,
+                            sidereal_time_at_epoch):
+        """Integrate the beat against the Earth up to this time.
+
+        Returns the mean motion there and the mean anomaly it implies. The
+        integration always restarts from the epoch, so that asking for one time
+        never depends on which times were asked for before.
+        """
+        longitude, mean_motion = _integrate_resonance(
+            minutes_since_epoch, self._longitude_at_epoch, self._mean_motion_at_epoch,
+            self._longitude_rate_offset, self._arg_perigee_at_epoch,
+            self._arg_perigee_rate, self.resonance, self._amplitudes)
+
+        # The bulges of the equator the orbit beats against turn with the Earth.
+        sidereal_time = np.fmod(
+            sidereal_time_at_epoch + minutes_since_epoch * EARTH_ROTATION, TWO_PI)
+
+        mean_anomaly = longitude - 2.0 * right_ascension + 2.0 * sidereal_time
+        return mean_motion, mean_anomaly
 
     def secular_drift(self, minutes_since_epoch):
         """Give the slow change of each element since the epoch."""
@@ -66,6 +118,190 @@ class DeepSpace:
     def periodic_shift(self, minutes_since_epoch):
         """Give the periodic displacement of each element at this time."""
         return compute_periodics(self._geometry, minutes_since_epoch)
+
+
+# Rate at which the Earth turns under the orbit, radians per minute.
+EARTH_ROTATION = 4.37526908801129966e-3
+
+# Amplitudes of the tesseral harmonics that a resonant orbit beats against, and
+# the longitudes of the corresponding bulges.
+ROOT22, ROOT32, ROOT44, ROOT52, ROOT54 = (1.7891679e-6, 3.7393792e-7, 7.3636953e-9,
+                                          1.1428639e-7, 2.1765803e-9)
+G22, G32, G44, G52, G54 = 5.7686396, 0.95240898, 1.8014998, 1.0508330, 4.4108898
+
+# The step the resonance is integrated with, in minutes.
+RESONANCE_STEP = 720.0
+
+NOT_RESONANT = 0
+RESONANT_ONCE_A_DAY = 1
+RESONANT_TWICE_A_DAY = 2
+
+
+def classify_resonance(mean_motion, eccentricity):
+    """Say whether the orbit beats against the Earth's rotation, and how.
+
+    An orbit that circles once or twice while the Earth turns once keeps meeting
+    the same bulges of the equator, so their small pull accumulates instead of
+    averaging away.
+    """
+    if 0.0034906585 < mean_motion < 0.0052359877:
+        return RESONANT_ONCE_A_DAY
+    if 8.26e-3 <= mean_motion <= 9.24e-3 and eccentricity >= 0.5:
+        return RESONANT_TWICE_A_DAY
+    return NOT_RESONANT
+
+
+def _twice_daily_eccentricity_terms(eccentricity):
+    """Fit the tesseral amplitudes to the eccentricity, for a twelve hour orbit."""
+    e = eccentricity
+    esq = e * e
+    ecube = e * esq
+
+    g201 = -0.306 - (e - 0.64) * 0.440
+    if e <= 0.65:
+        g211 = 3.616 - 13.2470 * e + 16.2900 * esq
+        g310 = -19.302 + 117.3900 * e - 228.4190 * esq + 156.5910 * ecube
+        g322 = -18.9068 + 109.7927 * e - 214.6334 * esq + 146.5816 * ecube
+        g410 = -41.122 + 242.6940 * e - 471.0940 * esq + 313.9530 * ecube
+        g422 = -146.407 + 841.8800 * e - 1629.014 * esq + 1083.4350 * ecube
+        g520 = -532.114 + 3017.977 * e - 5740.032 * esq + 3708.2760 * ecube
+    else:
+        g211 = -72.099 + 331.819 * e - 508.738 * esq + 266.724 * ecube
+        g310 = -346.844 + 1582.851 * e - 2415.925 * esq + 1246.113 * ecube
+        g322 = -342.585 + 1554.908 * e - 2366.899 * esq + 1215.972 * ecube
+        g410 = -1052.797 + 4758.686 * e - 7193.992 * esq + 3651.957 * ecube
+        g422 = -3581.690 + 16178.110 * e - 24462.770 * esq + 12422.520 * ecube
+        if e > 0.715:
+            g520 = -5149.66 + 29936.92 * e - 54087.36 * esq + 31324.56 * ecube
+        else:
+            g520 = 1464.74 - 4664.75 * e + 3763.64 * esq
+
+    if e < 0.7:
+        g533 = -919.22770 + 4988.6100 * e - 9064.7700 * esq + 5542.21 * ecube
+        g521 = -822.71072 + 4568.6173 * e - 8491.4146 * esq + 5337.524 * ecube
+        g532 = -853.66600 + 4690.2500 * e - 8624.7700 * esq + 5341.4 * ecube
+    else:
+        g533 = -37995.780 + 161616.52 * e - 229838.20 * esq + 109377.94 * ecube
+        g521 = -51752.104 + 218913.95 * e - 309468.16 * esq + 146349.42 * ecube
+        g532 = -40023.880 + 170470.89 * e - 242699.48 * esq + 115605.82 * ecube
+
+    return g201, g211, g310, g322, g410, g422, g520, g521, g532, g533
+
+
+def _twice_daily_inclination_terms(sinim, cosim):
+    """Fit the tesseral amplitudes to the inclination, for a twelve hour orbit."""
+    cosisq = cosim * cosim
+    sini2 = sinim * sinim
+
+    f220 = 0.75 * (1.0 + 2.0 * cosim + cosisq)
+    f221 = 1.5 * sini2
+    f321 = 1.875 * sinim * (1.0 - 2.0 * cosim - 3.0 * cosisq)
+    f322 = -1.875 * sinim * (1.0 + 2.0 * cosim - 3.0 * cosisq)
+    f441 = 35.0 * sini2 * f220
+    f442 = 39.3750 * sini2 * sini2
+    f522 = 9.84375 * sinim * (sini2 * (1.0 - 2.0 * cosim - 5.0 * cosisq)
+                              + 0.33333333 * (-2.0 + 4.0 * cosim + 6.0 * cosisq))
+    f523 = sinim * (4.92187512 * sini2 * (-2.0 - 4.0 * cosim + 10.0 * cosisq)
+                    + 6.56250012 * (1.0 + 2.0 * cosim - 3.0 * cosisq))
+    f542 = 29.53125 * sinim * (2.0 - 8.0 * cosim
+                               + cosisq * (-12.0 + 8.0 * cosim + 10.0 * cosisq))
+    f543 = 29.53125 * sinim * (-2.0 - 8.0 * cosim
+                               + cosisq * (12.0 + 8.0 * cosim - 10.0 * cosisq))
+    return f220, f221, f321, f322, f441, f442, f522, f523, f542, f543
+
+
+def _twice_daily_resonance(geometry, eccentricity_at_epoch, mean_motion, aonv):
+    """Give the amplitudes with which a twelve hour orbit beats against the Earth."""
+    g201, g211, g310, g322, g410, g422, g520, g521, g532, g533 = (
+        _twice_daily_eccentricity_terms(eccentricity_at_epoch))
+    f220, f221, f321, f322, f441, f442, f522, f523, f542, f543 = (
+        _twice_daily_inclination_terms(geometry["sin_inclination"],
+                                       geometry["cos_inclination"]))
+
+    temp1 = 3.0 * mean_motion * mean_motion * aonv * aonv
+    temp = temp1 * ROOT22
+    amplitudes = {"d2201": temp * f220 * g201, "d2211": temp * f221 * g211}
+    temp1 = temp1 * aonv
+    temp = temp1 * ROOT32
+    amplitudes.update(d3210=temp * f321 * g310, d3222=temp * f322 * g322)
+    temp1 = temp1 * aonv
+    temp = 2.0 * temp1 * ROOT44
+    amplitudes.update(d4410=temp * f441 * g410, d4422=temp * f442 * g422)
+    temp1 = temp1 * aonv
+    temp = temp1 * ROOT52
+    amplitudes.update(d5220=temp * f522 * g520, d5232=temp * f523 * g532)
+    temp = 2.0 * temp1 * ROOT54
+    amplitudes.update(d5421=temp * f542 * g521, d5433=temp * f543 * g533)
+    return amplitudes
+
+
+def _twice_daily_rates(amplitudes, longitude, arg_perigee, mean_longitude_rate):
+    """Give how fast a twelve hour orbit's mean longitude and mean motion change."""
+    a = amplitudes
+    perigee2 = arg_perigee + arg_perigee
+    longitude2 = longitude + longitude
+
+    rate = (a["d2201"] * np.sin(perigee2 + longitude - G22)
+            + a["d2211"] * np.sin(longitude - G22)
+            + a["d3210"] * np.sin(arg_perigee + longitude - G32)
+            + a["d3222"] * np.sin(-arg_perigee + longitude - G32)
+            + a["d4410"] * np.sin(perigee2 + longitude2 - G44)
+            + a["d4422"] * np.sin(longitude2 - G44)
+            + a["d5220"] * np.sin(arg_perigee + longitude - G52)
+            + a["d5232"] * np.sin(-arg_perigee + longitude - G52)
+            + a["d5421"] * np.sin(arg_perigee + longitude2 - G54)
+            + a["d5433"] * np.sin(-arg_perigee + longitude2 - G54))
+    acceleration = (a["d2201"] * np.cos(perigee2 + longitude - G22)
+                    + a["d2211"] * np.cos(longitude - G22)
+                    + a["d3210"] * np.cos(arg_perigee + longitude - G32)
+                    + a["d3222"] * np.cos(-arg_perigee + longitude - G32)
+                    + a["d5220"] * np.cos(arg_perigee + longitude - G52)
+                    + a["d5232"] * np.cos(-arg_perigee + longitude - G52)
+                    + 2.0 * (a["d4410"] * np.cos(perigee2 + longitude2 - G44)
+                             + a["d4422"] * np.cos(longitude2 - G44)
+                             + a["d5421"] * np.cos(arg_perigee + longitude2 - G54)
+                             + a["d5433"] * np.cos(-arg_perigee + longitude2 - G54)))
+    return rate, acceleration * mean_longitude_rate
+
+
+def _integrate_resonance(minutes_since_epoch, longitude_at_epoch, mean_motion_at_epoch,
+                         longitude_rate_offset, arg_perigee_at_epoch, arg_perigee_rate,
+                         resonance, amplitudes):
+    """March the resonance from the epoch to the wanted time in fixed steps.
+
+    The pull depends on where the orbit has drifted to, so it has to be followed
+    step by step rather than evaluated in one go.
+    """
+    step = RESONANCE_STEP if minutes_since_epoch > 0.0 else -RESONANCE_STEP
+    half_step_squared = 0.5 * RESONANCE_STEP * RESONANCE_STEP
+
+    longitude = longitude_at_epoch
+    mean_motion = mean_motion_at_epoch
+    elapsed = 0.0
+
+    while True:
+        rate, acceleration = _resonance_rates(resonance, amplitudes, longitude,
+                                              arg_perigee_at_epoch, arg_perigee_rate,
+                                              elapsed, mean_motion,
+                                              longitude_rate_offset)
+        longitude_rate = mean_motion + longitude_rate_offset
+        if np.abs(minutes_since_epoch - elapsed) < RESONANCE_STEP:
+            break
+        longitude += longitude_rate * step + rate * half_step_squared
+        mean_motion += rate * step + acceleration * half_step_squared
+        elapsed += step
+
+    remaining = minutes_since_epoch - elapsed
+    return (longitude + longitude_rate * remaining + rate * remaining * remaining * 0.5,
+            mean_motion + rate * remaining + acceleration * remaining * remaining * 0.5)
+
+
+def _resonance_rates(resonance, amplitudes, longitude, arg_perigee_at_epoch,
+                     arg_perigee_rate, elapsed, mean_motion, longitude_rate_offset):
+    """Give the rate and the acceleration of the beat at one point of the march."""
+    longitude_rate = mean_motion + longitude_rate_offset
+    arg_perigee = arg_perigee_at_epoch + arg_perigee_rate * elapsed
+    return _twice_daily_rates(amplitudes, longitude, arg_perigee, longitude_rate)
 
 
 def _lunar_geometry(day):

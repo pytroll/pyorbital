@@ -9,7 +9,7 @@ import numpy as np
 from scipy import optimize
 
 from pyorbital import astronomy, dt2np
-from pyorbital._sgdp4_deep import DeepSpace, apply_periodics
+from pyorbital._sgdp4_deep import NOT_RESONANT, DeepSpace, apply_periodics
 
 try:
     import dask.array as da
@@ -765,8 +765,11 @@ class _SGDP4Base:
 
         self.deep_space = None
         if self.mode == SGDP4_DEEP_NORM:
-            self.deep_space = DeepSpace(self._days_since_1949(), self.eo, self.omegao,
-                                        self.xincl, self.xnodeo, self.xnodp)
+            self.sidereal_time_at_epoch = np.fmod(astronomy.gmst(self.t_0), 2 * np.pi)
+            self.deep_space = DeepSpace(
+                self._days_since_1949(), self.eo, self.omegao, self.xincl, self.xnodeo,
+                self.xnodp, self.xmo, self.sidereal_time_at_epoch, self.xmdot,
+                self.omgdot, self.xnodot, self.aodp)
 
     def _days_since_1949(self):
         """Date the epoch the way the lunar and solar ephemerides are written."""
@@ -1182,7 +1185,13 @@ class _Keplerians:
         inclination = self._params.xincl + drift["inclination"]
         self.omega += drift["arg_perigee"]
         self._xnode += drift["right_ascension"]
-        self._xmp += drift["mean_anomaly"] + self._mean_longitude_drift
+        self._xmp += drift["mean_anomaly"]
+
+        if deep_space.resonance != NOT_RESONANT:
+            self._mean_motion, self._xmp = deep_space.resonant_correction(
+                self._ts, self._xnode, self.omega, self._params.sidereal_time_at_epoch)
+
+        self._xmp += self._mean_longitude_drift
         self._mean_longitude_drift = 0.0
 
         mean_longitude = np.fmod(self._xmp + self.omega + self._xnode, 2 * np.pi)

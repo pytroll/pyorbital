@@ -3,10 +3,8 @@
 The satellites of ``SGP4-VER.TLE`` are propagated to every time for which
 ``aiaa_results`` gives an expected state, and the two are compared.
 
-Satellites the propagator does not get right yet are listed in
-``NOT_YET_SUPPORTED``; removing a satellite from that set turns its test back
-on. ``test_every_reference_satellite_is_accounted_for`` makes sure no satellite
-silently escapes both testing and that list.
+Every satellite of the reference file is propagated, and
+``test_every_reference_satellite_is_propagated`` keeps it that way.
 """
 
 import datetime as dt
@@ -37,9 +35,7 @@ CHECKSUM_ERROR_SATELLITES = {33333, 33334, 33335}
 LEAP_SECONDS = (np.datetime64("2006-01-01T00:00:00"),)
 
 NOT_YET_SUPPORTED = {
-    # Deep space, 12 h resonance.
-    9880, 8195, 26975, 21897, 22674,
-    # Deep space, 24 h (geosynchronous) resonance.
+    # Deep space, resonating once a day.
     24208, 9998, 28626, 26900, 25954, 14128,
 }
 
@@ -191,7 +187,13 @@ def test_aiaa_case_with_broken_checksum_is_rejected(satnumber):
         Orbital("unknown", line1=case.line1, line2=case.line2)
 
 
-def test_every_reference_satellite_is_accounted_for():
-    """No satellite of the reference file escapes both testing and an explicit skip."""
+def test_every_reference_satellite_is_propagated():
+    """Every satellite the reference file describes is propagated and checked.
+
+    Nothing may be quietly left out: a satellite of the reference file either
+    has its states compared here or is one of the deliberately corrupted element
+    sets, which are checked to be rejected instead.
+    """
     assert set(REFERENCE_STATES) == set(PROPAGATION_CASES)
+    assert not set(PROPAGATION_CASES) & CHECKSUM_ERROR_SATELLITES
     assert NOT_YET_SUPPORTED <= set(PROPAGATION_CASES)

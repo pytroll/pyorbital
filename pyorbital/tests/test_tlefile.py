@@ -889,7 +889,7 @@ def test_tle_instance_printing():
     assert str(tle) == expected
 
 
-def test_internet_tle_fetch_applies_timeout(monkeypatch):
+def test_internet_tle_fetch_applies_timeout():
     """Regression test for #218: internet TLE downloads must use a bounded timeout.
 
     A stalled Celestrak connection used to hang ``Orbital(...)`` forever on the
@@ -898,28 +898,35 @@ def test_internet_tle_fetch_applies_timeout(monkeypatch):
     """
     from pyorbital import tlefile
 
-    calls = []
+    with mock.patch.object(tlefile, "urlopen") as fake_urlopen:
+        fake_urlopen.return_value = io.StringIO("")
 
-    def _fake_urlopen(url, timeout=None):
-        calls.append((url, timeout))
-        return io.StringIO("")
+        _, open_func = tlefile._get_internet_uris_and_open_method()
+        open_func("https://celestrak.example/group")
 
-    monkeypatch.setattr(tlefile, "urlopen", _fake_urlopen)
-
-    _, open_func = tlefile._get_internet_uris_and_open_method()
-    open_func("https://celestrak.example/group")
-    assert calls == [("https://celestrak.example/group", 15)]
+    fake_urlopen.assert_called_once_with(
+        "https://celestrak.example/group", timeout=15)
 
 
-def test_fetch_fails_loudly_on_stalled_connection(monkeypatch, tmp_path):
+def test_tle_fetch_timeout_configurable_via_env():
+    """PYORBITAL_TLE_FETCH_TIMEOUT overrides the default TLE fetch timeout."""
+    from pyorbital import tlefile
+
+    with mock.patch.dict(os.environ, {"PYORBITAL_TLE_FETCH_TIMEOUT": "42"}), \
+            mock.patch.object(tlefile, "urlopen") as fake_urlopen:
+        fake_urlopen.return_value = io.StringIO("")
+        tlefile._urlopen_with_timeout("https://celestrak.example/group")
+
+    fake_urlopen.assert_called_once_with(
+        "https://celestrak.example/group", timeout=42.0)
+
+
+def test_fetch_fails_loudly_on_stalled_connection(tmp_path):
     """A stalled TLE download raises instead of hanging the caller forever."""
     from pyorbital import tlefile
 
-    def _stalled(url, timeout=None):
-        raise urllib.error.URLError("timed out")
-
-    monkeypatch.setattr(tlefile, "urlopen", _stalled)
-
-    destination = tmp_path / "tles.txt"
-    with pytest.raises(urllib.error.URLError):
-        tlefile.fetch(str(destination))
+    with mock.patch.object(
+            tlefile, "urlopen", side_effect=urllib.error.URLError("timed out")):
+        destination = tmp_path / "tles.txt"
+        with pytest.raises(urllib.error.URLError):
+            tlefile.fetch(str(destination))

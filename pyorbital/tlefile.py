@@ -33,9 +33,22 @@ TLE_URLS = [f"https://celestrak.org/NORAD/elements/gp.php?GROUP={group}&FORMAT=t
 _TLE_FETCH_TIMEOUT = 15
 
 
+def _get_tle_fetch_timeout():
+    """Get the TLE fetch timeout, configurable via ``PYORBITAL_TLE_FETCH_TIMEOUT``."""
+    raw = os.environ.get("PYORBITAL_TLE_FETCH_TIMEOUT")
+    if raw is None:
+        return _TLE_FETCH_TIMEOUT
+    try:
+        return float(raw)
+    except ValueError:
+        LOGGER.warning("Invalid PYORBITAL_TLE_FETCH_TIMEOUT=%r, using default %ss",
+                       raw, _TLE_FETCH_TIMEOUT)
+        return _TLE_FETCH_TIMEOUT
+
+
 def _urlopen_with_timeout(url):
     """Open a URL with a bounded timeout so a stalled connection cannot hang forever."""
-    return urlopen(url, timeout=_TLE_FETCH_TIMEOUT)  # nosec
+    return urlopen(url, timeout=_get_tle_fetch_timeout())  # nosec
 
 
 LOGGER = logging.getLogger(__name__)

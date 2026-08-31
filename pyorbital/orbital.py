@@ -1272,7 +1272,9 @@ class _Keplerians:
 
 
 def _check_orbital_elements(orbit_elements):
-    if not (0 < orbit_elements.eccentricity < ECC_LIMIT_HIGH):
+    # An orbit of no eccentricity at all is a circle, which is a perfectly good
+    # orbit and one this model propagates as well as any other.
+    if not (0 <= orbit_elements.eccentricity < ECC_LIMIT_HIGH):
         raise OrbitalError("Eccentricity out of range: %e" % orbit_elements.eccentricity)
     if not ((0.0035 * 2 * np.pi / XMNPDA) < orbit_elements.original_mean_motion < (18 * 2 * np.pi / XMNPDA)):
         raise OrbitalError("Mean motion out of range: %e" % orbit_elements.original_mean_motion)

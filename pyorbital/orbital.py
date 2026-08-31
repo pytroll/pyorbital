@@ -686,8 +686,8 @@ class OrbitElements:
         return corrected_mean_motion, corrected_semi_major_axis
 
 
-class _SGDP4Base:
-    """Helper class for the SGDP4 computations."""
+class _SGDP4:
+    """The orbit of one satellite, as SGP4 and SDP4 describe it."""
 
     def __init__(self, orbit_elements):
         """Initialize class."""
@@ -774,6 +774,13 @@ class _SGDP4Base:
     def _days_since_1949(self):
         """Date the epoch the way the lunar and solar ephemerides are written."""
         return (self.t_0 - np.datetime64("1949-12-31T00:00:00")) / np.timedelta64(1, "D")
+
+    def propagate(self, utc_time):
+        """Give the Keplerian elements of the orbit at the given time or times."""
+        if self.mode == SGDP4_ZERO_ECC:
+            raise NotImplementedError("Mode SGDP4_ZERO_ECC not implemented")
+
+        return _Keplerians(self).calculate(utc_time)
 
     @property
     def uses_simplified_drag(self):
@@ -888,193 +895,6 @@ class _SGDP4Base:
             (3.0 * self.d3 + self.c1 * (12.0 * self.d2 + 10.0 * c1sq))
         self.t5cof = (0.2 * (3.0 * self.d4 + 12.0 * self.c1 * self.d3 + 6.0 * self.d2**2 +
                                 15.0 * c1sq * (2.0 * self.d2 + c1sq)))
-
-
-class _SGDP4:
-    """Class for SGDP4 computations."""
-
-    def __init__(self, orbital_elements):
-        self._params = _SGDP4Base(orbital_elements)
-
-    @property
-    def eo(self):
-        return self._params.eo
-
-    @property
-    def xincl(self):
-        return self._params.xincl
-
-    @property
-    def xno(self):
-        return self._params.xno
-
-    @property
-    def bstar(self):
-        return self._params.bstar
-
-    @property
-    def omegao(self):
-        return self._params.omegao
-
-    @property
-    def xmo(self):
-        return self._params.xmo
-
-    @property
-    def xnodeo(self):
-        return self._params.xnodeo
-
-    @property
-    def t_0(self):
-        return self._params.t_0
-
-    @property
-    def xn_0(self):
-        return self._params.xn_0
-
-    @property
-    def mode(self):
-        return self._params.mode
-
-    @property
-    def cosIO(self):
-        return self._params.cosIO
-
-    @property
-    def sinIO(self):
-        return self._params.sinIO
-
-    @property
-    def x3thm1(self):
-        return self._params.x3thm1
-
-    @property
-    def x1mth2(self):
-        return self._params.x1mth2
-
-    @property
-    def x7thm1(self):
-        return self._params.x7thm1
-
-    @property
-    def xnodp(self):
-        return self._params.xnodp
-
-    @property
-    def aodp(self):
-        return self._params.aodp
-
-    @property
-    def perigee(self):
-        return self._params.perigee
-
-    @property
-    def apogee(self):
-        return self._params.apogee
-
-    @property
-    def period(self):
-        return self._params.period
-
-    @property
-    def eta(self):
-        return self._params.eta
-
-    @property
-    def c1(self):
-        return self._params.c1
-
-    @property
-    def c2(self):
-        return self._params.c2
-
-    @property
-    def c3(self):
-        return self._params.c3
-
-    @property
-    def c4(self):
-        return self._params.c4
-
-    @property
-    def c5(self):
-        return self._params.c5
-
-    @property
-    def xmdot(self):
-        return self._params.xmdot
-
-    @property
-    def omgdot(self):
-        return self._params.omgdot
-
-    @property
-    def xnodot(self):
-        return self._params.xnodot
-
-    @property
-    def xmcof(self):
-        return self._params.xmcof
-
-    @property
-    def xnodcf(self):
-        return self._params.xnodcf
-
-    @property
-    def t2cof(self):
-        return self._params.t2cof
-
-    @property
-    def xlcof(self):
-        return self._params.xlcof
-
-    @property
-    def aycof(self):
-        return self._params.aycof
-
-    @property
-    def cosXMO(self):
-        return self._params.cosXMO
-
-    @property
-    def sinXMO(self):
-        return self._params.sinXMO
-
-    @property
-    def delmo(self):
-        return self._params.delmo
-
-    @property
-    def d2(self):
-        return self._params.d2
-
-    @property
-    def d3(self):
-        return self._params.d3
-
-    @property
-    def d4(self):
-        return self._params.d4
-
-    @property
-    def t3cof(self):
-        return self._params.t3cof
-
-    @property
-    def t4cof(self):
-        return self._params.t4cof
-
-    @property
-    def t5cof(self):
-        return self._params.t5cof
-
-
-    def propagate(self, utc_time):
-        if self.mode == SGDP4_ZERO_ECC:
-            raise NotImplementedError("Mode SGDP4_ZERO_ECC not implemented")
-
-        kep = _Keplerians(self._params)
-        return kep.calculate(utc_time)
 
 
 class _Keplerians:

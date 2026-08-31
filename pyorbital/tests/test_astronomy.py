@@ -93,6 +93,36 @@ class TestAstronomy:
             np.testing.assert_allclose(sun_theta, exp_theta, atol=abs_tolerance)
             assert isinstance(sun_theta, type(lon))
 
+    @pytest.mark.parametrize(
+        ("lon", "lat"),
+        [
+            (10, 50),
+            (0, 0),
+            (16, 59),
+            (-75, -30),
+        ]
+    )
+    def test_sun_zenith_angle_integer_scalar(self, lon, lat):
+        """Test that an integer scalar lon/lat neither crashes nor truncates to whole degrees."""
+        # The #156 dtype-preservation recast read ``.dtype`` off the raw ``lon`` argument,
+        # so an ``int`` scalar raised AttributeError instead of returning the angle.
+        time_slot = dt.datetime(2011, 9, 23, 12, 0)
+        expected = astr.sun_zenith_angle(time_slot, float(lon), float(lat))
+        result = astr.sun_zenith_angle(time_slot, lon, lat)
+        assert result == pytest.approx(expected, abs=1e-8)
+        assert isinstance(result, float)
+
+    @pytest.mark.parametrize("dtype", [np.int32, np.int64])
+    def test_sun_zenith_angle_integer_array(self, dtype):
+        """Test that integer-dtype arrays match the float result instead of truncating to whole degrees."""
+        time_slot = dt.datetime(2011, 9, 23, 12, 0)
+        lon = np.array([10, 20, 30, -75], dtype=dtype)
+        lat = np.array([50, 55, 60, -30], dtype=dtype)
+        result = astr.sun_zenith_angle(time_slot, lon, lat)
+        expected = astr.sun_zenith_angle(time_slot, lon.astype(np.float64), lat.astype(np.float64))
+        assert np.issubdtype(result.dtype, np.floating)
+        np.testing.assert_allclose(result, expected, atol=1e-8)
+
     def test_sun_earth_distance_correction(self):
         """Test the sun-earth distance correction."""
         utc_time = dt.datetime(2022, 6, 15, 12, 0, 0)

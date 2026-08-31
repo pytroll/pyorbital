@@ -30,9 +30,6 @@ TLE_GROUPS = ("active",
 TLE_URLS = [f"https://celestrak.org/NORAD/elements/gp.php?GROUP={group}&FORMAT=tle"
             for group in TLE_GROUPS]
 
-# Timeout for TLE downloads from the internet (seconds). Kept in sync with the
-# timeout used by Downloader.fetch_plain_tle so a stalled connection fails
-# loudly instead of hanging the caller forever.
 _TLE_FETCH_TIMEOUT = 15
 
 

@@ -201,7 +201,12 @@ def compute_pixels(orb, sgeom, times, rpy=(0.0, 0.0, 0.0)):
     lsq = np.einsum("ij,ij->j", xr_, xr_)
     csq = np.einsum("ij,ij->j", cr_, cr_)
 
-    d1_ = (ldotc - np.sqrt(ldotc ** 2 - csq * lsq + lsq)) / lsq
+    # A ray that misses the ellipsoid has no intersection to find. Clamping
+    # the discriminant to zero returns the point of closest approach on the
+    # tangent line, which keeps results finite and continuous while an
+    # optimizer explores attitudes that point past the edge of the Earth.
+    discriminant = np.maximum(ldotc ** 2 - csq * lsq + lsq, 0.0)
+    d1_ = (ldotc - np.sqrt(discriminant)) / lsq
 
     # return the actual pixel positions
     return vectors * d1_.reshape(shape[1:]) - centre

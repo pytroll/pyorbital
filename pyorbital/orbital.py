@@ -89,6 +89,20 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
 
 
 def get_observer_look_from_cartesian_position(utc_time, lon, lat, alt, pos_x, pos_y, pos_z):
+    """Calculate an observer's look angle to a satellite given in cartesian coordinates.
+
+    The satellite is given as an earth-centred inertial position, which is what
+    the propagator produces, so that a caller holding one need not turn it into
+    a longitude and latitude and back again.
+
+    :utc_time: Observation time (datetime object)
+    :lon: Longitude of observer position on ground in degrees east
+    :lat: Latitude of observer position on ground in degrees north
+    :alt: Altitude above sea-level (geoid) of observer position on ground in km
+    :pos_x, pos_y, pos_z: Satellite position in km
+
+    :return: (Azimuth, Elevation) in degrees
+    """
     (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \
         astronomy.observer_position(utc_time, lon, lat, alt)
     lon = np.deg2rad(lon)

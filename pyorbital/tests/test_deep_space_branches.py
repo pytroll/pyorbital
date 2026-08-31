@@ -25,7 +25,7 @@ import pytest
 
 from pyorbital.orbital import Orbital
 
-POSITION_TOLERANCE = 50e-6  # km, as for the AIAA cases
+POSITION_TOLERANCE = 5e-6  # km, as for the AIAA cases
 
 CASES = {
     "eccentricity above the fit boundary at 0.65": (

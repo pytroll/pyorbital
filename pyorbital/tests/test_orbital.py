@@ -424,9 +424,25 @@ def test_get_last_an_time_wrong_input(dtime):
         _ = orb.get_last_an_time(dtime)
 
 
+# The propagator gives the same answer either way; numpy may evaluate a sine
+# over an array with different instructions than over a single number, and the
+# two can differ in the last bit. See the same note in test_aiaa.py.
+AT_ONCE_TOLERANCE = 1e-9  # km
+
+
+def _deep_space_orbital(satellite, line1, line2):
+    from pyorbital.orbital import Orbital
+    return Orbital(satellite, line1=line1, line2=line2)
+
+
 RESONANT_DEEP_SPACE = (
     "1 08195U 75081A   06176.33215444  .00000099  00000-0  11873-3 0   813",
     "2 08195  64.1586 279.0717 6877146 264.7651  20.2257  2.00491383225656")
+
+
+NON_RESONANT_DEEP_SPACE = (
+    "1 23177U 94040C   06175.45752052  .00000386  00000-0  76590-3 0    95",
+    "2 23177   7.0496 179.8238 7258491 296.0482   8.3061  2.25906668 97438")
 
 
 def test_resonant_deep_space_propagates_several_times_like_one_at_a_time():
@@ -437,18 +453,10 @@ def test_resonant_deep_space_propagates_several_times_like_one_at_a_time():
     together = orb.get_position(times, normalize=False)
     separately = [orb.get_position(time, normalize=False) for time in times]
 
-    np.testing.assert_array_equal(together[0], np.array([p for p, _ in separately]).T)
-    np.testing.assert_array_equal(together[1], np.array([v for _, v in separately]).T)
-
-
-def _deep_space_orbital(satellite, line1, line2):
-    from pyorbital.orbital import Orbital
-    return Orbital(satellite, line1=line1, line2=line2)
-
-
-NON_RESONANT_DEEP_SPACE = (
-    "1 23177U 94040C   06175.45752052  .00000386  00000-0  76590-3 0    95",
-    "2 23177   7.0496 179.8238 7258491 296.0482   8.3061  2.25906668 97438")
+    np.testing.assert_allclose(together[0], np.array([p for p, _ in separately]).T,
+                               rtol=0, atol=AT_ONCE_TOLERANCE)
+    np.testing.assert_allclose(together[1], np.array([v for _, v in separately]).T,
+                               rtol=0, atol=AT_ONCE_TOLERANCE)
 
 
 def test_deep_space_propagates_several_times_like_one_at_a_time():
@@ -459,8 +467,10 @@ def test_deep_space_propagates_several_times_like_one_at_a_time():
     together = orb.get_position(times, normalize=False)
     separately = [orb.get_position(time, normalize=False) for time in times]
 
-    np.testing.assert_array_equal(together[0], np.array([p for p, _ in separately]).T)
-    np.testing.assert_array_equal(together[1], np.array([v for _, v in separately]).T)
+    np.testing.assert_allclose(together[0], np.array([p for p, _ in separately]).T,
+                               rtol=0, atol=AT_ONCE_TOLERANCE)
+    np.testing.assert_allclose(together[1], np.array([v for _, v in separately]).T,
+                               rtol=0, atol=AT_ONCE_TOLERANCE)
 
 
 def test_resonant_deep_space_propagates_backwards_and_forwards_at_once():
@@ -471,8 +481,10 @@ def test_resonant_deep_space_propagates_backwards_and_forwards_at_once():
     together = orb.get_position(times, normalize=False)
     separately = [orb.get_position(time, normalize=False) for time in times]
 
-    np.testing.assert_array_equal(together[0], np.array([p for p, _ in separately]).T)
-    np.testing.assert_array_equal(together[1], np.array([v for _, v in separately]).T)
+    np.testing.assert_allclose(together[0], np.array([p for p, _ in separately]).T,
+                               rtol=0, atol=AT_ONCE_TOLERANCE)
+    np.testing.assert_allclose(together[1], np.array([v for _, v in separately]).T,
+                               rtol=0, atol=AT_ONCE_TOLERANCE)
 
 
 def test_resonant_deep_space_does_not_care_what_order_the_times_come_in():

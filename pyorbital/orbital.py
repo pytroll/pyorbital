@@ -1311,6 +1311,11 @@ class _Keplerians:
         self._temp2 = self._temp1 * self._temp0
 
     def _iterate_newton_raphson(self):
+        """Solve Kepler's equation for the eccentric anomaly.
+
+        A time that has converged is left alone while the others catch up, so
+        that it ends up where it would have had it been asked for by itself.
+        """
         epw = np.fmod(self._xlt - self._xnode, 2 * np.pi)
         # needs a copy in case of an array
         capu = np.array(epw)
@@ -1321,7 +1326,8 @@ class _Keplerians:
             self._ecosE = self._axn * self._cosEPW + self._ayn * self._sinEPW
             self._esinE = self._axn * self._sinEPW - self._ayn * self._cosEPW
             f = capu - epw + self._esinE
-            if np.all(np.abs(f) < NR_EPS):
+            still_converging = np.abs(f) >= NR_EPS
+            if not np.any(still_converging):
                 break
 
             df = 1.0 - self._ecosE
@@ -1333,7 +1339,7 @@ class _Keplerians:
             nr = np.where(np.logical_and(i == 0, np.abs(nr) > 1.25 * self.ecc),
                           np.sign(nr) * self.ecc,
                           f / (df + 0.5 * self._esinE * nr))
-            epw += nr
+            epw = np.where(still_converging, epw + nr, epw)
 
 
     def _update_short_period(self):

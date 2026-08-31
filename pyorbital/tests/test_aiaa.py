@@ -190,18 +190,13 @@ def test_every_reference_satellite_is_propagated():
     assert not set(PROPAGATION_CASES) & CHECKSUM_ERROR_SATELLITES
 
 
-# Asking for many times at once does not give bit for bit what asking for each
-# one gives. Kepler's equation is solved by iterating until every time in the
-# array has converged, so the ones that converge first take a few more turns of
-# a loop that has all but stopped moving them, and their last bits differ. The
-# two agree far more closely than the model is verified to, which is what this
-# checks; removing the shared stopping test makes them agree exactly.
-AT_ONCE_TOLERANCE = 1e-6  # km
-
-
 @pytest.mark.parametrize("satnumber", PROPAGATION_CASES, ids=str)
 def test_propagating_to_all_the_times_at_once_agrees(satnumber):
-    """Every satellite gives the same states whether asked one time or all at once."""
+    """Every satellite gives the same states whether asked one time or all at once.
+
+    Exactly the same states: a time asked for alongside others must not come out
+    even a bit differently from the same time asked for alone.
+    """
     case = VERIFICATION_CASES[satnumber]
     orbital = Orbital("unknown", line1=case.line1, line2=case.line2)
     delays = _reference_delays(satnumber)
@@ -211,7 +206,5 @@ def test_propagating_to_all_the_times_at_once_agrees(satnumber):
     at_once = orbital.get_position(times, normalize=False)
     one_by_one = [orbital.get_position(time, normalize=False) for time in times]
 
-    np.testing.assert_allclose(at_once[0], np.array([p for p, _ in one_by_one]).T,
-                               rtol=0, atol=AT_ONCE_TOLERANCE)
-    np.testing.assert_allclose(at_once[1], np.array([v for _, v in one_by_one]).T,
-                               rtol=0, atol=AT_ONCE_TOLERANCE)
+    np.testing.assert_array_equal(at_once[0], np.array([p for p, _ in one_by_one]).T)
+    np.testing.assert_array_equal(at_once[1], np.array([v for _, v in one_by_one]).T)

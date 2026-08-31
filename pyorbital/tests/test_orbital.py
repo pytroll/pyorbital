@@ -437,17 +437,8 @@ def test_resonant_deep_space_propagates_several_times_like_one_at_a_time():
     together = orb.get_position(times, normalize=False)
     separately = [orb.get_position(time, normalize=False) for time in times]
 
-    np.testing.assert_allclose(together[0], np.array([p for p, _ in separately]).T,
-                               rtol=0, atol=AT_ONCE_TOLERANCE)
-    np.testing.assert_allclose(together[1], np.array([v for _, v in separately]).T,
-                               rtol=0, atol=AT_ONCE_TOLERANCE)
-
-
-# Solving Kepler's equation stops when every time in the array has converged,
-# so a time asked for alongside others takes a few more turns of an almost
-# stationary loop than it would alone, and its last bits differ. See the same
-# note in test_aiaa.py.
-AT_ONCE_TOLERANCE = 1e-6  # km
+    np.testing.assert_array_equal(together[0], np.array([p for p, _ in separately]).T)
+    np.testing.assert_array_equal(together[1], np.array([v for _, v in separately]).T)
 
 
 def _deep_space_orbital(satellite, line1, line2):
@@ -468,10 +459,8 @@ def test_deep_space_propagates_several_times_like_one_at_a_time():
     together = orb.get_position(times, normalize=False)
     separately = [orb.get_position(time, normalize=False) for time in times]
 
-    np.testing.assert_allclose(together[0], np.array([p for p, _ in separately]).T,
-                               rtol=0, atol=AT_ONCE_TOLERANCE)
-    np.testing.assert_allclose(together[1], np.array([v for _, v in separately]).T,
-                               rtol=0, atol=AT_ONCE_TOLERANCE)
+    np.testing.assert_array_equal(together[0], np.array([p for p, _ in separately]).T)
+    np.testing.assert_array_equal(together[1], np.array([v for _, v in separately]).T)
 
 
 def test_resonant_deep_space_propagates_backwards_and_forwards_at_once():
@@ -482,10 +471,8 @@ def test_resonant_deep_space_propagates_backwards_and_forwards_at_once():
     together = orb.get_position(times, normalize=False)
     separately = [orb.get_position(time, normalize=False) for time in times]
 
-    np.testing.assert_allclose(together[0], np.array([p for p, _ in separately]).T,
-                               rtol=0, atol=AT_ONCE_TOLERANCE)
-    np.testing.assert_allclose(together[1], np.array([v for _, v in separately]).T,
-                               rtol=0, atol=AT_ONCE_TOLERANCE)
+    np.testing.assert_array_equal(together[0], np.array([p for p, _ in separately]).T)
+    np.testing.assert_array_equal(together[1], np.array([v for _, v in separately]).T)
 
 
 def test_resonant_deep_space_does_not_care_what_order_the_times_come_in():

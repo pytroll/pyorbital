@@ -62,7 +62,6 @@ F = 1 / 298.257223563  # Earth flattening WGS-84
 A = 6378.137  # WGS84 Equatorial radius
 
 
-SGDP4_ZERO_ECC = 0
 SGDP4_DEEP_NORM = 1
 SGDP4_NEAR_SIMP = 2
 SGDP4_NEAR_NORM = 3
@@ -705,10 +704,6 @@ class _SGDP4:
         self.t_0 = orbit_elements.epoch
         self.xn_0 = orbit_elements.mean_motion
 
-        if self.eo < 0:
-            self.mode = self.SGDP4_ZERO_ECC
-            return
-
         self.cosIO = np.cos(self.xincl)
         self.sinIO = np.sin(self.xincl)
         theta2 = self.cosIO**2
@@ -792,9 +787,6 @@ class _SGDP4:
 
     def propagate(self, utc_time):
         """Give the Keplerian elements of the orbit at the given time or times."""
-        if self.mode == SGDP4_ZERO_ECC:
-            raise NotImplementedError("Mode SGDP4_ZERO_ECC not implemented")
-
         return _Keplerians(self).calculate(utc_time)
 
     @property

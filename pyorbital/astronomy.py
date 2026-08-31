@@ -155,10 +155,8 @@ def sun_zenith_angle(utc_time, lon, lat):
     lon,lat in degrees.
     The sun zenith angle returned is in degrees.
     """
-    sza = np.rad2deg(np.arccos(cos_zen(utc_time, lon, lat)))
-    if not isinstance(lon, float):
-        sza = sza.astype(lon.dtype)
-    return sza
+    # cos_zen already restores the input dtype, so no separate recast is needed here.
+    return np.rad2deg(np.arccos(cos_zen(utc_time, lon, lat)))
 
 
 def sun_azimuth_angle(utc_time, lon, lat):

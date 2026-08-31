@@ -34,11 +34,6 @@ CHECKSUM_ERROR_SATELLITES = {33333, 33334, 33335}
 # second as soon as a satellite is propagated across the turn of that year.
 LEAP_SECONDS = (np.datetime64("2006-01-01T00:00:00"),)
 
-NOT_YET_SUPPORTED = {
-    # Deep space, resonating once a day.
-    24208, 9998, 28626, 26900, 25954, 14128,
-}
-
 
 @dataclass(frozen=True)
 class ReferenceState:
@@ -165,9 +160,6 @@ def _assert_matches_reference(satnumber, delay, epoch, utc_time, position, veloc
 @pytest.mark.parametrize("satnumber", PROPAGATION_CASES, ids=str)
 def test_aiaa_verification_case(satnumber):
     """Propagated states match the AIAA reference values."""
-    if satnumber in NOT_YET_SUPPORTED:
-        pytest.skip(f"{satnumber} is not supported by the propagator yet")
-
     case = VERIFICATION_CASES[satnumber]
     orbital = Orbital("unknown", line1=case.line1, line2=case.line2)
 
@@ -196,4 +188,3 @@ def test_every_reference_satellite_is_propagated():
     """
     assert set(REFERENCE_STATES) == set(PROPAGATION_CASES)
     assert not set(PROPAGATION_CASES) & CHECKSUM_ERROR_SATELLITES
-    assert NOT_YET_SUPPORTED <= set(PROPAGATION_CASES)

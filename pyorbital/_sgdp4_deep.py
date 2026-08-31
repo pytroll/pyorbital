@@ -73,18 +73,24 @@ class DeepSpace:
         aonv = 1.0 / semi_major_axis
         theta = sidereal_time_at_epoch
 
-        if self.resonance != RESONANT_TWICE_A_DAY:
-            raise NotImplementedError(
-                "A satellite that circles once a day is not supported yet")
-
-        self._amplitudes = _twice_daily_resonance(self._geometry, eccentricity,
-                                                  mean_motion, aonv)
-        self._longitude_at_epoch = np.fmod(
-            mean_anomaly + right_ascension + right_ascension - theta - theta, TWO_PI)
-        self._longitude_rate_offset = (
-            mean_anomaly_rate + rates["dmdt"]
-            + 2.0 * (right_ascension_rate + rates["dnodt"] - EARTH_ROTATION)
-            - mean_motion)
+        if self.resonance == RESONANT_TWICE_A_DAY:
+            self._amplitudes = _twice_daily_resonance(self._geometry, eccentricity,
+                                                      mean_motion, aonv)
+            self._longitude_at_epoch = np.fmod(
+                mean_anomaly + right_ascension + right_ascension - theta - theta, TWO_PI)
+            self._longitude_rate_offset = (
+                mean_anomaly_rate + rates["dmdt"]
+                + 2.0 * (right_ascension_rate + rates["dnodt"] - EARTH_ROTATION)
+                - mean_motion)
+        else:
+            self._amplitudes = _once_daily_resonance(self._geometry, eccentricity,
+                                                     mean_motion, aonv)
+            self._longitude_at_epoch = np.fmod(
+                mean_anomaly + right_ascension + arg_perigee - theta, TWO_PI)
+            self._longitude_rate_offset = (
+                mean_anomaly_rate + arg_perigee_rate + right_ascension_rate
+                - EARTH_ROTATION + rates["dmdt"] + rates["domdt"] + rates["dnodt"]
+                - mean_motion)
 
     def resonant_correction(self, minutes_since_epoch, right_ascension, arg_perigee,
                             sidereal_time_at_epoch):
@@ -103,7 +109,10 @@ class DeepSpace:
         sidereal_time = np.fmod(
             sidereal_time_at_epoch + minutes_since_epoch * EARTH_ROTATION, TWO_PI)
 
-        mean_anomaly = longitude - 2.0 * right_ascension + 2.0 * sidereal_time
+        if self.resonance == RESONANT_TWICE_A_DAY:
+            mean_anomaly = longitude - 2.0 * right_ascension + 2.0 * sidereal_time
+        else:
+            mean_anomaly = longitude - right_ascension - arg_perigee + sidereal_time
         return mean_motion, mean_anomaly
 
     def secular_drift(self, minutes_since_epoch):
@@ -128,6 +137,10 @@ EARTH_ROTATION = 4.37526908801129966e-3
 ROOT22, ROOT32, ROOT44, ROOT52, ROOT54 = (1.7891679e-6, 3.7393792e-7, 7.3636953e-9,
                                           1.1428639e-7, 2.1765803e-9)
 G22, G32, G44, G52, G54 = 5.7686396, 0.95240898, 1.8014998, 1.0508330, 4.4108898
+
+# The same for the harmonics a geosynchronous orbit meets, once a day.
+Q22, Q31, Q33 = 1.7891679e-6, 2.1460748e-6, 2.2123015e-7
+FASX2, FASX4, FASX6 = 0.13130908, 2.8843198, 0.37448087
 
 # The step the resonance is integrated with, in minutes.
 RESONANCE_STEP = 720.0
@@ -264,6 +277,36 @@ def _twice_daily_rates(amplitudes, longitude, arg_perigee, mean_longitude_rate):
     return rate, acceleration * mean_longitude_rate
 
 
+def _once_daily_resonance(geometry, eccentricity, mean_motion, aonv):
+    """Give the amplitudes with which a geosynchronous orbit beats against the Earth."""
+    sinim, cosim = geometry["sin_inclination"], geometry["cos_inclination"]
+    emsq = eccentricity * eccentricity
+
+    g200 = 1.0 + emsq * (-2.5 + 0.8125 * emsq)
+    g310 = 1.0 + 2.0 * emsq
+    g300 = 1.0 + emsq * (-6.0 + 6.60937 * emsq)
+    f220 = 0.75 * (1.0 + cosim) * (1.0 + cosim)
+    f311 = 0.9375 * sinim * sinim * (1.0 + 3.0 * cosim) - 0.75 * (1.0 + cosim)
+    f330 = 1.0 + cosim
+    f330 = 1.875 * f330 * f330 * f330
+
+    scale = 3.0 * mean_motion * mean_motion * aonv * aonv
+    return {"del2": 2.0 * scale * f220 * g200 * Q22,
+            "del3": 3.0 * scale * f330 * g300 * Q33 * aonv,
+            "del1": scale * f311 * g310 * Q31 * aonv}
+
+
+def _once_daily_rates(amplitudes, longitude, mean_longitude_rate):
+    """Give how fast a geosynchronous orbit's mean longitude and mean motion change."""
+    rate = (amplitudes["del1"] * np.sin(longitude - FASX2)
+            + amplitudes["del2"] * np.sin(2.0 * (longitude - FASX4))
+            + amplitudes["del3"] * np.sin(3.0 * (longitude - FASX6)))
+    acceleration = (amplitudes["del1"] * np.cos(longitude - FASX2)
+                    + 2.0 * amplitudes["del2"] * np.cos(2.0 * (longitude - FASX4))
+                    + 3.0 * amplitudes["del3"] * np.cos(3.0 * (longitude - FASX6)))
+    return rate, acceleration * mean_longitude_rate
+
+
 def _integrate_resonance(minutes_since_epoch, longitude_at_epoch, mean_motion_at_epoch,
                          longitude_rate_offset, arg_perigee_at_epoch, arg_perigee_rate,
                          resonance, amplitudes):
@@ -300,8 +343,10 @@ def _resonance_rates(resonance, amplitudes, longitude, arg_perigee_at_epoch,
                      arg_perigee_rate, elapsed, mean_motion, longitude_rate_offset):
     """Give the rate and the acceleration of the beat at one point of the march."""
     longitude_rate = mean_motion + longitude_rate_offset
-    arg_perigee = arg_perigee_at_epoch + arg_perigee_rate * elapsed
-    return _twice_daily_rates(amplitudes, longitude, arg_perigee, longitude_rate)
+    if resonance == RESONANT_TWICE_A_DAY:
+        arg_perigee = arg_perigee_at_epoch + arg_perigee_rate * elapsed
+        return _twice_daily_rates(amplitudes, longitude, arg_perigee, longitude_rate)
+    return _once_daily_rates(amplitudes, longitude, longitude_rate)
 
 
 def _lunar_geometry(day):

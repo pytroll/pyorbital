@@ -2,6 +2,7 @@
 
 import datetime as dt
 import unittest
+import warnings
 from unittest import mock
 
 import numpy as np
@@ -422,3 +423,53 @@ def test_get_last_an_time_wrong_input(dtime):
     expected = "UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!"
     with pytest.raises(ValueError, match=expected):
         _ = orb.get_last_an_time(dtime)
+
+
+NOAA_20 = ("1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
+           "2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
+
+
+def _noaa_20():
+    return orbital.Orbital("NOAA-20", line1=NOAA_20[0], line2=NOAA_20[1])
+
+
+def test_satellite_overhead_is_ninety_degrees_up():
+    """An observer under the satellite sees it at the zenith.
+
+    There the ratio the elevation is taken from is one, and rounding can put it
+    a hair above, which is outside the domain of the arc sine. The answer is
+    ninety degrees, not a nan.
+    """
+    orb = _noaa_20()
+
+    for minutes in range(120):
+        time = dt.datetime(2024, 6, 25, 11, 5) + dt.timedelta(minutes=minutes)
+        sub_lon, sub_lat, _ = orb.get_lonlatalt(time)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            _, elevation = orb.get_observer_look(time, float(sub_lon), float(sub_lat), 0.0)
+
+        np.testing.assert_allclose(float(elevation), 90.0, atol=1e-5)
+
+
+def test_the_method_answers_as_the_function_does():
+    """Both ways of asking give the same angles, including due east and west.
+
+    They were written twice and drifted apart, which is what issue #44 reports.
+    """
+    orb = _noaa_20()
+
+    for minutes in range(0, 240, 7):
+        time = dt.datetime(2024, 6, 25, 11, 5) + dt.timedelta(minutes=minutes)
+        sat_lon, sat_lat, sat_alt = orb.get_lonlatalt(time)
+
+        for east_west_offset in (-40.0, -10.0, 10.0, 40.0):
+            lon = float(sat_lon) + east_west_offset
+            lat = float(sat_lat)
+
+            from_method = orb.get_observer_look(time, lon, lat, 0.0)
+            from_function = orbital.get_observer_look(sat_lon, sat_lat, sat_alt,
+                                                      time, lon, lat, 0.0)
+
+            np.testing.assert_allclose(from_method, from_function, atol=1e-3)

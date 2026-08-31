@@ -772,7 +772,22 @@ class _SGDP4:
                 self.omgdot, self.xnodot, self.aodp)
 
     def _days_since_1949(self):
-        """Date the epoch the way the lunar and solar ephemerides are written."""
+        """Date the epoch the way the lunar and solar ephemerides are written.
+
+        Counted straight from the epoch rather than by way of a Julian day, as
+        the article does. A Julian day of the nineteen-nineties is a number
+        around two and a half million, where the doubles either side of it lie
+        forty microseconds apart, so the count that comes back from one is
+        wrong by up to that much. Here it is right to a fraction of a
+        microsecond, against an epoch the element set only states to the
+        nearest millisecond anyway.
+
+        The difference is not quite invisible. It moves where the Sun and the
+        Moon are taken to be, and for an orbit as eccentric as that of the WIND
+        spacecraft, one of the verification satellites, it moves the satellite
+        four micrometres, which is most of the distance between what this
+        computes and what the verification file records.
+        """
         return (self.t_0 - np.datetime64("1949-12-31T00:00:00")) / np.timedelta64(1, "D")
 
     def propagate(self, utc_time):

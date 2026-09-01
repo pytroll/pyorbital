@@ -30,20 +30,18 @@ TLE_GROUPS = ("active",
 TLE_URLS = [f"https://celestrak.org/NORAD/elements/gp.php?GROUP={group}&FORMAT=tle"
             for group in TLE_GROUPS]
 
-_TLE_FETCH_TIMEOUT = 15
-
-
 def _get_tle_fetch_timeout():
     """Get the TLE fetch timeout, configurable via ``PYORBITAL_TLE_FETCH_TIMEOUT``."""
+    default_timeout = 15
     raw = os.environ.get("PYORBITAL_TLE_FETCH_TIMEOUT")
     if raw is None:
-        return _TLE_FETCH_TIMEOUT
+        return default_timeout
     try:
         return float(raw)
     except ValueError:
         LOGGER.warning("Invalid PYORBITAL_TLE_FETCH_TIMEOUT=%r, using default %ss",
-                       raw, _TLE_FETCH_TIMEOUT)
-        return _TLE_FETCH_TIMEOUT
+                       raw, default_timeout)
+        return default_timeout
 
 
 def _urlopen_with_timeout(url):

@@ -6,7 +6,7 @@ authors = [
     { name = "The Pytroll Team", email = "pytroll@googlegroups.com" }
 ]
 dependencies = [
-    "numpy>=1.19.0",
+    "numpy>=2.0.0",
     "scipy",
     "requests",
     "defusedxml",

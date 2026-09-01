@@ -4,6 +4,7 @@
 import contextlib
 import datetime as dt
 import warnings
+from dataclasses import replace
 from unittest import mock
 
 import numpy as np
@@ -38,42 +39,34 @@ from pyorbital.geoloc_instrument_definitions import (
     hirs4,
     mhs,
     mwhs2,
+    olci,
     slstr_nadir,
     viirs,
 )
 from pyorbital.orbital import Orbital
 
 # For tests whose assertions are convention-invariant (shapes, finiteness, or two
-# code paths agreeing): the checks must hold whichever convention is selected, and
-# relying on the default must still warn.
+# code paths agreeing): the checks must hold whichever convention is selected.
+# Both conventions are named explicitly.  The default is deliberately *not* one of
+# these cases: it resolves to "legacy", so including it would re-run an identical
+# computation, and the two facts that make it distinct -- that the default is the
+# legacy convention, and that relying on it warns -- are asserted once each in
+# test_local_frame_defaults_to_the_released_nadir_convention and
+# test_local_frame_explicit_legacy_choice_does_not_warn, and once per public entry
+# point in test_public_entry_points_honour_the_nadir_convention.
 NADIR_CONVENTION_CASES = [
-    pytest.param({}, True, id="default-warns"),
-    pytest.param({"nadir_convention": "legacy"}, False, id="explicit-legacy"),
-    pytest.param({"nadir_convention": "geocentric"}, False, id="geocentric"),
+    pytest.param({"nadir_convention": "legacy"}, id="legacy"),
+    pytest.param({"nadir_convention": "geocentric"}, id="geocentric"),
 ]
-
-NADIR_CONVENTIONS = [
-    pytest.param({}, True, "legacy", id="default-warns"),
-    pytest.param({"nadir_convention": "legacy"}, False, "legacy", id="explicit-legacy"),
-    pytest.param({"nadir_convention": "geocentric"}, False, "geocentric", id="geocentric"),
-]
-
 
 # For tests that reach the geolocation through APIs which take no convention
 # argument (geoloc_avhrr, bounding_box): the choice can only be made
-# process-wide, which is precisely what the config exists for.
+# process-wide, which is precisely what the config exists for.  As above, the
+# unset default is left out: it is the legacy case under another name.
 NADIR_CONFIG_CASES = [
-    pytest.param(None, True, id="default-warns"),
-    pytest.param("legacy", False, id="config-legacy"),
-    pytest.param("geocentric", False, id="config-geocentric"),
+    pytest.param("legacy", id="config-legacy"),
+    pytest.param("geocentric", id="config-geocentric"),
 ]
-
-
-def _configured_convention(convention):
-    """Context setting the process-wide convention, or leaving it unset."""
-    if convention is None:
-        return contextlib.nullcontext()
-    return config.set(nadir_convention=convention)
 
 
 _NUMBA_AVAILABLE = geoloc._HAS_NUMBA
@@ -155,8 +148,8 @@ def test_qrotate():
 class TestGeoloc:
     """Test for the core computing part."""
 
-    @pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-    def test_scan_geometry(self, kwargs, warns):
+    @pytest.mark.parametrize("kwargs", NADIR_CONVENTION_CASES)
+    def test_scan_geometry(self, kwargs):
         """Test the ScanGeometry object."""
         scans_nb = 1
 
@@ -176,17 +169,14 @@ class TestGeoloc:
         pos = np.stack([np.array([0, 0, 7000])] * 3, 1)[:, np.newaxis, :]
         vel = np.stack([np.array([1, 0, 0])] * 3, 1)[:, np.newaxis, :]
 
-        context = _expect_convention_warning(warns)
-        with context:
-            vec = instrument.vectors(pos, vel, **kwargs)
+        vec = instrument.vectors(pos, vel, **kwargs)
 
         result = vec[:, 0, 1]
         expected = np.array([0.0, 0.0, -1.0])
         np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
 
         # Check if we can pass an array for yaw
-        with context:
-            vec = instrument.vectors(pos, vel, yaw=[0], **kwargs)
+        vec = instrument.vectors(pos, vel, yaw=[0], **kwargs)
 
         result = vec[:, 0, 1]
         expected = np.array([0.0, 0.0, -1.0])
@@ -281,11 +271,10 @@ def test_local_frame_nadir_is_perpendicular_to_ellipsoid():
     assert angle_deg < 0.01, f"nadir deviates {angle_deg:.4f}° from geodetic normal (should be < 0.01°)"
 
 
-@pytest.mark.parametrize(("convention", "warns"), NADIR_CONFIG_CASES)
-def test_arbitrary_point_geoloc(convention, warns, numba_path):
+@pytest.mark.parametrize("convention", NADIR_CONFIG_CASES)
+def test_arbitrary_point_geoloc(convention, numba_path):
     """Test geolocating an arbitrary point in the swath."""
-    context = _expect_convention_warning(warns)
-    with _configured_convention(convention), context:
+    with config.set(nadir_convention=convention):
         from pyorbital.geoloc_avhrr import compute_avhrr_gcps_lonlatalt
 
         # Couple of example Two Line Elements
@@ -320,13 +309,12 @@ def test_arbitrary_point_geoloc(convention, warns, numba_path):
         assert lats[2] == pytest.approx(expected[1][1])
 
 
-@pytest.mark.parametrize(("convention", "warns"), NADIR_CONFIG_CASES)
-def test_minimize_geoloc_error(convention, warns):
+@pytest.mark.parametrize("convention", NADIR_CONFIG_CASES)
+def test_minimize_geoloc_error(convention):
     """Test minimizing the distance to a set of gcps."""
-    context = _expect_convention_warning(warns)
     # these exercise a non-zero pitch, so pin the rotation order and let the
     # parametrisation vary only the nadir convention
-    with _configured_convention(convention), config.set(rotation_order="legacy"), context:
+    with config.set(nadir_convention=convention, rotation_order="legacy"):
         # Couple of example Two Line Elements
         tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
         tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
@@ -350,13 +338,12 @@ def test_minimize_geoloc_error(convention, warns):
         assert min(do) > max(dm)
 
 
-@pytest.mark.parametrize(("convention", "warns"), NADIR_CONFIG_CASES)
-def test_minimize_time_error(convention, warns):
+@pytest.mark.parametrize("convention", NADIR_CONFIG_CASES)
+def test_minimize_time_error(convention):
     """Test minimizing the distance to a set of gcps using only time offset."""
-    context = _expect_convention_warning(warns)
     # these exercise a non-zero pitch, so pin the rotation order and let the
     # parametrisation vary only the nadir convention
-    with _configured_convention(convention), config.set(rotation_order="legacy"), context:
+    with config.set(nadir_convention=convention, rotation_order="legacy"):
         # Couple of example Two Line Elements
         tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
         tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
@@ -644,17 +631,6 @@ def test_pushbroom_swath_generates_scan_geometry():
     assert geom._times[1, -1] == time_sampling * 10
 
 
-def test_olci_scan_constant_matches_olci_function():
-    """Test that OLCI_SCAN constant produces geometry matching the legacy olci() function."""
-    from pyorbital.geoloc_instrument_definitions import OLCI_SCAN, olci
-
-    legacy_geom = olci(10)
-    swath = PushbroomSwath(scanline=OLCI_SCAN, time_sampling=np.timedelta64(44, "ms"))
-    new_geom = swath.scan_geometry(scan_lines=slice(10))
-    np.testing.assert_allclose(new_geom.fovs, legacy_geom.fovs)
-    np.testing.assert_allclose(new_geom._times.astype(float), legacy_geom._times.astype(float), atol=1)
-
-
 def test_olci_scan_step_scales_time_offsets():
     """Test that OLCI scan decimation preserves elapsed observation time."""
     from pyorbital.geoloc_instrument_definitions import olci
@@ -664,22 +640,10 @@ def test_olci_scan_step_scales_time_offsets():
     assert geom._times[1, 0] == np.timedelta64(4400, "ms")
 
 
-def test_slstr_nadir_scan_constant():
-    """Test that SLSTR_NADIR_SCAN constant produces geometry matching legacy slstr_nadir()."""
-    from pyorbital.geoloc_instrument_definitions import SLSTR_NADIR_SCAN
-
-    legacy_geom = slstr_nadir(10)
-    swath = PushbroomSwath(scanline=SLSTR_NADIR_SCAN, time_sampling=np.timedelta64(0, "ms"))
-    new_geom = swath.scan_geometry(scan_lines=slice(10))
-    np.testing.assert_allclose(new_geom.fovs, legacy_geom.fovs)
-    np.testing.assert_equal(new_geom._times, legacy_geom._times)
-
-
-@pytest.mark.parametrize(("convention", "warns"), NADIR_CONFIG_CASES)
-def test_bounding_box_returns_closed_polygon(convention, warns):
+@pytest.mark.parametrize("convention", NADIR_CONFIG_CASES)
+def test_bounding_box_returns_closed_polygon(convention):
     """Test that bounding_box returns a closed polygon of lon/lat points."""
-    context = _expect_convention_warning(warns)
-    with _configured_convention(convention), context:
+    with config.set(nadir_convention=convention):
         from pyorbital.geoloc import bounding_box
         from pyorbital.geoloc_instrument_definitions import OLCI_SWATH
 
@@ -717,214 +681,164 @@ def test_yaw_steering_changes_vectors():
     assert abs(yaw_angle) < np.deg2rad(4)
 
 
-@pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_yaw_steering_applied_in_vectors(kwargs, warns):
+@pytest.mark.parametrize("kwargs", NADIR_CONVENTION_CASES)
+def test_yaw_steering_applied_in_vectors(kwargs):
     """Test that vectors() applies yaw steering when enabled."""
-    context = _expect_convention_warning(warns)
-    with context:
-        from pyorbital.geoloc import compute_yaw_steering
+    from pyorbital.geoloc import compute_yaw_steering
 
-        xy = np.vstack((np.deg2rad(np.array([10, 0, -10])),
-                        np.array([0, 0, 0])))
-        xy = np.tile(xy[:, np.newaxis, :], [1, 1, 1])
-        times = np.tile([0, 0, 0], [1, 1])
-        instrument = ScanGeometry(xy, times)
+    xy = np.vstack((np.deg2rad(np.array([10, 0, -10])),
+                    np.array([0, 0, 0])))
+    xy = np.tile(xy[:, np.newaxis, :], [1, 1, 1])
+    times = np.tile([0, 0, 0], [1, 1])
+    instrument = ScanGeometry(xy, times)
 
-        pos = np.array([[7000, 0, 0]]).T
-        vel = np.array([[0, 7.5, 0]]).T
-        pos = np.stack([pos[:, 0]] * 3, axis=1)[:, np.newaxis, :]
-        vel = np.stack([vel[:, 0]] * 3, axis=1)[:, np.newaxis, :]
+    pos = np.array([[7000, 0, 0]]).T
+    vel = np.array([[0, 7.5, 0]]).T
+    pos = np.stack([pos[:, 0]] * 3, axis=1)[:, np.newaxis, :]
+    vel = np.stack([vel[:, 0]] * 3, axis=1)[:, np.newaxis, :]
 
-        vec_no_steering = instrument.vectors(pos, vel, **kwargs)
-        vec_with_steering = instrument.vectors(pos, vel, yaw_steering=True, **kwargs)
+    vec_no_steering = instrument.vectors(pos, vel, **kwargs)
+    vec_with_steering = instrument.vectors(pos, vel, yaw_steering=True, **kwargs)
 
-        # Vectors should differ when yaw steering is applied
-        assert not np.allclose(vec_no_steering, vec_with_steering)
+    # Vectors should differ when yaw steering is applied
+    assert not np.allclose(vec_no_steering, vec_with_steering)
 
-        # Manually compute: yaw steering should add the computed yaw angle
-        yaw_angle = compute_yaw_steering(pos, vel)
-        vec_manual_yaw = instrument.vectors(pos, vel, yaw=yaw_angle, **kwargs)
-        np.testing.assert_allclose(vec_with_steering, vec_manual_yaw)
+    # Manually compute: yaw steering should add the computed yaw angle
+    yaw_angle = compute_yaw_steering(pos, vel)
+    vec_manual_yaw = instrument.vectors(pos, vel, yaw=yaw_angle, **kwargs)
+    np.testing.assert_allclose(vec_with_steering, vec_manual_yaw)
 
 
-@pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_compute_pixels_with_yaw_steering(kwargs, warns, numba_path):
+@pytest.mark.parametrize("kwargs", NADIR_CONVENTION_CASES)
+def test_compute_pixels_with_yaw_steering(kwargs, numba_path):
     """Test that compute_pixels passes yaw_steering through to vectors."""
-    context = _expect_convention_warning(warns)
-    with context:
-        from pyorbital.geoloc import compute_pixels
+    from pyorbital.geoloc import compute_pixels
 
-        tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
-        tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
-        t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
 
-        # Create a simple 1D scan geometry (like compute_avhrr_gcps_lonlatalt does)
-        scan_angles = np.array([np.deg2rad(-55.37), 0, np.deg2rad(55.37)])
-        fovs = np.vstack((scan_angles, np.zeros(3)))
-        times = np.array([0.0, 0.001, 0.002])
-        sgeom = ScanGeometry(fovs, times)
-        s_times = sgeom.times(t)
+    # Create a simple 1D scan geometry (like compute_avhrr_gcps_lonlatalt does)
+    scan_angles = np.array([np.deg2rad(-55.37), 0, np.deg2rad(55.37)])
+    fovs = np.vstack((scan_angles, np.zeros(3)))
+    times = np.array([0.0, 0.001, 0.002])
+    sgeom = ScanGeometry(fovs, times)
+    s_times = sgeom.times(t)
 
-        pixels_no_yaw = compute_pixels((tle1, tle2), sgeom, s_times, **kwargs)
-        pixels_yaw = compute_pixels((tle1, tle2), sgeom, s_times, yaw_steering=True, **kwargs)
+    pixels_no_yaw = compute_pixels((tle1, tle2), sgeom, s_times, **kwargs)
+    pixels_yaw = compute_pixels((tle1, tle2), sgeom, s_times, yaw_steering=True, **kwargs)
 
-        # The positions should differ with yaw steering
-        assert not np.allclose(pixels_no_yaw, pixels_yaw)
+    # The positions should differ with yaw steering
+    assert not np.allclose(pixels_no_yaw, pixels_yaw)
 
 
-@pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_compute_pixels_with_2d_scan_times(kwargs, warns, numba_path):
+@pytest.mark.parametrize("kwargs", NADIR_CONVENTION_CASES)
+def test_compute_pixels_with_2d_scan_times(kwargs, numba_path):
     """Test that compute_pixels works with multi-scan 2D time arrays (avhrr-style).
 
     avhrr() produces fovs of shape (2, N_SCANS, N_PX) and times of shape
     (N_SCANS, N_PX). compute_pixels must handle this without crashing and
     return pixel positions of the correct shape.
     """
-    context = _expect_convention_warning(warns)
-    with context:
-        from pyorbital.geoloc import compute_pixels, get_lonlatalt
-        from pyorbital.geoloc_instrument_definitions import avhrr
+    from pyorbital.geoloc import compute_pixels, get_lonlatalt
+    from pyorbital.geoloc_instrument_definitions import avhrr
 
-        tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
-        tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
-        t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
 
-        n_scans, n_px = 5, 10
-        sgeom = avhrr(n_scans, np.arange(n_px))
-        s_times = sgeom.times(t)
+    n_scans, n_px = 5, 10
+    sgeom = avhrr(n_scans, np.arange(n_px))
+    s_times = sgeom.times(t)
 
-        assert s_times.shape == (n_scans, n_px), "times should be 2D"
+    assert s_times.shape == (n_scans, n_px), "times should be 2D"
 
-        pixels = compute_pixels((tle1, tle2), sgeom, s_times, **kwargs)
-        lons, lats, alts = get_lonlatalt(pixels, s_times)
+    pixels = compute_pixels((tle1, tle2), sgeom, s_times, **kwargs)
+    lons, lats, alts = get_lonlatalt(pixels, s_times)
 
-        assert pixels.shape == (3, n_scans * n_px)
-        assert lons.shape == (n_scans * n_px,)
-        assert np.all(np.isfinite(lons))
-        assert np.all(np.abs(lats) <= 90)
-        # Pixels are surface points: altitude should be within terrain range (not orbital altitude)
-        assert np.all(np.abs(alts) < 10000)
+    assert pixels.shape == (3, n_scans * n_px)
+    assert lons.shape == (n_scans * n_px,)
+    assert np.all(np.isfinite(lons))
+    assert np.all(np.abs(lats) <= 90)
+    # Pixels are surface points: altitude should be within terrain range (not orbital altitude)
+    assert np.all(np.abs(alts) < 10000)
 
 
-@pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_compute_pixels_2d_matches_1d_reference(kwargs, warns, numba_path):
+@pytest.mark.parametrize("kwargs", NADIR_CONVENTION_CASES)
+def test_compute_pixels_2d_matches_1d_reference(kwargs, numba_path):
     """Test that the 2D-times path gives the same result as the 1D reference path.
 
     The 1D reference path (flat ScanGeometry, per-pixel SGP4) is the
     original correct behaviour.  The 2D path uses per-scan SGP4 which
     is an approximation; the difference should be sub-pixel (< 0.01 deg).
     """
-    context = _expect_convention_warning(warns)
-    with context:
-        from pyorbital.geoloc import compute_pixels, get_lonlatalt
-        from pyorbital.geoloc_instrument_definitions import avhrr
+    from pyorbital.geoloc import compute_pixels, get_lonlatalt
+    from pyorbital.geoloc_instrument_definitions import avhrr
 
-        tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
-        tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
-        t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
 
-        scan_pts = np.arange(200)
+    scan_pts = np.arange(200)
 
-        # Reference: flat 1D ScanGeometry (per-pixel SGP4)
-        cross_angles = (scan_pts / 1023.5 - 1) * np.deg2rad(-55.37)
-        fovs_flat = np.vstack([cross_angles, np.zeros(len(scan_pts))])
-        t_float = scan_pts * 0.000025
-        sgeom_ref = ScanGeometry(fovs_flat, t_float)
-        s_times_ref = sgeom_ref.times(t)
-        pix_ref = compute_pixels((tle1, tle2), sgeom_ref, s_times_ref, **kwargs)
-        lons_ref, lats_ref, _ = get_lonlatalt(pix_ref, s_times_ref)
+    # Reference: flat 1D ScanGeometry (per-pixel SGP4)
+    cross_angles = (scan_pts / 1023.5 - 1) * np.deg2rad(-55.37)
+    fovs_flat = np.vstack([cross_angles, np.zeros(len(scan_pts))])
+    t_float = scan_pts * 0.000025
+    sgeom_ref = ScanGeometry(fovs_flat, t_float)
+    s_times_ref = sgeom_ref.times(t)
+    pix_ref = compute_pixels((tle1, tle2), sgeom_ref, s_times_ref, **kwargs)
+    lons_ref, lats_ref, _ = get_lonlatalt(pix_ref, s_times_ref)
 
-        # 2D path: avhrr(1, ...) with per-scan SGP4 approximation
-        sgeom_2d = avhrr(1, scan_pts)
-        s_times_2d = sgeom_2d.times(t)
-        pix_2d = compute_pixels((tle1, tle2), sgeom_2d, s_times_2d, **kwargs)
-        lons_2d, lats_2d, _ = get_lonlatalt(pix_2d, s_times_2d)
+    # 2D path: avhrr(1, ...) with per-scan SGP4 approximation
+    sgeom_2d = avhrr(1, scan_pts)
+    s_times_2d = sgeom_2d.times(t)
+    pix_2d = compute_pixels((tle1, tle2), sgeom_2d, s_times_2d, **kwargs)
+    lons_2d, lats_2d, _ = get_lonlatalt(pix_2d, s_times_2d)
 
-        # Per-scan SGP4 is an approximation; error < 0.01 deg for AVHRR scan rates
-        np.testing.assert_allclose(lons_2d, lons_ref, atol=0.01)
-        np.testing.assert_allclose(lats_2d, lats_ref, atol=0.01)
+    # Per-scan SGP4 is an approximation; error < 0.01 deg for AVHRR scan rates
+    np.testing.assert_allclose(lons_2d, lons_ref, atol=0.01)
+    np.testing.assert_allclose(lats_2d, lats_ref, atol=0.01)
 
 
-@pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_geolocate_multiline_scan_matches_per_pixel_orbit_propagation(kwargs, warns, numba_path):
-    """A compact scan must retain the orbital motion during its sweep."""
-    context = _expect_convention_warning(warns)
-    with context:
-        from pyorbital.geoloc import ScanGeometry, geolocate
+def _counting_orbit(epoch, max_states):
+    """A stub orbit on a straight line that refuses to be asked for too many states."""
+    class BoundedOrbit:
+        def get_position(self, times, normalize=False):
+            assert np.asarray(times).size <= max_states, "too many orbit states propagated at once"
+            seconds = (np.asarray(times) - epoch) / np.timedelta64(1, "s")
+            position = np.vstack([np.full_like(seconds, 7000.0), 7.5 * seconds, np.zeros_like(seconds)])
+            velocity = np.vstack([np.zeros_like(seconds), np.full_like(seconds, 7.5), np.zeros_like(seconds)])
+            return position, velocity
 
-        tle = (
-            "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
-            "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875",
-        )
-        start = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
-        pixel_times = np.linspace(0.0, 1.48, 129)
-        cross_track = np.linspace(np.deg2rad(55.0), np.deg2rad(-55.0), 129)
-
-        compact = ScanGeometry(
-            np.stack([cross_track, np.zeros_like(cross_track)])[:, np.newaxis, :],
-            pixel_times[np.newaxis, :],
-        )
-        exact = ScanGeometry(np.stack([cross_track, np.zeros_like(cross_track)]), pixel_times)
-
-        compact_lon, compact_lat, _ = geolocate(tle, compact, compact.times(start), **kwargs)
-        exact_lon, exact_lat, _ = geolocate(tle, exact, exact.times(start), **kwargs)
-
-        np.testing.assert_allclose(compact_lon, exact_lon, atol=9e-5)
-        np.testing.assert_allclose(compact_lat, exact_lat, atol=9e-5)
+    return BoundedOrbit()
 
 
-@pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_geolocate_compact_scan_samples_only_orbit_endpoints(kwargs, warns, numba_path):
-    """Compact scans must not require one propagated orbit state per pixel."""
-    context = _expect_convention_warning(warns)
-    with context:
-        from pyorbital.geoloc import ScanGeometry, geolocate
+@pytest.mark.parametrize(("rows", "max_states"), [
+    pytest.param(1, 2, id="single-scan-uses-endpoints"),
+    pytest.param(100, 32, id="long-pass-stays-batched"),
+])
+def test_geolocate_does_not_propagate_one_orbit_state_per_pixel(rows, max_states):
+    """Geolocating a scan must stay bounded in the number of orbit states it holds.
 
-        epoch = np.datetime64("2020-01-01T00:00:00")
+    The point of taking a whole scan at once is that the orbit is propagated for
+    the scan, not for every pixel in it; a pass of a real instrument is millions
+    of pixels, so propagating per pixel would exhaust memory rather than merely
+    run slowly.  The stub orbit fails the test if it is ever handed more times
+    than that.  The nadir convention has no bearing on the batching, so this is
+    not parametrised over it.
+    """
+    from pyorbital.geoloc import ScanGeometry, geolocate
 
-        class EndpointOrbit:
-            def get_position(self, times, normalize=False):
-                assert np.asarray(times).size <= 2
-                seconds = (np.asarray(times) - epoch) / np.timedelta64(1, "s")
-                position = np.vstack([np.full_like(seconds, 7000.0), 7.5 * seconds, np.zeros_like(seconds)])
-                velocity = np.vstack([np.zeros_like(seconds), np.full_like(seconds, 7.5), np.zeros_like(seconds)])
-                return position, velocity
+    epoch = np.datetime64("2020-01-01T00:00:00")
+    pixel_offsets = np.linspace(0.0, 1.48, 17)
+    offsets = np.arange(rows)[:, np.newaxis] * 1.5 + pixel_offsets
+    geometry = ScanGeometry(np.zeros((2, rows, pixel_offsets.size)), offsets)
 
-        pixel_times = np.linspace(0.0, 1.48, 17)
-        geometry = ScanGeometry(
-            np.zeros((2, 1, pixel_times.size)),
-            pixel_times[np.newaxis, :],
-        )
+    lon, lat, alt = geolocate(_counting_orbit(epoch, max_states), geometry, geometry.times(epoch),
+                              nadir_convention="geocentric")
 
-        lon, lat, alt = geolocate(EndpointOrbit(), geometry, geometry.times(epoch), **kwargs)
-
-        assert np.all(np.isfinite((lon, lat, alt)))
-
-
-@pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_geolocate_compact_pass_bounds_orbit_sampling_batches(kwargs, warns, numba_path):
-    """A compact pass must bound temporary orbit-state batches."""
-    context = _expect_convention_warning(warns)
-    with context:
-        from pyorbital.geoloc import ScanGeometry, geolocate
-
-        epoch = np.datetime64("2020-01-01T00:00:00")
-
-        class BoundedOrbit:
-            def get_position(self, times, normalize=False):
-                assert np.asarray(times).size <= 32
-                seconds = (np.asarray(times) - epoch) / np.timedelta64(1, "s")
-                position = np.vstack([np.full_like(seconds, 7000.0), 7.5 * seconds, np.zeros_like(seconds)])
-                velocity = np.vstack([np.zeros_like(seconds), np.full_like(seconds, 7.5), np.zeros_like(seconds)])
-                return position, velocity
-
-        pixel_offsets = np.linspace(0.0, 1.48, 17)
-        row_offsets = np.arange(100)[:, np.newaxis] * 1.5 + pixel_offsets
-        geometry = ScanGeometry(np.zeros((2, 100, 17)), row_offsets)
-
-        lon, lat, alt = geolocate(BoundedOrbit(), geometry, geometry.times(epoch), **kwargs)
-
-        assert np.all(np.isfinite((lon, lat, alt)))
+    assert np.all(np.isfinite((lon, lat, alt)))
 
 
 def test_get_sensor_angles_accepts_orbit_provider():
@@ -947,61 +861,79 @@ def test_get_sensor_angles_accepts_orbit_provider():
     np.testing.assert_allclose([zenith, azimuth], [90.0 - expected_elevation, expected_azimuth])
 
 
-@pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_geolocate_accepts_per_scan_attitude(kwargs, warns, numba_path):
+@pytest.mark.parametrize("kwargs", NADIR_CONVENTION_CASES)
+def test_geolocate_accepts_per_scan_attitude(kwargs, numba_path):
     """Per-scan RPY arrays match independent single-scan geolocation."""
-    context = _expect_convention_warning(warns)
-    with context:
-        from pyorbital.geoloc import geolocate
-        from pyorbital.geoloc_instrument_definitions import MultiLineWhiskbroomScan
+    from pyorbital.geoloc import geolocate
+    from pyorbital.geoloc_instrument_definitions import MultiLineWhiskbroomScan
 
-        tle = (
-            "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
-            "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875",
-        )
-        start = np.datetime64("2012-12-12T04:16:01.575")
-        scan = MultiLineWhiskbroomScan(20, 55.0, 1.5, 0.001, 1, 1.0 / 830.0)
-        attitudes = np.array([[0.001, 0.0, 0.0], [-0.001, 0.0, 0.0]])
-        combined_geometry = scan.scan_geometry(2)
-
-        combined = geolocate(tle, combined_geometry, combined_geometry.times(start), rpy=attitudes, **kwargs)
-        independent = [
-            geolocate(tle, geometry, geometry.times(start), rpy=attitude, **kwargs)
-            for geometry, attitude in zip(
-                [scan.scan_geometry(1, scan_offsets=[0.0]), scan.scan_geometry(1, scan_offsets=[1.5])],
-                attitudes,
-                strict=True,
-            )
-        ]
-
-        np.testing.assert_allclose(combined[:2], [np.concatenate([part[i] for part in independent]) for i in range(2)])
-
-
-def test_whiskbroom_scan_constants_match_legacy_functions():
-    """Test that whiskbroom instrument constants produce geometry matching the legacy functions."""
-    from pyorbital.geoloc_instrument_definitions import (
-        AMSU_A_SCAN,
-        ATMS_SCAN,
-        HIRS4_SCAN,
-        MHS_SCAN,
-        MWHS2_SCAN,
+    tle = (
+        "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+        "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875",
     )
-    for scan, legacy_fn in [
-        (AMSU_A_SCAN, amsua),
-        (MHS_SCAN, mhs),
-        (HIRS4_SCAN, hirs4),
-        (ATMS_SCAN, atms),
-        (MWHS2_SCAN, mwhs2),
-    ]:
-        legacy_geom = legacy_fn(5)
-        new_geom = scan.scan_geometry(5)
-        np.testing.assert_allclose(new_geom.fovs, legacy_geom.fovs, rtol=1e-6, atol=1e-6,
-                                   err_msg=f"{scan} fovs mismatch")
-        np.testing.assert_allclose(
-            new_geom._times.view(np.int64).astype(np.float64),
-            legacy_geom._times.view(np.int64).astype(np.float64),
-            rtol=1e-6, atol=1e-6,
-            err_msg=f"{scan} times mismatch")
+    start = np.datetime64("2012-12-12T04:16:01.575")
+    scan = MultiLineWhiskbroomScan(20, 55.0, 1.5, 0.001, 1, 1.0 / 830.0)
+    attitudes = np.array([[0.001, 0.0, 0.0], [-0.001, 0.0, 0.0]])
+    combined_geometry = scan.scan_geometry(2)
+
+    combined = geolocate(tle, combined_geometry, combined_geometry.times(start), rpy=attitudes, **kwargs)
+    independent = [
+        geolocate(tle, geometry, geometry.times(start), rpy=attitude, **kwargs)
+        for geometry, attitude in zip(
+            [scan.scan_geometry(1, scan_offsets=[0.0]), scan.scan_geometry(1, scan_offsets=[1.5])],
+            attitudes,
+            strict=True,
+        )
+    ]
+
+    np.testing.assert_allclose(combined[:2], [np.concatenate([part[i] for part in independent]) for i in range(2)])
+
+
+# The scan constants replace the per-instrument functions released earlier.  What
+# has to hold for every one of them is the same statement -- the constant builds
+# the geometry the legacy function built -- so it is one test over the instruments
+# rather than one test per instrument, and a failure names the instrument that
+# broke instead of stopping at the first.
+PUSHBROOM_CONSTANTS = [
+    pytest.param("OLCI_SCAN", olci, np.timedelta64(44, "ms"), 1.0, id="olci"),
+    pytest.param("SLSTR_NADIR_SCAN", slstr_nadir, np.timedelta64(0, "ms"), 0.0, id="slstr_nadir"),
+]
+
+WHISKBROOM_CONSTANTS = [
+    pytest.param("AMSU_A_SCAN", amsua, id="amsua"),
+    pytest.param("MHS_SCAN", mhs, id="mhs"),
+    pytest.param("HIRS4_SCAN", hirs4, id="hirs4"),
+    pytest.param("ATMS_SCAN", atms, id="atms"),
+    pytest.param("MWHS2_SCAN", mwhs2, id="mwhs2"),
+]
+
+
+@pytest.mark.parametrize(("constant", "legacy_fn", "time_sampling", "time_atol"), PUSHBROOM_CONSTANTS)
+def test_pushbroom_constants_match_the_legacy_functions(constant, legacy_fn, time_sampling, time_atol):
+    """A pushbroom scan constant must build the geometry its legacy function built."""
+    import pyorbital.geoloc_instrument_definitions as defs
+
+    legacy_geom = legacy_fn(10)
+    swath = PushbroomSwath(scanline=getattr(defs, constant), time_sampling=time_sampling)
+    new_geom = swath.scan_geometry(scan_lines=slice(10))
+
+    np.testing.assert_allclose(new_geom.fovs, legacy_geom.fovs)
+    np.testing.assert_allclose(new_geom._times.astype(float), legacy_geom._times.astype(float),
+                               atol=time_atol)
+
+
+@pytest.mark.parametrize(("constant", "legacy_fn"), WHISKBROOM_CONSTANTS)
+def test_whiskbroom_constants_match_the_legacy_functions(constant, legacy_fn):
+    """A whiskbroom scan constant must build the geometry its legacy function built."""
+    import pyorbital.geoloc_instrument_definitions as defs
+
+    legacy_geom = legacy_fn(5)
+    new_geom = getattr(defs, constant).scan_geometry(5)
+
+    np.testing.assert_allclose(new_geom.fovs, legacy_geom.fovs, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(new_geom._times.view(np.int64).astype(np.float64),
+                               legacy_geom._times.view(np.int64).astype(np.float64),
+                               rtol=1e-6, atol=1e-6)
 
 
 def test_multiline_whiskbroom_fov_shape():
@@ -1036,17 +968,8 @@ def test_multiline_whiskbroom_along_track_angles():
     np.testing.assert_equal(scan_times[0], scan_times[1])
 
 
-def test_multiline_whiskbroom_lines_per_scan_in_scan_geometry():
-    """Assert that ScanGeometry.lines_per_scan attribute is set correctly."""
-    from pyorbital.geoloc import ScanGeometry
-    fovs = np.zeros((2, 8, 5))
-    times = np.zeros((8, 5))
-    geom = ScanGeometry(fovs, times, lines_per_scan=4)
-    assert geom.lines_per_scan == 4
-
-
-@pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_compute_pixels_lands_on_the_declared_ellipsoid(kwargs, warns, monkeypatch):
+@pytest.mark.parametrize("kwargs", NADIR_CONVENTION_CASES)
+def test_compute_pixels_lands_on_the_declared_ellipsoid(kwargs, monkeypatch):
     """Check that pixel positions satisfy the ellipsoid equation of the declared radii."""
     from pyorbital import geoloc
     from pyorbital.geoloc_instrument_definitions import avhrr
@@ -1060,8 +983,7 @@ def test_compute_pixels_lands_on_the_declared_ellipsoid(kwargs, warns, monkeypat
     sgeom = avhrr(5, np.arange(10))
     s_times = sgeom.times(dt.datetime(2012, 12, 12, 4, 16, 1, 575000))
 
-    with _expect_convention_warning(warns):
-        x, y, z = geoloc.compute_pixels((tle1, tle2), sgeom, s_times, **kwargs)
+    x, y, z = geoloc.compute_pixels((tle1, tle2), sgeom, s_times, **kwargs)
 
     on_ellipsoid = ((x / declared_equatorial_radius) ** 2
                     + (y / declared_equatorial_radius) ** 2
@@ -1108,34 +1030,12 @@ def test_get_lonlatalt_recovers_points_on_the_wgs84_surface():
     np.testing.assert_allclose(lon_nb, lon_ref, atol=1e-6)
 
 
-def test_get_lonlatalt_uses_the_module_ellipsoid(numba_path):
-    """Check that get_lonlatalt places the ellipsoid poles and equator at zero altitude.
-
-    Both the numba kernel and the pyproj path must use the A/B ellipsoid this
-    module declares, not whatever ellipsoid PROJ happens to default to.
-    """
-    from pyorbital.geoloc import get_lonlatalt
-
-    utc_time = dt.datetime(2024, 1, 1, 12, 0)
-    wgs84_equatorial_radius = 6378.137  # km
-    wgs84_polar_radius = 6356.752314245  # km
-    on_equator_and_pole = np.array([[wgs84_equatorial_radius, 0.0],
-                                    [0.0, 0.0],
-                                    [0.0, wgs84_polar_radius]])
-
-    _, lat, alt = get_lonlatalt(on_equator_and_pole, utc_time)
-
-    np.testing.assert_allclose(lat, [0.0, 90.0], atol=1e-9)
-    np.testing.assert_allclose(alt, [0.0, 0.0], atol=1e-3)
-
-
-@pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-def test_compute_pixel_works(kwargs, warns, numba_path):
+@pytest.mark.parametrize("kwargs", NADIR_CONVENTION_CASES)
+def test_compute_pixel_works(kwargs, numba_path):
     """Check that compute_pixels works for MultiLineWhiskbroomScan without OOM or crash."""
-    context = _expect_convention_warning(warns)
     # MERSI carries non-zero along-track detector angles, so the rotation order
     # is in play here too; pin it and vary only the nadir convention
-    with config.set(rotation_order="legacy"), context:
+    with config.set(rotation_order="legacy"):
         from pyorbital.geoloc import compute_pixels, get_lonlatalt
         from pyorbital.geoloc_instrument_definitions import MERSI_250M_SCAN
 
@@ -1157,80 +1057,41 @@ def test_compute_pixel_works(kwargs, warns, numba_path):
         assert np.all(np.abs(lats) <= 90)
 
 
-@pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-@requires_numba
-def test_geolocate_matches_compute_pixels_get_lonlatalt(kwargs, warns, numba_path):
-    """Check that short-arc geolocation agrees with per-pixel propagation within 10 m."""
-    context = _expect_convention_warning(warns)
-    # these exercise a non-zero pitch, so pin the rotation order and let the
-    # parametrisation vary only the nadir convention
-    with config.set(rotation_order="legacy"), context:
-        from pyorbital.geoloc import _HAS_NUMBA, compute_pixels, geolocate, get_lonlatalt
-        if not _HAS_NUMBA:
-            pytest.skip("numba not available")
+@pytest.mark.parametrize("rotation_order", ["legacy", "pitch_first"])
+@pytest.mark.parametrize("yaw_steering", [False, True], ids=["fixed-attitude", "yaw-steered"])
+def test_geolocate_matches_per_pixel_propagation(rotation_order, yaw_steering, numba_path):
+    """``geolocate`` must agree with propagating the orbit at every pixel.
 
-        from pyorbital.geoloc_instrument_definitions import MERSI_1KM_SCAN
+    A scan geometry whose times are constant along a row is computed in closed
+    form from a handful of orbit states rather than one per pixel.  That is an
+    optimisation, so per-pixel propagation stays the reference and the two must
+    agree -- for either rotation order, with or without yaw steering, and on the
+    numba kernel as well as the array path.  MERSI carries real non-zero
+    along-track detector angles, which is what makes the rotation order
+    observable at all.
+    """
+    from pyorbital.geoloc import compute_pixels, geolocate, get_lonlatalt
+    from pyorbital.geoloc_instrument_definitions import MERSI_1KM_SCAN
 
-        tle1 = "1 33591U 09005A   21355.91138073  .00000074  00000+0  65091-4 0  9998"
-        tle2 = "2 33591  99.1688  21.1338 0013414 329.8936  30.1462 14.12516400663123"
-        t = dt.datetime(2021, 12, 21, 12, 0, 0)
-        n_scans = 5
-        sgeom = MERSI_1KM_SCAN.scan_geometry(n_scans)
-        s_times = sgeom.times(t)
+    tle = ("1 33591U 09005A   21355.91138073  .00000074  00000+0  65091-4 0  9998",
+           "2 33591  99.1688  21.1338 0013414 329.8936  30.1462 14.12516400663123")
+    t = dt.datetime(2021, 12, 21, 12, 0, 0)
+    sgeom = MERSI_1KM_SCAN.scan_geometry(5)
+    s_times = sgeom.times(t)
+    kwargs = dict(nadir_convention="geocentric", rotation_order=rotation_order,
+                  yaw_steering=yaw_steering)
 
-        # Reference: full orbit propagation at every pixel acquisition time
-        flat_geometry = ScanGeometry(sgeom.fovs.reshape(2, -1), s_times.reshape(-1) - s_times.reshape(-1)[0])
-        pixels = compute_pixels((tle1, tle2), flat_geometry, s_times.reshape(-1), **kwargs)
-        lon_ref, lat_ref, alt_ref = get_lonlatalt(pixels, s_times.reshape(-1))
+    # Reference: full orbit propagation at every pixel acquisition time
+    flat = ScanGeometry(sgeom.fovs.reshape(2, -1), s_times.reshape(-1) - s_times.reshape(-1)[0])
+    pixels = compute_pixels(tle, flat, s_times.reshape(-1), **kwargs)
+    lon_ref, lat_ref, alt_ref = get_lonlatalt(pixels, s_times.reshape(-1))
 
-        # New fused path
-        lon_fused, lat_fused, alt_fused = geolocate((tle1, tle2), sgeom, s_times, **kwargs)
+    lon, lat, alt = geolocate(tle, sgeom, s_times, **kwargs)
 
-        assert lon_fused.shape == lon_ref.shape
-        np.testing.assert_allclose(lon_fused, lon_ref, atol=9e-5,
-                                   err_msg="geolocate lon disagrees with reference")
-        np.testing.assert_allclose(lat_fused, lat_ref, atol=1e-6,
-                                   err_msg="geolocate lat disagrees with reference")
-        np.testing.assert_allclose(alt_fused, alt_ref, atol=1.0,
-                                   err_msg="geolocate alt disagrees with reference")
-
-
-@pytest.mark.parametrize(("kwargs", "warns"), NADIR_CONVENTION_CASES)
-@requires_numba
-def test_geolocate_with_yaw_steering_matches_reference(kwargs, warns, numba_path):
-    """Check yaw-steered short-arc geolocation against per-pixel propagation."""
-    context = _expect_convention_warning(warns)
-    # these exercise a non-zero pitch, so pin the rotation order and let the
-    # parametrisation vary only the nadir convention
-    with config.set(rotation_order="legacy"), context:
-        from pyorbital.geoloc import _HAS_NUMBA, compute_pixels, geolocate, get_lonlatalt
-        if not _HAS_NUMBA:
-            pytest.skip("numba not available")
-
-        from pyorbital.geoloc_instrument_definitions import MERSI_1KM_SCAN
-
-        tle1 = "1 33591U 09005A   21355.91138073  .00000074  00000+0  65091-4 0  9998"
-        tle2 = "2 33591  99.1688  21.1338 0013414 329.8936  30.1462 14.12516400663123"
-        t = dt.datetime(2021, 12, 21, 12, 0, 0)
-        n_scans = 5
-        sgeom = MERSI_1KM_SCAN.scan_geometry(n_scans)
-        s_times = sgeom.times(t)
-
-        # Reference: full orbit propagation at every pixel acquisition time
-        flat_geometry = ScanGeometry(sgeom.fovs.reshape(2, -1), s_times.reshape(-1) - s_times.reshape(-1)[0])
-        pixels = compute_pixels((tle1, tle2), flat_geometry, s_times.reshape(-1), yaw_steering=True, **kwargs)
-        lon_ref, lat_ref, alt_ref = get_lonlatalt(pixels, s_times.reshape(-1))
-
-        # Fused numba path with yaw steering
-        lon_f, lat_f, alt_f = geolocate((tle1, tle2), sgeom, s_times, yaw_steering=True, **kwargs)
-
-        assert lon_f.shape == lon_ref.shape
-        np.testing.assert_allclose(lon_f, lon_ref, atol=9e-5,
-                                   err_msg="yaw-steered lon disagrees with reference")
-        np.testing.assert_allclose(lat_f, lat_ref, atol=1e-6,
-                                   err_msg="yaw-steered lat disagrees with reference")
-        np.testing.assert_allclose(alt_f, alt_ref, atol=1.0,
-                                   err_msg="yaw-steered alt disagrees with reference")
+    assert lon.shape == lon_ref.shape
+    np.testing.assert_allclose(lon, lon_ref, atol=9e-5, err_msg="lon disagrees with reference")
+    np.testing.assert_allclose(lat, lat_ref, atol=1e-6, err_msg="lat disagrees with reference")
+    np.testing.assert_allclose(alt, alt_ref, atol=1.0, err_msg="alt disagrees with reference")
 
 
 # ---------------------------------------------------------------------------
@@ -1292,8 +1153,6 @@ def test_focal_plane_det_position_y_shifts_along_track():
 
 def test_focal_plane_accepts_effective_detector_along_track_offsets():
     """Effective detector offsets augment nominal focal-plane angles."""
-    from dataclasses import replace
-
     base = _fp_scan(lines_per_scan=4)
     offsets = np.array([[0.0, -0.003], [0.0, -0.001], [0.0, 0.001], [0.0, 0.003]])
     corrected = replace(base, detector_offsets_rad=offsets)
@@ -1304,8 +1163,6 @@ def test_focal_plane_accepts_effective_detector_along_track_offsets():
 
 def test_focal_plane_accepts_effective_detector_cross_track_offsets():
     """Cross-track detector offsets are retained in the generated geometry."""
-    from dataclasses import replace
-
     base = _fp_scan(lines_per_scan=4)
     offsets = np.array([[-0.003, 0.0], [-0.001, 0.0], [0.001, 0.0], [0.003, 0.0]])
     corrected = replace(base, detector_offsets_rad=offsets)
@@ -1316,8 +1173,6 @@ def test_focal_plane_accepts_effective_detector_cross_track_offsets():
 
 def test_focal_plane_accepts_polynomial_scan_angle_corrections():
     """Odd and even scan-law corrections use normalized scan position."""
-    from dataclasses import replace
-
     base = _fp_scan()
     coefficients = (0.0, 0.002, 0.003)
     corrected = replace(base, scan_angle_correction_coefficients_rad=coefficients)
@@ -1329,8 +1184,6 @@ def test_focal_plane_accepts_polynomial_scan_angle_corrections():
 
 def test_focal_plane_accepts_detector_scan_position_slopes():
     """Detector LOS slopes vary linearly across normalized scan position."""
-    from dataclasses import replace
-
     base = _fp_scan(lines_per_scan=4)
     slopes = np.array([[0.001, -0.002], [0.002, -0.001], [-0.001, 0.002], [-0.002, 0.001]])
     corrected = replace(base, detector_scan_slopes_rad=slopes)
@@ -1482,40 +1335,6 @@ def test_along_track_spacing_depends_on_the_rotation_order(rotation_order):
                                    err_msg=f"swath-edge along-track component, {rotation_order}")
 
 
-def test_local_frame_geocentric_nadir_points_at_earth_centre():
-    """The geocentric convention must give a nadir exactly anti-parallel to the position.
-
-    Validation against reference geolocation shows FY-3 references its attitude to
-    the geocentric (orbital) local vertical rather than the ellipsoid normal, so
-    this convention has to be available and has to be exact: any admixture of the
-    geodetic normal reintroduces an oblateness-driven error of order a kilometre
-    on the ground.
-    """
-    from pyorbital.geoloc import _local_frame
-
-    e2 = 0.00669437999014
-    a = 6378.137
-    phi = np.deg2rad(45.0)
-    n = a / np.sqrt(1 - e2 * np.sin(phi) ** 2)
-    outward_normal = np.array([np.cos(phi), 0.0, np.sin(phi)])
-    pos = (np.array([n * np.cos(phi), 0.0, (1 - e2) * n * np.sin(phi)]) + outward_normal * 883.0).reshape(3, 1)
-    # a circular-orbit velocity, i.e. perpendicular to the position: the frame
-    # re-orthogonalises the nadir against the velocity, so a velocity that is not
-    # perpendicular to pos would legitimately tilt the nadir away from the centre
-    # A realistic inclined-orbit velocity: perpendicular to the position but NOT
-    # coplanar with the meridian.  With a coplanar velocity the Gram-Schmidt step
-    # projects every nadir convention onto -pos/|pos| and they become
-    # indistinguishable, so a polar-plane test geometry proves nothing.
-    orbit_normal = np.array([0.0, -np.sin(np.deg2rad(98.7)), np.cos(np.deg2rad(98.7))])
-    vel = np.cross(orbit_normal, pos[:, 0]).reshape(3, 1)
-    vel = vel / np.sqrt((vel**2).sum()) * 7.5
-
-    nadir, _, _ = _local_frame(pos, vel, nadir_convention="geocentric")
-
-    expected = -pos[:, 0] / np.sqrt((pos[:, 0] ** 2).sum())
-    np.testing.assert_allclose(nadir[:, 0], expected, rtol=1e-12, atol=1e-12)
-
-
 def test_local_frame_defaults_to_the_released_nadir_convention():
     """The default must stay the historical convention so existing products reproduce.
 
@@ -1527,19 +1346,7 @@ def test_local_frame_defaults_to_the_released_nadir_convention():
     """
     from pyorbital.geoloc import _local_frame
 
-    e2 = 0.00669437999014
-    a = 6378.137
-    phi = np.deg2rad(45.0)
-    n = a / np.sqrt(1 - e2 * np.sin(phi) ** 2)
-    outward_normal = np.array([np.cos(phi), 0.0, np.sin(phi)])
-    pos = (np.array([n * np.cos(phi), 0.0, (1 - e2) * n * np.sin(phi)]) + outward_normal * 883.0).reshape(3, 1)
-    # A realistic inclined-orbit velocity: perpendicular to the position but NOT
-    # coplanar with the meridian.  With a coplanar velocity the Gram-Schmidt step
-    # projects every nadir convention onto -pos/|pos| and they become
-    # indistinguishable, so a polar-plane test geometry proves nothing.
-    orbit_normal = np.array([0.0, -np.sin(np.deg2rad(98.7)), np.cos(np.deg2rad(98.7))])
-    vel = np.cross(orbit_normal, pos[:, 0]).reshape(3, 1)
-    vel = vel / np.sqrt((vel**2).sum()) * 7.5
+    pos, vel = _inclined_orbit_state()
 
     with _expect_convention_warning(warns=True):
         default_nadir, _, _ = _local_frame(pos, vel)
@@ -1572,8 +1379,7 @@ def test_local_frame_explicit_legacy_choice_does_not_warn():
 
 # Each nadir convention, with whether relying on it raises the deprecation.
 # Parametrising over these keeps every geometry test honest about which
-@pytest.mark.parametrize(("kwargs", "warns", "convention"), NADIR_CONVENTIONS)
-def test_scan_geometry_vectors_honours_the_nadir_convention(kwargs, warns, convention):
+def test_scan_geometry_vectors_honours_the_nadir_convention():
     """``ScanGeometry.vectors`` must forward the convention, not just ``_local_frame``.
 
     Callers reach the geometry through the public entry points, so the choice has
@@ -1592,25 +1398,47 @@ def test_scan_geometry_vectors_honours_the_nadir_convention(kwargs, warns, conve
     pos = np.repeat(pos, scan_angles.size, axis=1)
     vel = np.repeat(vel, scan_angles.size, axis=1)
 
-    context = _expect_convention_warning(warns)
-    with context:
-        vectors = geometry.vectors(pos, vel, **kwargs)
+    with _expect_convention_warning(warns=True):
+        defaulted = geometry.vectors(pos, vel)
 
     # the centre pixel is at zero scan angle, so it must lie along the nadir of
     # whichever convention was selected
-    expected_nadir, _, _ = _local_frame(pos, vel, nadir_convention=convention)
-    np.testing.assert_allclose(vectors[:, 1], expected_nadir[:, 1], rtol=1e-9, atol=1e-9)
+    for convention in ("legacy", "geocentric"):
+        selected = geometry.vectors(pos, vel, nadir_convention=convention)
+        expected_nadir, _, _ = _local_frame(pos, vel, nadir_convention=convention)
+        np.testing.assert_allclose(selected[:, 1], expected_nadir[:, 1], rtol=1e-9, atol=1e-9)
+        if convention == "legacy":
+            np.testing.assert_allclose(defaulted, selected, rtol=1e-12, atol=1e-12)
+        else:
+            assert not np.allclose(defaulted, selected, atol=1e-6)
 
 
-@pytest.mark.parametrize(("kwargs", "warns", "convention"), NADIR_CONVENTIONS)
-def test_compute_pixels_honours_the_nadir_convention(kwargs, warns, convention, numba_path):
-    """``compute_pixels`` must expose the convention to its callers.
+def _geolocate_lonlat(tle, geometry, times, **kwargs):
+    """geolocate() reduced to the lon/lat pair, to match compute_pixels' shape."""
+    lon, lat, _ = geolocate(Orbital("mysatellite", line1=tle[0], line2=tle[1]),
+                            geometry, times, **kwargs)
+    return np.vstack([lon, lat])
 
-    pygac and other downstream users reach the geometry through this function,
-    so it is the level at which an archive reprocessing pins its choice.
+
+def _compute_pixels_lonlat(tle, geometry, times, **kwargs):
+    """compute_pixels() as ECEF positions, which move iff the convention moves."""
+    return compute_pixels(tle, geometry, times, **kwargs)
+
+
+@pytest.mark.parametrize("entry_point", [
+    pytest.param(_compute_pixels_lonlat, id="compute_pixels"),
+    pytest.param(_geolocate_lonlat, id="geolocate"),
+])
+def test_public_entry_points_honour_the_nadir_convention(entry_point, numba_path):
+    """Every public entry point must carry the convention through to the frame.
+
+    pygac and other downstream users reach the geometry through ``compute_pixels``,
+    and ``geolocate`` is the top-level call that dispatches to several internal
+    routes; the choice has to survive whichever one is taken, and leaving it
+    unset has to keep giving the released answer.
     """
-    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
-    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    tle = ("1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+           "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875")
     scan_angles = np.deg2rad(np.array([-55.0, 0.0, 55.0]))
     geometry = ScanGeometry(
         np.vstack((scan_angles, np.zeros_like(scan_angles))),
@@ -1618,42 +1446,13 @@ def test_compute_pixels_honours_the_nadir_convention(kwargs, warns, convention, 
     )
     times = geometry.times(dt.datetime(2012, 12, 12, 4, 16, 1, 575000))
 
-    context = _expect_convention_warning(warns)
-    with context:
-        pixels = compute_pixels((tle1, tle2), geometry, times, **kwargs)
+    with _expect_convention_warning(warns=True):
+        defaulted = entry_point(tle, geometry, times)
+    legacy = entry_point(tle, geometry, times, nadir_convention="legacy")
+    geocentric = entry_point(tle, geometry, times, nadir_convention="geocentric")
 
-    reference = compute_pixels((tle1, tle2), geometry, times, nadir_convention=convention)
-    np.testing.assert_allclose(pixels, reference, rtol=1e-12, atol=1e-12)
-    if convention == "geocentric":
-        legacy = compute_pixels((tle1, tle2), geometry, times, nadir_convention="legacy")
-        assert not np.allclose(pixels, legacy, atol=1e-6)
-
-
-@pytest.mark.parametrize(("kwargs", "warns", "convention"), NADIR_CONVENTIONS)
-def test_geolocate_honours_the_nadir_convention(kwargs, warns, convention, numba_path):
-    """``geolocate`` is the top-level entry point and must carry the choice through.
-
-    It dispatches to several internal paths (fused, per-pixel-orbit, per-scan
-    attitude); the convention has to survive whichever one is taken.
-    """
-    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
-    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
-    scan_angles = np.deg2rad(np.array([-55.0, 0.0, 55.0]))
-    geometry = ScanGeometry(
-        np.vstack((scan_angles, np.zeros_like(scan_angles))),
-        np.array([0.0, 0.1, 0.2]),
-    )
-    times = geometry.times(dt.datetime(2012, 12, 12, 4, 16, 1, 575000))
-
-    context = _expect_convention_warning(warns)
-    with context:
-        lon, lat, alt = geolocate(Orbital("mysatellite", line1=tle1, line2=tle2),
-                                  geometry, times, **kwargs)
-
-    ref_lon, ref_lat, _ = geolocate(Orbital("mysatellite", line1=tle1, line2=tle2),
-                                    geometry, times, nadir_convention=convention)
-    np.testing.assert_allclose(lon, ref_lon, rtol=1e-12, atol=1e-12)
-    np.testing.assert_allclose(lat, ref_lat, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(defaulted, legacy, rtol=1e-12, atol=1e-12)
+    assert not np.allclose(geocentric, legacy, atol=1e-6), "the convention made no difference"
 
 
 def test_nadir_convention_can_be_set_through_the_config():
@@ -1744,51 +1543,6 @@ def test_scan_geometry_vectors_honours_the_rotation_order(kwargs, warns):
     assert not np.allclose(legacy[:, 0], pitch_first[:, 0], atol=1e-9)
 
 
-@pytest.mark.parametrize("rotation_order", ["legacy", "pitch_first"])
-@requires_numba
-def test_fused_path_honours_the_rotation_order(rotation_order, numba_path):
-    """The numba kernel must apply the same rotation order as the array path.
-
-    ``geolocate`` dispatches to a fused kernel for 3-D fovs whose times are
-    constant along a row (pushbroom-style geometries).  The kernel reimplements
-    the rotations in closed form, so it has to be kept in step with
-    ``ScanGeometry.vectors`` -- otherwise selecting an order would silently
-    change the answer only on some instruments.
-    """
-    from pyorbital.geoloc import _HAS_NUMBA, compute_pixels, geolocate, get_lonlatalt
-
-    if not _HAS_NUMBA:
-        pytest.skip("numba not available")
-
-    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
-    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
-    t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
-
-    rows, pixels_per_row = 4, 9
-    cross = np.deg2rad(np.linspace(-50.0, 50.0, pixels_per_row))
-    # non-zero along-track angles per row: this is what makes the order matter
-    along = np.deg2rad(np.linspace(-0.6, 0.6, rows))
-    fovs = np.empty((2, rows, pixels_per_row))
-    fovs[0] = cross[np.newaxis, :]
-    fovs[1] = along[:, np.newaxis]
-    # times constant along each row, so the fused path is taken
-    times = np.repeat(np.arange(rows) * 0.25, pixels_per_row).reshape(rows, pixels_per_row)
-    geometry = ScanGeometry(fovs, times, lines_per_scan=1)
-    scan_times = geometry.times(t)
-
-    fused_lon, fused_lat, _ = geolocate((tle1, tle2), geometry, scan_times,
-                                        nadir_convention="geocentric",
-                                        rotation_order=rotation_order)
-
-    flat = ScanGeometry(fovs.reshape(2, -1), scan_times.reshape(-1) - scan_times.reshape(-1)[0])
-    reference = compute_pixels((tle1, tle2), flat, scan_times.reshape(-1),
-                               nadir_convention="geocentric", rotation_order=rotation_order)
-    ref_lon, ref_lat, _ = get_lonlatalt(reference, scan_times.reshape(-1))
-
-    np.testing.assert_allclose(fused_lon, ref_lon, atol=1e-6)
-    np.testing.assert_allclose(fused_lat, ref_lat, atol=1e-6)
-
-
 def test_legacy_nadir_is_not_orthogonalised():
     """The legacy convention must reproduce released pyorbital exactly.
 
@@ -1828,12 +1582,25 @@ def test_corrected_conventions_keep_an_orthonormal_frame():
         assert abs(float(np.sum(nadir * cross))) < 1e-12, convention
 
 
-def test_legacy_frame_does_not_use_the_orthonormal_broadcast_path():
-    """The broadcast rotation assumes nadir ⊥ along_track, which legacy breaks.
+# The conventions that matter here are the pairing, not the product: legacy nadir
+# implies the released, non-orthogonal frame, and the corrected nadir is the one
+# whose rotation order is selectable.
+FRAME_AND_ORDER = [
+    pytest.param("legacy", "legacy", id="legacy"),
+    pytest.param("geocentric", "legacy", id="geocentric-roll-first"),
+    pytest.param("geocentric", "pitch_first", id="geocentric-pitch-first"),
+]
 
-    ``_vectors_broadcast`` exploits that orthogonality to simplify the
-    Rodrigues rotation, so feeding it the deliberately non-orthogonal legacy
-    frame would silently produce a different answer from the general path.
+
+@pytest.mark.parametrize(("nadir_convention", "rotation_order"), FRAME_AND_ORDER)
+def test_a_multiline_geometry_matches_its_flattened_equivalent(nadir_convention, rotation_order):
+    """Grouping pixels into scan lines must not change where they point.
+
+    A 3-D geometry with per-scan orbit state and a flat one listing the same
+    pixels describe identical observations, so they have to give identical
+    vectors under every convention -- including the legacy frame, which is
+    deliberately not orthonormal and so cannot use the simplified rotation the
+    orthonormal ones allow.
     """
     scan_angles = np.deg2rad(np.linspace(-50.0, 50.0, 7))
     rows = 3
@@ -1847,46 +1614,14 @@ def test_legacy_frame_does_not_use_the_orthonormal_broadcast_path():
     pos = np.repeat(pos, rows, axis=1)
     vel = np.repeat(vel, rows, axis=1)
 
-    broadcast = geometry.vectors(pos, vel, nadir_convention="legacy", rotation_order="legacy")
-
-    flat = ScanGeometry(fovs.reshape(2, -1), times.reshape(-1))
-    per_pixel_pos = np.repeat(pos, scan_angles.size, axis=1)
-    per_pixel_vel = np.repeat(vel, scan_angles.size, axis=1)
-    reference = flat.vectors(per_pixel_pos, per_pixel_vel,
-                             nadir_convention="legacy", rotation_order="legacy")
-
-    np.testing.assert_allclose(broadcast, reference, rtol=1e-10, atol=1e-10)
-
-
-@pytest.mark.parametrize("rotation_order", ["legacy", "pitch_first"])
-def test_broadcast_path_honours_the_rotation_order(rotation_order):
-    """The broadcast rotation must apply the requested order like the other paths.
-
-    It reimplements the composition in closed form for speed, so without this it
-    silently applies one order regardless of what the caller asked for -- and it
-    is the path taken by any 3-D scan geometry with per-scan orbit state.
-    """
-    scan_angles = np.deg2rad(np.linspace(-50.0, 50.0, 7))
-    rows = 3
-    fovs = np.empty((2, rows, scan_angles.size))
-    fovs[0] = scan_angles[np.newaxis, :]
-    fovs[1] = np.deg2rad(np.linspace(-0.5, 0.5, rows))[:, np.newaxis]
-    times = np.repeat(np.arange(rows) * 0.25, scan_angles.size).reshape(rows, scan_angles.size)
-    geometry = ScanGeometry(fovs, times, lines_per_scan=1)
-
-    pos, vel = _inclined_orbit_state()
-    pos = np.repeat(pos, rows, axis=1)
-    vel = np.repeat(vel, rows, axis=1)
-
-    broadcast = geometry.vectors(pos, vel, nadir_convention="geocentric",
-                                 rotation_order=rotation_order)
+    kwargs = dict(nadir_convention=nadir_convention, rotation_order=rotation_order)
+    grouped = geometry.vectors(pos, vel, **kwargs)
 
     flat = ScanGeometry(fovs.reshape(2, -1), times.reshape(-1))
     reference = flat.vectors(np.repeat(pos, scan_angles.size, axis=1),
-                             np.repeat(vel, scan_angles.size, axis=1),
-                             nadir_convention="geocentric", rotation_order=rotation_order)
+                             np.repeat(vel, scan_angles.size, axis=1), **kwargs)
 
-    np.testing.assert_allclose(broadcast, reference, rtol=1e-10, atol=1e-10)
+    np.testing.assert_allclose(grouped, reference, rtol=1e-10, atol=1e-10)
 
 
 def test_geocentric_nadir_stays_geocentric_when_velocity_is_not_perpendicular():
@@ -1915,35 +1650,3 @@ def test_geocentric_nadir_stays_geocentric_when_velocity_is_not_perpendicular():
     # and the frame is still orthonormal, which the rotations require
     assert abs(float(np.sum(nadir * along_track))) < 1e-12
     assert abs(float(np.sum(nadir * cross_track))) < 1e-12
-
-
-def test_fast_geocentric_path_agrees_with_the_reference_path():
-    """The numba fast path is an optimisation, so it must not change the answer.
-
-    ``_geolocate_scan_chunk`` diverts the geocentric/pitch_first configuration --
-    the one FY-3 MERSI uses in production -- to a hand-written kernel.  The array
-    path stays the reference implementation, so the two must agree; a kernel that
-    silently reimplements the local frame differently is a geolocation error no
-    unit test of either path alone would catch.
-    """
-    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
-    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
-    n_rows, n_pixels = 6, 64
-    fovs = np.zeros((2, n_rows, n_pixels))
-    fovs[0] = np.deg2rad(np.linspace(-55.0, 55.0, n_pixels))[np.newaxis, :]
-    fovs[1] = np.deg2rad(np.linspace(-0.1, 0.1, n_rows))[:, np.newaxis]
-    geometry = ScanGeometry(fovs, np.zeros(n_rows))
-    start = np.datetime64(dt.datetime(2012, 12, 12, 4, 16, 1, 575000))
-    times = start + (np.arange(n_rows * n_pixels)
-                     * np.timedelta64(1000, "us")).reshape(n_rows, n_pixels)
-    orbital = Orbital("mysatellite", line1=tle1, line2=tle2)
-    kwargs = dict(rpy=(0.0006, -0.0006, 0.0022),
-                  nadir_convention="geocentric", rotation_order="pitch_first")
-
-    fast_lon, fast_lat, fast_alt = geoloc.geolocate(orbital, geometry, times, **kwargs)
-    with mock.patch.object(geoloc, "_HAS_NUMBA", False):
-        ref_lon, ref_lat, ref_alt = geoloc.geolocate(orbital, geometry, times, **kwargs)
-
-    np.testing.assert_allclose(fast_lat, ref_lat, atol=1e-9)
-    np.testing.assert_allclose(fast_lon, ref_lon, atol=1e-9)
-    np.testing.assert_allclose(fast_alt, ref_alt, atol=1e-3)

@@ -442,3 +442,17 @@ def test_a_circular_orbit_can_be_propagated():
     radius = np.sqrt((np.asarray(position) ** 2).sum(axis=0))
     assert radius.max() - radius.min() < 20.0
     np.testing.assert_allclose(radius.mean(), 7205.0, atol=20.0)
+
+
+def test_get_last_dn_time_is_a_descending_node():
+    """The last descending node is a time when the satellite crosses the equator southbound."""
+    from pyorbital.orbital import Orbital
+    orb = Orbital("NOAA-20",
+                  line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
+                  line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
+
+    result = orb.get_last_dn_time(dt.datetime(2024, 6, 25, 11, 0, 18))
+
+    (_, _, pos_z), (_, _, vel_z) = orb.get_position(result, normalize=False)
+    assert abs(pos_z) < 1
+    assert vel_z < 0

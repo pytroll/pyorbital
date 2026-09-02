@@ -52,6 +52,11 @@ SECDAY = 8.6400E4
 F = 1 / 298.257223563  # Earth flattening WGS-84
 A = 6378.137  # WGS84 Equatorial radius
 
+# How far back to step when hunting for the equator crossing before a given time,
+# and how close to the equatorial plane counts as having found it.
+_NODE_SEARCH_STEP = np.timedelta64(10, "m")
+_NODE_TOLERANCE_KM = 1
+
 
 SGDP4_ZERO_ECC = 0
 SGDP4_DEEP_NORM = 1
@@ -146,37 +151,52 @@ class Orbital(object):
 
     def get_last_an_time(self, utc_time):
         """Calculate time of last ascending node relative to the specified time."""
-        # Propagate backwards to ascending node
-        dt = np.timedelta64(10, "m")
+        return self._get_last_node_time(utc_time, ascending=True)
 
-        t_old = np.datetime64(_get_tz_unaware_utctime(utc_time))
-        t_new = t_old - dt
-        pos0, vel0 = self.get_position(t_old, normalize=False)
-        pos1, vel1 = self.get_position(t_new, normalize=False)
-        while not (pos0[2] > 0 and pos1[2] < 0):
-            pos0 = pos1
-            t_old = t_new
-            t_new = t_old - dt
-            pos1, vel1 = self.get_position(t_new, normalize=False)
+    def get_last_dn_time(self, utc_time):
+        """Calculate time of last descending node relative to the specified time."""
+        return self._get_last_node_time(utc_time, ascending=False)
 
-        # Return if z within 1 km of an
-        if np.abs(pos0[2]) < 1:
-            return t_old
-        elif np.abs(pos1[2]) < 1:
-            return t_new
+    def _get_last_node_time(self, utc_time, ascending):
+        """Calculate time of the last equator crossing before the specified time.
 
-        # Bisect to z within 1 km
-        while np.abs(pos1[2]) > 1:
-            # pos0, vel0 = pos1, vel1
-            dt = (t_old - t_new) / 2
-            t_mid = t_old - dt
-            pos1, vel1 = self.get_position(t_mid, normalize=False)
-            if pos1[2] > 0:
-                t_old = t_mid
+        The satellite crosses an ascending node heading north and a descending
+        node heading south. Multiplying its z coordinate by *heading* makes the
+        two cases one: the product is positive after the node and negative
+        before it, whichever node is asked for.
+        """
+        heading = 1 if ascending else -1
+
+        later = np.datetime64(_get_tz_unaware_utctime(utc_time))
+        earlier = later - _NODE_SEARCH_STEP
+        z_later = self._z_position(later)
+        z_earlier = self._z_position(earlier)
+
+        while not (z_later * heading > 0 and z_earlier * heading < 0):
+            z_later = z_earlier
+            later = earlier
+            earlier = later - _NODE_SEARCH_STEP
+            z_earlier = self._z_position(earlier)
+
+        if np.abs(z_later) < _NODE_TOLERANCE_KM:
+            return later
+        if np.abs(z_earlier) < _NODE_TOLERANCE_KM:
+            return earlier
+
+        while np.abs(z_earlier) > _NODE_TOLERANCE_KM:
+            middle = later - (later - earlier) / 2
+            z_earlier = self._z_position(middle)
+            if z_earlier * heading > 0:
+                later = middle
             else:
-                t_new = t_mid
+                earlier = middle
 
-        return t_mid
+        return middle
+
+    def _z_position(self, utc_time):
+        """Get the satellite's distance north of the equatorial plane, in km."""
+        position, _ = self.get_position(utc_time, normalize=False)
+        return position[2]
 
     def get_position(self, utc_time, normalize=True):
         """Get the cartesian position and velocity from the satellite."""

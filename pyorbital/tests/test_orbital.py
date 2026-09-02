@@ -425,6 +425,26 @@ def test_get_last_an_time_wrong_input(dtime):
         _ = orb.get_last_an_time(dtime)
 
 
+def test_a_circular_orbit_can_be_propagated():
+    """An orbit of no eccentricity at all is a real orbit, not a bad element set.
+
+    Its distance from the centre of the Earth stays nearly constant, varying
+    only by the short period wobble the equatorial bulge imposes.
+    """
+    from pyorbital.orbital import Orbital
+    orb = Orbital(
+        "CIRCULAR",
+        line1="1 43013U 06001A   24176.00000000  .00000000  00000+0  00000+0 0  9996",
+        line2="2 43013  98.7060 114.5340 0000000 139.3958 190.7541 14.19599847    14")
+
+    times = orb.tle.epoch + np.arange(0, 101) * np.timedelta64(60, "s")
+    position, _ = orb.get_position(times, normalize=False)
+
+    radius = np.sqrt((np.asarray(position) ** 2).sum(axis=0))
+    assert radius.max() - radius.min() < 20.0
+    np.testing.assert_allclose(radius.mean(), 7205.0, atol=20.0)
+
+
 NOAA_20 = ("1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
            "2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
 

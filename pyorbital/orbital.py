@@ -245,7 +245,7 @@ class Orbital(object):
     def find_aos(self, utc_time, lon, lat, alt=0, horizon=0):
         """Find when the satellite next rises above the observer's horizon.
 
-        The search runs over the next 24 hours, and raises an IndexError if
+        The search runs over the next 24 hours, and raises a ValueError if
         nothing rises in that time. A pass already under way when *utc_time*
         falls inside it is not reported; the answer is the rise of the pass
         after it.
@@ -254,6 +254,9 @@ class Orbital(object):
         that begins and ends between two samples is not seen.
         """
         passes = self.get_next_passes(utc_time, _HORIZON_SEARCH_HOURS, lon, lat, alt, horizon=horizon)
+        if not passes:
+            raise ValueError(f"{self.satellite_name} does not rise above {horizon} degrees "
+                             f"for this observer within {_HORIZON_SEARCH_HOURS} hours of {utc_time}")
         rise_time, _, _ = passes[0]
         return rise_time
 

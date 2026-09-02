@@ -497,3 +497,15 @@ def test_find_aol_ends_the_pass_already_under_way():
     after = orb.get_observer_look(aol + a_moment, lon, lat, alt)[1]
     assert before > 0 > after
     assert utc_time < aol < orb.find_aos(utc_time, lon, lat, alt)
+
+
+def test_find_aos_says_so_when_the_satellite_never_rises_that_far():
+    """A horizon the satellite never clears is reported, not left to an IndexError."""
+    from pyorbital.orbital import Orbital
+    orb = Orbital("NOAA-20",
+                  line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
+                  line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
+
+    # The horizon asked for belongs in the message; its exact prose does not.
+    with pytest.raises(ValueError, match="85"):
+        orb.find_aos(dt.datetime(2024, 6, 25, 11, 0), 12.4143, 55.9065, 0.02, horizon=85)

@@ -189,15 +189,15 @@ class Orbital(object):
         if np.abs(z_earlier) < _NODE_TOLERANCE_KM:
             return earlier
 
-        while np.abs(z_earlier) > _NODE_TOLERANCE_KM:
+        while True:
             middle = later - (later - earlier) / 2
-            z_earlier = self._z_position(middle)
-            if z_earlier * heading > 0:
+            z_middle = self._z_position(middle)
+            if np.abs(z_middle) <= _NODE_TOLERANCE_KM:
+                return middle
+            if z_middle * heading > 0:
                 later = middle
             else:
                 earlier = middle
-
-        return middle
 
     def _z_position(self, utc_time):
         """Get the satellite's distance north of the equatorial plane, in km."""

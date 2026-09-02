@@ -390,21 +390,36 @@ class TestRegressions(unittest.TestCase):
         warnings.filterwarnings("default")
 
 
+@pytest.fixture
+def noaa_20():
+    """Orbital for NOAA-20, from a TLE of the 24th of June 2024."""
+    from pyorbital.orbital import Orbital
+    return Orbital("NOAA-20",
+                   line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
+                   line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
+
+
+# An observer in Copenhagen: longitude and latitude in degrees, altitude in km.
+OBSERVER = (12.4143, 55.9065, 0.02)
+
+
+def elevations_astride(orb, time, lon, lat, alt):
+    """Get the elevation of *orb* ten seconds before and ten seconds after *time*."""
+    a_moment = dt.timedelta(seconds=10)
+    return (orb.get_observer_look(time - a_moment, lon, lat, alt)[1],
+            orb.get_observer_look(time + a_moment, lon, lat, alt)[1])
+
+
 @pytest.mark.parametrize("dtime",
                          [dt.datetime(2024, 6, 25, 11, 0, 18),
                           dt.datetime(2024, 6, 25, 11, 5, 0, 0, dt.timezone.utc),
                           np.datetime64("2024-06-25T11:10:00.000000")
                           ]
                          )
-def test_get_last_an_time_scalar_input(dtime):
+def test_get_last_an_time_scalar_input(dtime, noaa_20):
     """Test getting the time of the last ascending node - input time is a scalar."""
-    from pyorbital.orbital import Orbital
-    orb = Orbital("NOAA-20",
-                  line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
-                  line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
-
     expected = np.datetime64("2024-06-25T10:44:18.234375")
-    result = orb.get_last_an_time(dtime)
+    result = noaa_20.get_last_an_time(dtime)
     assert abs(expected - result) < np.timedelta64(1, "s")
 
 
@@ -412,16 +427,11 @@ def test_get_last_an_time_scalar_input(dtime):
                          [dt.datetime(2024, 6, 25, 11, 5, 0, 0, dt.timezone(dt.timedelta(hours=1))),
                           ]
                          )
-def test_get_last_an_time_wrong_input(dtime):
+def test_get_last_an_time_wrong_input(dtime, noaa_20):
     """Test getting the time of the last ascending node - wrong input."""
-    from pyorbital.orbital import Orbital
-    orb = Orbital("NOAA-20",
-                  line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
-                  line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
-
     expected = "UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!"
     with pytest.raises(ValueError, match=expected):
-        _ = orb.get_last_an_time(dtime)
+        _ = noaa_20.get_last_an_time(dtime)
 
 
 def test_a_circular_orbit_can_be_propagated():
@@ -444,79 +454,48 @@ def test_a_circular_orbit_can_be_propagated():
     np.testing.assert_allclose(radius.mean(), 7205.0, atol=20.0)
 
 
-def test_get_last_dn_time_is_a_descending_node():
+def test_get_last_dn_time_is_a_descending_node(noaa_20):
     """The last descending node is a time when the satellite crosses the equator southbound."""
-    from pyorbital.orbital import Orbital
-    orb = Orbital("NOAA-20",
-                  line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
-                  line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
+    result = noaa_20.get_last_dn_time(dt.datetime(2024, 6, 25, 11, 0, 18))
 
-    result = orb.get_last_dn_time(dt.datetime(2024, 6, 25, 11, 0, 18))
-
-    (_, _, pos_z), (_, _, vel_z) = orb.get_position(result, normalize=False)
+    (_, _, pos_z), (_, _, vel_z) = noaa_20.get_position(result, normalize=False)
     assert abs(pos_z) < 1
     assert vel_z < 0
 
 
-def test_find_aos_is_the_satellite_rising_through_the_horizon():
+def test_find_aos_is_the_satellite_rising_through_the_horizon(noaa_20):
     """Acquisition of signal is when the satellite comes up over the horizon."""
-    from pyorbital.orbital import Orbital
-    orb = Orbital("NOAA-20",
-                  line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
-                  line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
-    lon, lat, alt = 12.4143, 55.9065, 0.02
-
     # 11:00 falls in the middle of a pass, so the answer is the pass after
     # this one, not the horizon crossing this one already made at 10:53.
     utc_time = dt.datetime(2024, 6, 25, 11, 0)
 
-    aos = orb.find_aos(utc_time, lon, lat, alt)
+    aos = noaa_20.find_aos(utc_time, *OBSERVER)
 
-    a_moment = dt.timedelta(seconds=10)
-    before = orb.get_observer_look(aos - a_moment, lon, lat, alt)[1]
-    after = orb.get_observer_look(aos + a_moment, lon, lat, alt)[1]
+    before, after = elevations_astride(noaa_20, aos, *OBSERVER)
     assert before < 0 < after
     assert aos > utc_time
 
 
-def test_find_aol_ends_the_pass_already_under_way():
+def test_find_aol_ends_the_pass_already_under_way(noaa_20):
     """Loss of signal is the next time the satellite sets, which may end the current pass."""
-    from pyorbital.orbital import Orbital
-    orb = Orbital("NOAA-20",
-                  line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
-                  line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
-    lon, lat, alt = 12.4143, 55.9065, 0.02
-
     # The satellite is already up at 11:00, so it sets before it next rises.
     utc_time = dt.datetime(2024, 6, 25, 11, 0)
 
-    aol = orb.find_aol(utc_time, lon, lat, alt)
+    aol = noaa_20.find_aol(utc_time, *OBSERVER)
 
-    a_moment = dt.timedelta(seconds=10)
-    before = orb.get_observer_look(aol - a_moment, lon, lat, alt)[1]
-    after = orb.get_observer_look(aol + a_moment, lon, lat, alt)[1]
+    before, after = elevations_astride(noaa_20, aol, *OBSERVER)
     assert before > 0 > after
-    assert utc_time < aol < orb.find_aos(utc_time, lon, lat, alt)
+    assert utc_time < aol < noaa_20.find_aos(utc_time, *OBSERVER)
 
 
-def test_find_aos_says_so_when_the_satellite_never_rises_that_far():
+def test_find_aos_says_so_when_the_satellite_never_rises_that_far(noaa_20):
     """A horizon the satellite never clears is reported, not left to an IndexError."""
-    from pyorbital.orbital import Orbital
-    orb = Orbital("NOAA-20",
-                  line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
-                  line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
-
     # The horizon asked for belongs in the message; its exact prose does not.
     with pytest.raises(ValueError, match="85"):
-        orb.find_aos(dt.datetime(2024, 6, 25, 11, 0), 12.4143, 55.9065, 0.02, horizon=85)
+        noaa_20.find_aos(dt.datetime(2024, 6, 25, 11, 0), *OBSERVER, horizon=85)
 
 
-def test_find_aol_says_so_when_the_satellite_never_sets_that_far():
+def test_find_aol_says_so_when_the_satellite_never_sets_that_far(noaa_20):
     """A horizon the satellite never sets below is reported, not returned as a silent None."""
-    from pyorbital.orbital import Orbital
-    orb = Orbital("NOAA-20",
-                  line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
-                  line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
-
     with pytest.raises(ValueError, match="85"):
-        orb.find_aol(dt.datetime(2024, 6, 25, 11, 0), 12.4143, 55.9065, 0.02, horizon=85)
+        noaa_20.find_aol(dt.datetime(2024, 6, 25, 11, 0), *OBSERVER, horizon=85)

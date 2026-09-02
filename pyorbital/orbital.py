@@ -60,6 +60,9 @@ _NODE_TOLERANCE_KM = 1
 # How far ahead to look for the next horizon crossing.
 _HORIZON_SEARCH_HOURS = 24
 
+# Precision of a computed horizon crossing, in seconds.
+_CROSSING_TOLERANCE_SECONDS = 0.001
+
 
 SGDP4_ZERO_ECC = 0
 SGDP4_DEEP_NORM = 1
@@ -254,9 +257,36 @@ class Orbital(object):
         rise_time, _, _ = passes[0]
         return rise_time
 
-    def find_aol(self, utc_time, lon, lat):
-        """Find AOL."""
-        pass
+    def find_aol(self, utc_time, lon, lat, alt=0, horizon=0):
+        """Find when the satellite next sets below the observer's horizon.
+
+        The search runs over the next 24 hours, and returns None if the
+        satellite does not set in that time. Unlike find_aos, a pass already
+        under way when *utc_time* falls inside it does count: the answer is
+        then the end of that pass, so the two need not describe the same one.
+
+        Elevation is sampled once a minute to bracket the crossing, so a pass
+        that begins and ends between two samples is not seen.
+        """
+        elevation, crossings = self._scan_elevation(utc_time, _HORIZON_SEARCH_HOURS,
+                                                    lon, lat, alt, horizon)
+        elevation_at = partial(self._elevation, utc_time, lon, lat, alt, horizon)
+        for crossing in crossings:
+            if elevation[crossing] > 0:
+                minutes = _get_root(elevation_at, crossing, crossing + 1.0,
+                                    tol=_CROSSING_TOLERANCE_SECONDS / 60.0)
+                return utc_time + dt.timedelta(minutes=minutes)
+
+    def _scan_elevation(self, utc_time, hours, lon, lat, alt, horizon):
+        """Sample the elevation above *horizon* once a minute, and find the horizon crossings.
+
+        Returns the samples and the indices preceding a crossing, so crossing
+        *i* lies between minute *i* and minute *i* + 1.
+        """
+        times = utc_time + np.array([dt.timedelta(minutes=minutes)
+                                     for minutes in range(hours * 60)])
+        elevation = self.get_observer_look(times, lon, lat, alt)[1] - horizon
+        return elevation, np.where(np.diff(np.sign(elevation)))[0]
 
     def get_observer_look(self, utc_time, lon, lat, alt):
         """Calculate observers look angle to a satellite.
@@ -348,7 +378,8 @@ class Orbital(object):
 
         return orbit
 
-    def get_next_passes(self, utc_time, length, lon, lat, alt, tol=0.001, horizon=0):
+    def get_next_passes(self, utc_time, length, lon, lat, alt,
+                        tol=_CROSSING_TOLERANCE_SECONDS, horizon=0):
         """Calculate passes for the next hours for a given start time and a given observer.
 
         Original by Martin.
@@ -364,11 +395,7 @@ class Orbital(object):
         :return: [(rise-time, fall-time, max-elevation-time), ...]
 
         """
-        # every minute
-        times = utc_time + np.array([dt.timedelta(minutes=minutes)
-                                     for minutes in range(length * 60)])
-        elev = self.get_observer_look(times, lon, lat, alt)[1] - horizon
-        zcs = np.where(np.diff(np.sign(elev)))[0]
+        elev, zcs = self._scan_elevation(utc_time, length, lon, lat, alt, horizon)
         res = []
         risetime = None
         risemins = None

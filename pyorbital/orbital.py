@@ -83,9 +83,7 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = astronomy.observer_position(
         utc_time, sat_lon, sat_lat, sat_alt)
 
-    az_, el_ = get_observer_look_from_cartesian_position(utc_time, lon, lat, alt, pos_x, pos_y, pos_z)
-
-    return az_, el_
+    return get_observer_look_from_cartesian_position(utc_time, lon, lat, alt, pos_x, pos_y, pos_z)
 
 
 def get_observer_look_from_cartesian_position(utc_time, lon, lat, alt, pos_x, pos_y, pos_z):
@@ -128,8 +126,7 @@ def get_observer_look_from_cartesian_position(utc_time, lon, lat, alt, pos_x, po
     # Due to rounding top_z can be larger than rg_ (when el_ ~ 90).
     top_z_divided_by_rg_ = top_z_divided_by_rg_.clip(max=1)
     el_ = np.arcsin(top_z_divided_by_rg_)
-    az_, el_ = np.rad2deg(az_), np.rad2deg(el_)
-    return az_, el_
+    return np.rad2deg(az_), np.rad2deg(el_)
 
 
 class Orbital(object):

@@ -456,3 +456,24 @@ def test_get_last_dn_time_is_a_descending_node():
     (_, _, pos_z), (_, _, vel_z) = orb.get_position(result, normalize=False)
     assert abs(pos_z) < 1
     assert vel_z < 0
+
+
+def test_find_aos_is_the_satellite_rising_through_the_horizon():
+    """Acquisition of signal is when the satellite comes up over the horizon."""
+    from pyorbital.orbital import Orbital
+    orb = Orbital("NOAA-20",
+                  line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
+                  line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
+    lon, lat, alt = 12.4143, 55.9065, 0.02
+
+    # 11:00 falls in the middle of a pass, so the answer is the pass after
+    # this one, not the horizon crossing this one already made at 10:53.
+    utc_time = dt.datetime(2024, 6, 25, 11, 0)
+
+    aos = orb.find_aos(utc_time, lon, lat, alt)
+
+    a_moment = dt.timedelta(seconds=10)
+    before = orb.get_observer_look(aos - a_moment, lon, lat, alt)[1]
+    after = orb.get_observer_look(aos + a_moment, lon, lat, alt)[1]
+    assert before < 0 < after
+    assert aos > utc_time

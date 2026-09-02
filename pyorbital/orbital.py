@@ -57,6 +57,9 @@ A = 6378.137  # WGS84 Equatorial radius
 _NODE_SEARCH_STEP = np.timedelta64(10, "m")
 _NODE_TOLERANCE_KM = 1
 
+# How far ahead to look for the next horizon crossing.
+_HORIZON_SEARCH_HOURS = 24
+
 
 SGDP4_ZERO_ECC = 0
 SGDP4_DEEP_NORM = 1
@@ -236,9 +239,20 @@ class Orbital(object):
         alt *= A
         return np.rad2deg(lon), np.rad2deg(lat), alt
 
-    def find_aos(self, utc_time, lon, lat):
-        """Find AOS."""
-        pass
+    def find_aos(self, utc_time, lon, lat, alt=0, horizon=0):
+        """Find when the satellite next rises above the observer's horizon.
+
+        The search runs over the next 24 hours, and raises an IndexError if
+        nothing rises in that time. A pass already under way when *utc_time*
+        falls inside it is not reported; the answer is the rise of the pass
+        after it.
+
+        Elevation is sampled once a minute to bracket the crossing, so a pass
+        that begins and ends between two samples is not seen.
+        """
+        passes = self.get_next_passes(utc_time, _HORIZON_SEARCH_HOURS, lon, lat, alt, horizon=horizon)
+        rise_time, _, _ = passes[0]
+        return rise_time
 
     def find_aol(self, utc_time, lon, lat):
         """Find AOL."""

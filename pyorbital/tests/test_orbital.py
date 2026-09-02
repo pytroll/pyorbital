@@ -509,3 +509,14 @@ def test_find_aos_says_so_when_the_satellite_never_rises_that_far():
     # The horizon asked for belongs in the message; its exact prose does not.
     with pytest.raises(ValueError, match="85"):
         orb.find_aos(dt.datetime(2024, 6, 25, 11, 0), 12.4143, 55.9065, 0.02, horizon=85)
+
+
+def test_find_aol_says_so_when_the_satellite_never_sets_that_far():
+    """A horizon the satellite never sets below is reported, not returned as a silent None."""
+    from pyorbital.orbital import Orbital
+    orb = Orbital("NOAA-20",
+                  line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
+                  line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
+
+    with pytest.raises(ValueError, match="85"):
+        orb.find_aol(dt.datetime(2024, 6, 25, 11, 0), 12.4143, 55.9065, 0.02, horizon=85)

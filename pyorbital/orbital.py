@@ -255,16 +255,15 @@ class Orbital(object):
         """
         passes = self.get_next_passes(utc_time, _HORIZON_SEARCH_HOURS, lon, lat, alt, horizon=horizon)
         if not passes:
-            raise ValueError(f"{self.satellite_name} does not rise above {horizon} degrees "
-                             f"for this observer within {_HORIZON_SEARCH_HOURS} hours of {utc_time}")
+            raise self._no_crossing_found(horizon, utc_time, rising=True)
         rise_time, _, _ = passes[0]
         return rise_time
 
     def find_aol(self, utc_time, lon, lat, alt=0, horizon=0):
         """Find when the satellite next sets below the observer's horizon.
 
-        The search runs over the next 24 hours, and returns None if the
-        satellite does not set in that time. Unlike find_aos, a pass already
+        The search runs over the next 24 hours, and raises a ValueError if no
+        setting is found in that time. Unlike find_aos, a pass already
         under way when *utc_time* falls inside it does count: the answer is
         then the end of that pass, so the two need not describe the same one.
 
@@ -279,6 +278,13 @@ class Orbital(object):
                 minutes = _get_root(elevation_at, crossing, crossing + 1.0,
                                     tol=_CROSSING_TOLERANCE_SECONDS / 60.0)
                 return utc_time + dt.timedelta(minutes=minutes)
+        raise self._no_crossing_found(horizon, utc_time, rising=False)
+
+    def _no_crossing_found(self, horizon, utc_time, rising):
+        """Explain that the horizon crossing asked for is not in the searched window."""
+        crossing = "rise above" if rising else "set below"
+        return ValueError(f"{self.satellite_name} does not {crossing} {horizon} degrees "
+                          f"for this observer within {_HORIZON_SEARCH_HOURS} hours of {utc_time}")
 
     def _scan_elevation(self, utc_time, hours, lon, lat, alt, horizon):
         """Sample the elevation above *horizon* once a minute, and find the horizon crossings.

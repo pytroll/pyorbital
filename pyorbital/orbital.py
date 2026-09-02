@@ -91,7 +91,7 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
 def get_observer_look_from_cartesian_position(utc_time, lon, lat, alt, pos_x, pos_y, pos_z):
     """Calculate an observer's look angle to a satellite given in cartesian coordinates.
 
-    The satellite is given as an earth-centred inertial position, which is what
+    The satellite is given as an earth-centered inertial position, which is what
     the propagator produces, so that a caller holding one need not turn it into
     a longitude and latitude and back again.
 

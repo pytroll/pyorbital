@@ -38,10 +38,39 @@ class Test(unittest.TestCase):
         lon, lat, alt = sat.get_lonlatalt(d)
         expected_lon = -68.199894472013213
         expected_lat = 23.159747677881075
-        expected_alt = 392.01953430856935
+        expected_alt = 392.01741241831
         assert np.abs(lon - expected_lon) < eps_deg, "Calculation of sublon failed"
         assert np.abs(lat - expected_lat) < eps_deg, "Calculation of sublat failed"
-        assert np.abs(alt - expected_alt) < eps_deg, "Calculation of altitude failed"
+        assert np.abs(alt - expected_alt) < 1e-6, "Calculation of altitude failed"
+
+    def test_sublonlat_altitude_is_geodetic_on_wgs84(self):
+        """The altitude is the WGS84 ellipsoidal height of the kilometer position.
+
+        Converting the propagated position to geodetic coordinates entirely in
+        WGS84 (equatorial radius A, flattening F) must reproduce get_lonlatalt.
+        Scaling the position by the WGS72 radius XKMPER and the altitude by A
+        instead inflates the altitude by A / XKMPER - 1, about 2 m for this orbit.
+        """
+        sat = orbital.Orbital("ISS (ZARYA)",
+                              line1="1 25544U 98067A   03097.78853147  "
+                                    ".00021906  00000-0  28403-3 0  8652",
+                              line2="2 25544  51.6361  13.7980 0004256  "
+                                    "35.6671  59.2566 15.58778559250029")
+        times = [dt.datetime(2003, 3, 23, 0, 3, 22) + dt.timedelta(minutes=m) for m in range(0, 90, 10)]
+        for d in times:
+            _, _, alt = sat.get_lonlatalt(d)
+            (x, y, z), _ = sat.get_position(d, normalize=False)
+            r = np.hypot(x, y)
+            e2 = orbital.F * (2 - orbital.F)
+            phi = np.arctan2(z, r)
+            for _ in range(50):
+                n = orbital.A / np.sqrt(1 - e2 * np.sin(phi) ** 2)
+                phi = np.arctan2(z + n * e2 * np.sin(phi), r)
+            n = orbital.A / np.sqrt(1 - e2 * np.sin(phi) ** 2)
+            expected_alt = r / np.cos(phi) - n
+            assert abs(alt - expected_alt) < 1e-9, d
+            inflated = expected_alt + (orbital.A / orbital.XKMPER - 1) * np.hypot(r, z)
+            assert abs(alt - inflated) > 1e-3, d
 
     def test_observer_look(self):
         """Test getting the observer look angles."""

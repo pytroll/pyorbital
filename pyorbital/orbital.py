@@ -203,9 +203,18 @@ class Orbital(object):
         http://celestrak.com/columns/v02n03/
         """
         (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(
-            utc_time, normalize=True)
+            utc_time, normalize=False)
 
-        lon = ((np.arctan2(pos_y * XKMPER, pos_x * XKMPER) - astronomy.gmst(utc_time))
+        # The geodetic conversion below is written in WGS84 Earth radii, so the
+        # kilometer position is scaled by the WGS84 equatorial radius A. Scaling
+        # by XKMPER instead (the WGS72 radius SGP4 propagates with) and then
+        # multiplying the altitude by A inflates it by A / XKMPER - 1, about
+        # 2 m for a low orbit and 13 m at geostationary altitude.
+        pos_x = pos_x / A
+        pos_y = pos_y / A
+        pos_z = pos_z / A
+
+        lon = ((np.arctan2(pos_y, pos_x) - astronomy.gmst(utc_time))
                % (2 * np.pi))
 
         lon = np.where(lon > np.pi, lon - np.pi * 2, lon)

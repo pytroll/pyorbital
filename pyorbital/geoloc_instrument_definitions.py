@@ -786,6 +786,84 @@ def viirs_edge_geom(scans_nb):
 
 ################################################################
 #
+#   METimage (VII)
+#
+################################################################
+
+# METimage (also known as VII, the VIS/IR Imager) on Metop-SG-A.
+#
+# Sources:
+#   EPS-SG VII Level 1B Product Format Specification,
+#   EUM/LEO-EPSSG/SPE/14/777138 v5A (20 September 2024), Table 10:
+#   https://user.eumetsat.int/s3/eup-strapi-media/EPS_SG_VII_Level_1_B_Product_Format_Specification_654c0b397a.pdf
+#     num_pixels = 3144 (across-track samples per scan)
+#     num_pixels_alt = 24 (along-track samples per scan)
+#     Pixel 1 is the furthest point from nadir on the left side with respect
+#     to the spacecraft motion.
+#
+#   C. Cao, "Introducing METImage: EUMETSAT's next generation polar imager on
+#   METOP-SG", NOAA STAR seminar, 21 August 2019:
+#   https://www.star.nesdis.noaa.gov/star/documents/seminardocs/2019/20190821_Cao.pdf
+#     Whisk-broom scanner, 24 detector lines per scan, 1.729 s per scan
+#     rotation at constant scan angle, IFOV 0.6 mrad, and a scan mirror
+#     covering an extended Earth view of 108 degrees per revolution.
+#
+#   R. Bruens et al., "METimage - an innovative imaging radiometer for
+#   Post-EPS", EUMETSAT Meteorological Satellite Conference:
+#   https://www-cdn.eumetsat.int/files/2020-04/pdf_conf_p50_s1_02_bruens_p.pdf
+#     Describes the rotating telescope scanner: the telescope itself rotates
+#     and a half-angle derotator mirror produces a standing image, so there is
+#     no image rotation across the swath.
+#
+# Consistency of the numbers above: 108 deg spread over 3144 samples gives
+# 0.6 mrad per sample, so the across-track sampling is contiguous, the step
+# being exactly the IFOV.  The pixels are square (0.5 km at nadir from the
+# 830 km orbit is the same 0.6 mrad), so the along-track spacing of the
+# detector rows is that same sampling step.
+_METIMAGE_EARTH_VIEW = 108.0   # degrees of Earth view per telescope revolution
+_METIMAGE_SCAN_RATE = 1.729    # seconds per telescope revolution
+_METIMAGE_PIXELS = 3144
+_METIMAGE_LINES_PER_SCAN = 24
+_METIMAGE_SAMPLING_STEP = np.deg2rad(_METIMAGE_EARTH_VIEW) / _METIMAGE_PIXELS
+# The 108 degrees are the extent of the Earth view, that is of the 3144 pixels
+# edge to edge.  The scan angle wanted here is the one of the outermost pixel
+# centres, half a pixel further in on either side.
+_METIMAGE_SCAN_ANGLE = np.rad2deg(_METIMAGE_SAMPLING_STEP * (_METIMAGE_PIXELS - 1) / 2)
+# The scan angle rate is constant, so the Earth view takes up the same
+# fraction of the revolution time as it does of the full 360 degrees.
+_METIMAGE_SWEEP_TIME = _METIMAGE_SCAN_RATE * _METIMAGE_EARTH_VIEW / 360.0
+
+METIMAGE_SCAN = MultiLineWhiskbroomScan(
+    pixels_per_scan=_METIMAGE_PIXELS,
+    scan_angle=_METIMAGE_SCAN_ANGLE,
+    scan_rate=_METIMAGE_SCAN_RATE,
+    pixel_dwell_time=_METIMAGE_SWEEP_TIME / _METIMAGE_PIXELS,
+    lines_per_scan=_METIMAGE_LINES_PER_SCAN,
+    along_track_step=_METIMAGE_SAMPLING_STEP,
+)
+
+
+def metimage(scans_nb, scan_points=None):
+    """Describe the METimage (VII) instrument geometry.
+
+    METimage is a whisk-broom scanner recording 24 lines simultaneously for
+    each sweep of the rotating telescope, so the scan angles (and times) are
+    two-dimensional arrays, contrary to AVHRR for example.
+
+    Args:
+        scans_nb: Number of scans (each scan yields 24 lines).
+        scan_points: Across track pixel positions, all 3144 by default.
+    """
+    return METIMAGE_SCAN.scan_geometry(scans_nb, scan_points)
+
+
+def metimage_edge_geom(scans_nb):
+    """Definition of the METimage scan edges."""
+    return metimage(scans_nb, np.array([0, _METIMAGE_PIXELS - 1]))
+
+
+################################################################
+#
 #   AMSU-A
 #
 ################################################################

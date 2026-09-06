@@ -1693,3 +1693,19 @@ def test_yaw_steering_reverses_with_the_direction_of_travel():
     going_down = compute_yaw_steering(position, southbound)
 
     assert np.sign(going_up) == -np.sign(going_down)
+
+
+def test_a_steered_platform_lands_its_swath_elsewhere():
+    """A platform that turns to hold its swath square to the ground track sees different ground."""
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    when = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    swath_edge = np.array([[100, 2047]])
+
+    with config.set(nadir_convention="geocentric"):
+        straight = compute_avhrr_gcps_lonlatalt(swath_edge, 55.37, (0, 0, 0), when, (tle1, tle2))
+        turned = compute_avhrr_gcps_lonlatalt(swath_edge, 55.37, (0, 0, 0), when, (tle1, tle2),
+                                              yaw_steering=True)
+
+    moved = np.hypot(turned[0][0] - straight[0][0], turned[1][0] - straight[1][0])
+    assert moved > 0.3

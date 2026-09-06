@@ -14,13 +14,18 @@ from pyorbital.geoloc import ScanGeometry, compute_pixels, get_lonlatalt
 logger = logging.getLogger(__name__)
 geod = Geod(ellps="WGS84")
 
-def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle) -> None:
+def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle, yaw_steering=False) -> None:
     """Compute the longitute, latitude and altitude of given gcps (scanlines, columns of the swath).
 
     The gcps are arbitrary location in swath coordinates, for example (10.3, 7.7) for a gcp at line 10.3 in the swath,
     and column 7.7. This function returns the geographical coordinates of the gcps.
 
     The scanlines are relative to the pass scanline numbers, zero-based.
+
+    Pass *yaw_steering* for a platform that turns as it flies to hold its swath
+    square to the ground track, as Metop does and the POES platforms do not. It
+    must match the convention the geolocation under study was computed with,
+    since a mismatch shows up as a whole-swath yaw of a few degrees.
     """
     time_line_interval = 1/6
     time_row_interval = 25e-6
@@ -36,7 +41,7 @@ def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle) -> 
     start_time = np.datetime64(start_time)
     s_times = geom.times(start_time)
 
-    pixels_pos = compute_pixels(tle, geom, s_times, rpy)
+    pixels_pos = compute_pixels(tle, geom, s_times, rpy, yaw_steering=yaw_steering)
     return get_lonlatalt(pixels_pos, s_times)
 
 

@@ -1674,3 +1674,22 @@ def test_yaw_steering_with_a_position_for_every_pixel():
 
     assert steered.shape[-1] == scans * pixels
     assert np.all(np.isfinite(steered))
+
+
+def test_yaw_steering_reverses_with_the_direction_of_travel():
+    """The correction is opposite on the two legs of the orbit.
+
+    Yaw steering compensates for the ground turning beneath the spacecraft. Seen
+    from a southbound pass the ground runs the other way than from a northbound
+    one, so the angle has to change sign with the direction of travel.
+    """
+    from pyorbital.geoloc import compute_yaw_steering
+
+    position = np.array([[7000.0], [0.0], [0.0]])
+    northbound = np.array([[0.0], [1.0], [7.4]])
+    southbound = np.array([[0.0], [1.0], [-7.4]])
+
+    going_up = compute_yaw_steering(position, northbound)
+    going_down = compute_yaw_steering(position, southbound)
+
+    assert np.sign(going_up) == -np.sign(going_down)

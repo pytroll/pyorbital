@@ -91,7 +91,10 @@ def compute_yaw_steering(pos, vel):
     r = vnorm(pos)
     v = vnorm(vel)
     lat = np.arcsin(pos[2] / r)
-    return np.arctan2(OMEGA_EARTH * A * np.cos(lat), v)
+    # The ground runs the other way as seen from a southbound pass, so the
+    # correction follows the direction of travel.
+    heading = np.where(vel[2] < 0, -1.0, 1.0)
+    return heading * np.arctan2(OMEGA_EARTH * A * np.cos(lat), v)
 
 
 def _warn_legacy_convention(what, replacement):

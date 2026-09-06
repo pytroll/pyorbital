@@ -1760,3 +1760,23 @@ def test_a_steered_swath_is_fitted_by_a_model_that_turns_with_it():
                                                                   max_scan_angle, yaw_steering=True)
 
     assert yaw == pytest.approx(planted_yaw, abs=1e-2)
+
+
+def test_the_steering_balances_the_spin_against_the_speed_over_the_ground():
+    """The subpoint crosses the ground more slowly than the platform crosses space.
+
+    The turn holds the swath square to the track drawn on the ground, so it
+    balances the ground's eastward run against the speed of the subpoint, which
+    is the platform's speed shrunk by the ratio of the two radii.
+    """
+    from pyorbital.geoloc import A, OMEGA_EARTH, compute_yaw_steering
+
+    height = 817.0
+    speed = 7.45
+    above_the_equator = np.array([[A + height], [0.0], [0.0]])
+    going_north = np.array([[0.0], [0.0], [speed]])
+
+    turn = compute_yaw_steering(above_the_equator, going_north)
+
+    subpoint_speed = speed * A / (A + height)
+    assert turn[0] == pytest.approx(np.arctan2(OMEGA_EARTH * A, subpoint_speed))

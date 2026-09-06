@@ -1650,3 +1650,27 @@ def test_geocentric_nadir_stays_geocentric_when_velocity_is_not_perpendicular():
     # and the frame is still orthonormal, which the rotations require
     assert abs(float(np.sum(nadir * along_track))) < 1e-12
     assert abs(float(np.sum(nadir * cross_track))) < 1e-12
+
+
+def test_yaw_steering_with_a_position_for_every_pixel():
+    """Yaw steering must work when the caller gives a position per pixel.
+
+    A caller holding a time for every pixel, as an AVHRR reader does, passes
+    positions of shape (3, scans * pixels) rather than one per scan. The scan
+    angles are then flattened to match, and the yaw has to be flattened with
+    them.
+    """
+    scans, pixels = 4, 3
+    across = np.deg2rad(np.array([10.0, 0.0, -10.0]))
+    fovs = np.tile(np.vstack((across, np.zeros(pixels)))[:, np.newaxis, :],
+                   [1, scans, 1])
+    instrument = ScanGeometry(fovs, np.zeros((scans, pixels)))
+
+    position = np.tile(np.array([[7000.0], [0.0], [0.0]]), (1, scans * pixels))
+    velocity = np.tile(np.array([[0.0], [7.5], [0.0]]), (1, scans * pixels))
+
+    steered = instrument.vectors(position, velocity, yaw_steering=True,
+                                 nadir_convention="geocentric")
+
+    assert steered.shape[-1] == scans * pixels
+    assert np.all(np.isfinite(steered))

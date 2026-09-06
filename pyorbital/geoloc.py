@@ -311,7 +311,9 @@ class ScanGeometry(object):
             vel = np.repeat(vel, pixels_per_row, axis=1)
         fovs = self.fovs.reshape(2, -1)
         nadir, along_track, cross_track = _local_frame(pos, vel, nadir_convention)
-        effective_yaw = _effective_yaw(yaw, yaw_steering, pos, vel, self.fovs[0].shape)
+        # the yaw turns the look vectors, so it has to match the points they are
+        # built from, which the caller may give per scan or per pixel
+        effective_yaw = _effective_yaw(yaw, yaw_steering, pos, vel, np.shape(pos)[1:])
         if not np.any(fovs[1] + pitch):
             # with no along-track angle the two orders are identical, so the
             # choice is irrelevant and not worth deprecating at the caller

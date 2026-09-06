@@ -1709,3 +1709,34 @@ def test_a_steered_platform_lands_its_swath_elsewhere():
 
     moved = np.hypot(turned[0][0] - straight[0][0], turned[1][0] - straight[1][0])
     assert moved > 0.3
+
+
+def test_steering_squares_the_swath_to_the_ground_track():
+    """Steering holds the scan square to the track the platform draws over the turning Earth.
+
+    Without it the scan stays square to the inertial track instead, which the
+    ground sees as a swath skewed by the few degrees the Earth turns beneath.
+    """
+    from pyproj import Geod
+
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    southbound = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    northbound = southbound + dt.timedelta(minutes=51)
+    either_side_of_nadir = np.array([[100, 1004], [100, 1044]])
+    earth = Geod(ellps="WGS84")
+    orbit = Orbital("", line1=tle1, line2=tle2)
+
+    def out_of_square(when, steering):
+        with config.set(nadir_convention="geocentric"):
+            lon, lat, _ = compute_avhrr_gcps_lonlatalt(either_side_of_nadir, 55.37, (0, 0, 0),
+                                                       when, (tle1, tle2), yaw_steering=steering)
+        along_the_scan, _, _ = earth.inv(lon[0], lat[0], lon[1], lat[1])
+        here = orbit.get_lonlatalt(when)
+        ahead = orbit.get_lonlatalt(when + dt.timedelta(seconds=10))
+        along_the_track, _, _ = earth.inv(here[0], here[1], ahead[0], ahead[1])
+        return abs(abs((along_the_scan - along_the_track + 180) % 360 - 180) - 90)
+
+    for when in (southbound, northbound):
+        assert out_of_square(when, True) < 1.0
+        assert out_of_square(when, True) < out_of_square(when, False)

@@ -45,7 +45,8 @@ def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle, yaw
     return get_lonlatalt(pixels_pos, s_times)
 
 
-def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, tle, max_scan_angle):
+def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, tle, max_scan_angle,
+                                          yaw_steering=False):
     """Estimate time offset and attitude deviations from gcps.
 
     Provided reference longitudes and latitudes for the gcps, this function minimises the attitude and time offset
@@ -54,13 +55,13 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
     from scipy.optimize import minimize
 
     original_distances = compute_gcp_distances_to_reference_lonlats((0, 0, 0, 0), gcps, start_time, tle, max_scan_angle,
-                                                                    (ref_lons, ref_lats))
+                                                                    (ref_lons, ref_lats), yaw_steering)
     original_median_distance = np.median(original_distances)
     logger.debug(f"GCP distances: median {original_median_distance}, std {np.std(original_distances)}")
     # we need to work in seconds*1e3 to avoid the nanosecond precision issue
     res = minimize(compute_gcp_accumulated_squared_distances_to_reference_lonlats,
                    x0=(0, 0, 0, 0),
-                   args=(gcps, start_time, tle, max_scan_angle, (ref_lons, ref_lats)),
+                   args=(gcps, start_time, tle, max_scan_angle, (ref_lons, ref_lats), yaw_steering),
                    bounds=((-0.007, 0.007) , (-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5)))
     if not res.success:
         raise RuntimeError("Time and attitude estimation did not converge")
@@ -68,7 +69,7 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
     logger.debug(f"Estimated time difference to {time_diff} seconds, "
                  f"attitude to {np.rad2deg(roll)}, {np.rad2deg(pitch)}, {np.rad2deg(yaw)} degrees")
     distances = compute_gcp_distances_to_reference_lonlats(res.x, gcps, start_time, tle, max_scan_angle,
-                                                           (ref_lons, ref_lats))
+                                                           (ref_lons, ref_lats), yaw_steering)
 
     minimized_median_distance = np.median(distances)
     logger.debug(f"Remaining GCP distances: median {minimized_median_distance}, std {np.std(distances)}")
@@ -114,22 +115,24 @@ def estimate_time_offset(gcps, ref_lons, ref_lats, start_time, tle, max_scan_ang
 
 
 def compute_gcp_accumulated_squared_distances_to_reference_lonlats(
-        variables, gcps, start_time, tle, max_scan_angle, refs):
+        variables, gcps, start_time, tle, max_scan_angle, refs, yaw_steering=False):
     """Compute the summed squared distance fot gcps to reference lonlats.
 
     Given the gcps (in swath coordinates) along with attitude and time offset, compute the sum of squared distances to
     the reference lons and lats of the gcps.
     """
-    distances = compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs)
+    distances = compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs,
+                                                           yaw_steering)
     return np.sum(distances**2)
 
 
-def compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs):
+def compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs,
+                                               yaw_steering=False):
     """Compute the gcp distances to references lonlats."""
     time_diff, roll, pitch, yaw = variables
     # we need to work in seconds*1e3 to avoid the nanosecond precision issue
     time = np.datetime64(start_time) + np.timedelta64(int(time_diff * 1e12), "ns")
-    lons, lats, _ = compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, (roll, pitch, yaw), time, tle)
+    lons, lats, _ = compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, (roll, pitch, yaw), time, tle, yaw_steering)
     valid = np.isfinite(lons)
     lons = lons[valid]
     lats = lats[valid]

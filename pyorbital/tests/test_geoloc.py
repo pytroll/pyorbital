@@ -1740,3 +1740,23 @@ def test_steering_squares_the_swath_to_the_ground_track():
     for when in (southbound, northbound):
         assert out_of_square(when, True) < 1.0
         assert out_of_square(when, True) < out_of_square(when, False)
+
+
+def test_a_steered_swath_is_fitted_by_a_model_that_turns_with_it():
+    """A model that turns with the swath finds the attitude planted in it, and no more."""
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    tle = (tle1, tle2)
+    when = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    gcps = np.array([[2, 500], [1500, 700], [20, 1000], [500, 1100], [100, 2000]])
+    max_scan_angle = 55.37
+
+    planted_yaw = 0.1
+
+    with config.set(nadir_convention="geocentric", rotation_order="pitch_first"):
+        ref_lons, ref_lats, _ = compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, (0, 0, planted_yaw),
+                                                             when, tle, yaw_steering=True)
+        _, (_, _, yaw), _ = estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, when, tle,
+                                                                  max_scan_angle, yaw_steering=True)
+
+    assert yaw == pytest.approx(planted_yaw, abs=1e-2)

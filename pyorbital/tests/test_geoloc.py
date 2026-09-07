@@ -1812,8 +1812,11 @@ def test_the_attitude_fit_stands_on_the_nadir_it_is_given():
     with config.set(rotation_order="pitch_first"):
         ref_lons, ref_lats, _ = compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, (0, 0, planted_yaw),
                                                              when, tle, nadir_convention="geodetic")
-        _, (_, _, yaw), _ = estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, when, tle,
-                                                                  max_scan_angle,
-                                                                  nadir_convention="geodetic")
+        _, (roll, _, yaw), _ = estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, when, tle,
+                                                                     max_scan_angle,
+                                                                     nadir_convention="geodetic")
 
     assert yaw == pytest.approx(planted_yaw, abs=1e-2)
+    # Standing on the wrong nadir tilts the swath meridionally, which the fit takes
+    # up as roll: a mismatched convention lands here at 5.6e-4, not at nothing.
+    assert roll == pytest.approx(0, abs=1e-4)

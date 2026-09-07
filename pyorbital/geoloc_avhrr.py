@@ -106,7 +106,7 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
     if not res.success:
         raise RuntimeError("Time and attitude estimation did not converge")
     settled = _with_time(res.x, solve_for_time)
-    if solve_for_time and abs(settled[0] - guessed) >= TIME_SEARCH_REACH - 1e-9:
+    if solve_for_time and res.active_mask[0] != 0:
         raise RuntimeError("The time offset did not settle inside its search; "
                            "nothing in the data holds it, and the attitude pays for it")
     time_diff, roll, pitch, yaw = settled * [1e3, 1, 1, 1]

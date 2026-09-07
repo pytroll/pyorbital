@@ -371,6 +371,29 @@ def test_a_time_offset_resting_on_its_bound_is_refused():
             estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, t, tle, max_scan_angle)
 
 
+def test_only_the_attitude_is_fitted_when_the_clock_is_trusted():
+    """A disciplined clock leaves three parameters to find, not four.
+
+    Time and pitch are all but the same observable, so solving for a time offset that
+    is known to be zero spends the pitch on absorbing its noise.
+    """
+    with config.set(nadir_convention="geodetic", rotation_order="legacy"):
+        tle = ("1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+               "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875")
+        t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+        planted_yaw = 0.1
+        max_scan_angle = 55.37
+        gcps = np.array([[2, 500], [1500, 700], [20, 1000], [500, 1100], [100, 2000]])
+        ref_lons, ref_lats, _ = compute_avhrr_gcps_lonlatalt(
+            gcps, max_scan_angle, (0, 0, planted_yaw), t, tle)
+
+        time_diff, (_, _, yaw), _ = estimate_time_and_attitude_deviations(
+            gcps, ref_lons, ref_lats, t, tle, max_scan_angle, solve_for_time=False)
+
+        assert time_diff == 0.0
+        assert yaw == pytest.approx(planted_yaw, abs=1e-2)
+
+
 @pytest.mark.parametrize("convention", NADIR_CONFIG_CASES)
 def test_minimize_time_error(convention):
     """Test minimizing the distance to a set of gcps using only time offset."""

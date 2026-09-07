@@ -1780,3 +1780,20 @@ def test_the_steering_balances_the_spin_against_the_speed_over_the_ground():
 
     subpoint_speed = speed * A / (A + height)
     assert turn[0] == pytest.approx(np.arctan2(OMEGA_EARTH * A, subpoint_speed))
+
+
+def test_the_gcp_geolocation_takes_the_nadir_convention_it_is_given():
+    """The model a correction fits must stand on the same nadir as the navigation it corrects."""
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    when = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    across_the_swath = np.array([[100, 0], [100, 1024], [100, 2047]])
+
+    straight_down = compute_avhrr_gcps_lonlatalt(across_the_swath, 55.37, (0, 0, 0), when,
+                                                 (tle1, tle2), nadir_convention="geocentric")
+    along_the_normal = compute_avhrr_gcps_lonlatalt(across_the_swath, 55.37, (0, 0, 0), when,
+                                                    (tle1, tle2), nadir_convention="geodetic")
+
+    apart = np.hypot(np.asarray(along_the_normal[0]) - np.asarray(straight_down[0]),
+                     np.asarray(along_the_normal[1]) - np.asarray(straight_down[1]))
+    assert apart.max() > 0.01

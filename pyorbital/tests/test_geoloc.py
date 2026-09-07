@@ -1797,3 +1797,23 @@ def test_the_gcp_geolocation_takes_the_nadir_convention_it_is_given():
     apart = np.hypot(np.asarray(along_the_normal[0]) - np.asarray(straight_down[0]),
                      np.asarray(along_the_normal[1]) - np.asarray(straight_down[1]))
     assert apart.max() > 0.01
+
+
+def test_the_attitude_fit_stands_on_the_nadir_it_is_given():
+    """A fit told which nadir the navigation used finds the attitude planted in it."""
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    tle = (tle1, tle2)
+    when = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    gcps = np.array([[2, 500], [1500, 700], [20, 1000], [500, 1100], [100, 2000]])
+    max_scan_angle = 55.37
+    planted_yaw = 0.1
+
+    with config.set(rotation_order="pitch_first"):
+        ref_lons, ref_lats, _ = compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, (0, 0, planted_yaw),
+                                                             when, tle, nadir_convention="geodetic")
+        _, (_, _, yaw), _ = estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, when, tle,
+                                                                  max_scan_angle,
+                                                                  nadir_convention="geodetic")
+
+    assert yaw == pytest.approx(planted_yaw, abs=1e-2)

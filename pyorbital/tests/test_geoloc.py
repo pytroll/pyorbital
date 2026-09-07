@@ -338,6 +338,39 @@ def test_minimize_geoloc_error(convention):
         assert min(do) > max(dm)
 
 
+def test_minimize_geoloc_error_beyond_the_bound_when_told_where_to_look():
+    """A time offset outside the search box is found when a guess centres the box on it."""
+    with config.set(nadir_convention="geodetic", rotation_order="legacy"):
+        tle = ("1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+               "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875")
+        t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+        ref_time_displacement = 25.0
+        max_scan_angle = 55.37
+        gcps = np.array([[2, 500], [1500, 700], [20, 1000], [500, 1100], [100, 2000]])
+        ref_lons, ref_lats, _ = compute_avhrr_gcps_lonlatalt(
+            gcps, max_scan_angle, (0, 0, 0), t + dt.timedelta(seconds=ref_time_displacement), tle)
+
+        time_diff, _, _ = estimate_time_and_attitude_deviations(
+            gcps, ref_lons, ref_lats, t, tle, max_scan_angle, time_offset_guess=24.0)
+
+        assert time_diff == pytest.approx(ref_time_displacement, abs=1e-2)
+
+
+def test_a_time_offset_resting_on_its_bound_is_refused():
+    """A time the data cannot pin down would be paid for in pitch, so refuse it instead."""
+    with config.set(nadir_convention="geodetic", rotation_order="legacy"):
+        tle = ("1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+               "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875")
+        t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+        max_scan_angle = 55.37
+        gcps = np.array([[2, 500], [1500, 700], [20, 1000], [500, 1100], [100, 2000]])
+        ref_lons, ref_lats, _ = compute_avhrr_gcps_lonlatalt(
+            gcps, max_scan_angle, (0, 0, 0), t + dt.timedelta(seconds=25.0), tle)
+
+        with pytest.raises(RuntimeError, match="did not settle"):
+            estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, t, tle, max_scan_angle)
+
+
 @pytest.mark.parametrize("convention", NADIR_CONFIG_CASES)
 def test_minimize_time_error(convention):
     """Test minimizing the distance to a set of gcps using only time offset."""

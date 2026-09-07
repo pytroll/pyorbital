@@ -51,12 +51,25 @@ def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle, yaw
     return get_lonlatalt(pixels_pos, s_times)
 
 
+# The minimiser carries the time offset in kiloseconds so that a step it considers
+# small is still far larger than the nanosecond the timestamps are stored in.
+TIME_SEARCH_REACH = 0.007   # kiloseconds, so seven seconds either side
+
+
 def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, tle, max_scan_angle,
-                                          yaw_steering=False, nadir_convention=None):
+                                          yaw_steering=False, nadir_convention=None,
+                                          time_offset_guess=0.0):
     """Estimate time offset and attitude deviations from gcps.
 
     Provided reference longitudes and latitudes for the gcps, this function minimises the attitude and time offset
     needed to match the gcp coordinates to the reference coordinates.
+
+    The search reaches only seven seconds, which is a deliberate guard: a time offset the
+    data cannot pin down would otherwise wander off and drag the attitude with it, since
+    a shift along the track can be written either as time or as pitch. When something
+    upstream already knows roughly how far the swath has moved -- a coarse image match,
+    say -- pass that as *time_offset_guess* in seconds, and the search reaches seven
+    seconds either side of it rather than either side of zero.
     """
     from scipy.optimize import minimize
 
@@ -65,13 +78,17 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
         yaw_steering, nadir_convention)
     original_median_distance = np.median(original_distances)
     logger.debug(f"GCP distances: median {original_median_distance}, std {np.std(original_distances)}")
-    # we need to work in seconds*1e3 to avoid the nanosecond precision issue
+    guessed = time_offset_guess / 1e3
     res = minimize(compute_gcp_accumulated_squared_distances_to_reference_lonlats,
-                   x0=(0, 0, 0, 0),
+                   x0=(guessed, 0, 0, 0),
                    args=(gcps, start_time, tle, max_scan_angle, (ref_lons, ref_lats), yaw_steering, nadir_convention),
-                   bounds=((-0.007, 0.007) , (-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5)))
+                   bounds=((guessed - TIME_SEARCH_REACH, guessed + TIME_SEARCH_REACH),
+                           (-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5)))
     if not res.success:
         raise RuntimeError("Time and attitude estimation did not converge")
+    if abs(res.x[0] - guessed) >= TIME_SEARCH_REACH - 1e-9:
+        raise RuntimeError("The time offset did not settle inside its search; "
+                           "nothing in the data holds it, and the attitude pays for it")
     time_diff, roll, pitch, yaw = res.x * [1e3, 1, 1, 1]
     logger.debug(f"Estimated time difference to {time_diff} seconds, "
                  f"attitude to {np.rad2deg(roll)}, {np.rad2deg(pitch)}, {np.rad2deg(yaw)} degrees")

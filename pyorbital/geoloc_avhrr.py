@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 geod = Geod(ellps="WGS84")
 
 def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle, yaw_steering=False,
-                                 nadir_convention=None) -> None:
+                                 nadir_convention=None, rotation_order=None) -> None:
     """Compute the longitute, latitude and altitude of given gcps (scanlines, columns of the swath).
 
     The gcps are arbitrary location in swath coordinates, for example (10.3, 7.7) for a gcp at line 10.3 in the swath,
@@ -47,7 +47,8 @@ def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle, yaw
     s_times = geom.times(start_time)
 
     pixels_pos = compute_pixels(tle, geom, s_times, rpy, yaw_steering=yaw_steering,
-                                nadir_convention=nadir_convention)
+                                nadir_convention=nadir_convention,
+                                rotation_order=rotation_order)
     return get_lonlatalt(pixels_pos, s_times)
 
 
@@ -64,6 +65,7 @@ def _with_time(searched, solve_for_time):
 
 def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, tle, max_scan_angle,
                                           yaw_steering=False, nadir_convention=None,
+                                          rotation_order=None,
                                           time_offset_guess=0.0, solve_for_time=True):
     """Estimate time offset and attitude deviations from gcps.
 
@@ -86,7 +88,7 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
 
     original_distances = compute_gcp_distances_to_reference_lonlats(
         (0, 0, 0, 0), gcps, start_time, tle, max_scan_angle, (ref_lons, ref_lats),
-        yaw_steering, nadir_convention)
+        yaw_steering, nadir_convention, rotation_order)
     original_median_distance = np.median(original_distances)
     logger.debug(f"GCP distances: median {original_median_distance}, std {np.std(original_distances)}")
     guessed = time_offset_guess / 1e3
@@ -101,7 +103,7 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
     res = least_squares(offsets,
                         x0=middle[held],
                         args=(gcps, start_time, tle, max_scan_angle, (ref_lons, ref_lats), yaw_steering,
-                              nadir_convention),
+                              nadir_convention, rotation_order),
                         bounds=(middle[held] - reach[held], middle[held] + reach[held]), x_scale="jac")
     if not res.success:
         raise RuntimeError("Time and attitude estimation did not converge")
@@ -113,7 +115,8 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
     logger.debug(f"Estimated time difference to {time_diff} seconds, "
                  f"attitude to {np.rad2deg(roll)}, {np.rad2deg(pitch)}, {np.rad2deg(yaw)} degrees")
     distances = compute_gcp_distances_to_reference_lonlats(settled, gcps, start_time, tle, max_scan_angle,
-                                                           (ref_lons, ref_lats), yaw_steering, nadir_convention)
+                                                           (ref_lons, ref_lats), yaw_steering, nadir_convention,
+                                                           rotation_order)
 
     minimized_median_distance = np.median(distances)
     logger.debug(f"Remaining GCP distances: median {minimized_median_distance}, std {np.std(distances)}")
@@ -160,24 +163,24 @@ def estimate_time_offset(gcps, ref_lons, ref_lats, start_time, tle, max_scan_ang
 
 def compute_gcp_accumulated_squared_distances_to_reference_lonlats(
         variables, gcps, start_time, tle, max_scan_angle, refs, yaw_steering=False,
-        nadir_convention=None):
+        nadir_convention=None, rotation_order=None):
     """Compute the summed squared distance fot gcps to reference lonlats.
 
     Given the gcps (in swath coordinates) along with attitude and time offset, compute the sum of squared distances to
     the reference lons and lats of the gcps.
     """
     distances = compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs,
-                                                           yaw_steering, nadir_convention)
+                                                           yaw_steering, nadir_convention, rotation_order)
     return np.sum(distances**2)
 
 
 def _misses_from_reference(variables, gcps, start_time, tle, max_scan_angle, refs,
-                           yaw_steering=False, nadir_convention=None):
+                           yaw_steering=False, nadir_convention=None, rotation_order=None):
     """Return which way and how far each gcp landed from its reference point."""
     time_diff, roll, pitch, yaw = variables
     time = np.datetime64(start_time) + np.timedelta64(int(time_diff * 1e12), "ns")
     lons, lats, _ = compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, (roll, pitch, yaw), time, tle,
-                                                yaw_steering, nadir_convention)
+                                                yaw_steering, nadir_convention, rotation_order)
     valid = np.isfinite(lons)
     lons = lons[valid]
     lats = lats[valid]
@@ -189,15 +192,17 @@ def _misses_from_reference(variables, gcps, start_time, tle, max_scan_angle, ref
 
 
 def compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs,
-                                               yaw_steering=False, nadir_convention=None):
+                                               yaw_steering=False, nadir_convention=None,
+                                               rotation_order=None):
     """Compute the gcp distances to references lonlats."""
     _, distances = _misses_from_reference(variables, gcps, start_time, tle, max_scan_angle, refs,
-                                          yaw_steering, nadir_convention)
+                                          yaw_steering, nadir_convention, rotation_order)
     return distances
 
 
 def compute_gcp_offsets_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs,
-                                             yaw_steering=False, nadir_convention=None):
+                                             yaw_steering=False, nadir_convention=None,
+                                             rotation_order=None):
     """Return each gcp's miss as a northward and an eastward component, in metres.
 
     The same misses as the distances, kept signed instead of collapsed into a magnitude.
@@ -205,5 +210,5 @@ def compute_gcp_offsets_to_reference_lonlats(variables, gcps, start_time, tle, m
     away which way each point missed, which is most of what tells the parameters apart.
     """
     bearings, distances = _misses_from_reference(variables, gcps, start_time, tle, max_scan_angle, refs,
-                                                 yaw_steering, nadir_convention)
+                                                 yaw_steering, nadir_convention, rotation_order)
     return np.concatenate([distances * np.cos(bearings), distances * np.sin(bearings)])

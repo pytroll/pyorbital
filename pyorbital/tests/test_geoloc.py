@@ -1876,3 +1876,62 @@ def test_the_attitude_fit_stands_on_the_nadir_it_is_given():
     # Standing on the wrong nadir tilts the swath meridionally, which the fit takes
     # up as roll: a mismatched convention lands here at 5.6e-4, not at nothing.
     assert roll == pytest.approx(0, abs=1e-4)
+
+
+@pytest.mark.filterwarnings("ignore:pyorbital is using the legacy rotation order")
+class TestFittingANavigation:
+    """Fit a navigation to control points whose true position is known.
+
+    The pass is synthesised from pyorbital's own geolocation at a known offset, so
+    the answer the fit should return is known independently of the fit.
+    """
+
+    TLE = ("1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+           "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875")
+    STARTED = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    LINES = 400
+
+    def a_pass_displaced_along_its_track(self, seconds):
+        """Return control points, and where they truly are for a swath that late."""
+        from pyorbital.geoloc_avhrr import compute_avhrr_gcps_lonlatalt
+
+        gcps = np.array([[float(line), float(sample)]
+                         for line in range(20, self.LINES, 40) for sample in (300, 1000, 1700)])
+        lons, lats, _ = compute_avhrr_gcps_lonlatalt(
+            gcps, 55.37, (0, 0, 0), self.STARTED + dt.timedelta(seconds=seconds), self.TLE,
+            nadir_convention="geodetic")
+        return gcps, lons, lats
+
+    def test_the_rotation_order_reaches_the_geolocation(self):
+        """The corrected rotation order has to be selectable from the top of the chain.
+
+        pyorbital defaults to the legacy order, which its own documentation puts at up
+        to 2.7 km once a pitch bias is involved. Nothing underneath can be asked for the
+        corrected order unless the entry points carry the choice down.
+        """
+        from pyorbital.geoloc_avhrr import compute_avhrr_gcps_lonlatalt
+
+        gcps = np.array([[float(line), float(sample)]
+                         for line in range(20, self.LINES, 40) for sample in (300, 1000, 1700)])
+        pitched = (0.0, 0.01, 0.0)
+
+        legacy_lons, _, _ = compute_avhrr_gcps_lonlatalt(
+            gcps, 55.37, pitched, self.STARTED, self.TLE,
+            nadir_convention="geodetic", rotation_order="legacy")
+        corrected_lons, _, _ = compute_avhrr_gcps_lonlatalt(
+            gcps, 55.37, pitched, self.STARTED, self.TLE,
+            nadir_convention="geodetic", rotation_order="pitch_first")
+
+        assert not np.allclose(legacy_lons, corrected_lons)
+
+    def test_a_fit_not_asked_for_time_holds_it_at_zero(self):
+        """Where the clock is known, the swath must not be slid along its track to fit."""
+        from pyorbital.geoloc_avhrr import estimate_time_and_attitude_deviations
+
+        gcps, lons, lats = self.a_pass_displaced_along_its_track(6.0)
+
+        seconds, _, _ = estimate_time_and_attitude_deviations(
+            gcps, lons, lats, self.STARTED, self.TLE, 55.37,
+            nadir_convention="geodetic", solve_for_time=False)
+
+        assert seconds == 0.0

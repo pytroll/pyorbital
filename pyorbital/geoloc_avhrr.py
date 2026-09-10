@@ -58,14 +58,20 @@ TIME_SEARCH_REACH = 0.007   # kiloseconds, so seven seconds either side
 ATTITUDE_SEARCH_REACH = 0.5  # radians on each angle, about 28 degrees
 
 
-def _with_time(searched, solve_for_time):
-    """Return the full four variables, putting back the time when it was not searched for."""
-    return np.asarray(searched) if solve_for_time else np.concatenate([[0.0], searched])
+def _all_four(searched, free):
+    """Return the full four variables, holding at zero the ones not searched for.
+
+    A parameter that was not searched for is not unknown: it is being asserted to be
+    zero, which is the whole point of holding it.
+    """
+    full = np.zeros(4)
+    full[free] = searched
+    return full
 
 
 def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, tle, max_scan_angle,
                                           yaw_steering=False, nadir_convention=None,
-                                          rotation_order=None,
+                                          rotation_order=None, solve_for_pitch=True,
                                           time_offset_guess=0.0, solve_for_time=True):
     """Estimate time offset and attitude deviations from gcps.
 
@@ -79,10 +85,17 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
     say -- pass that as *time_offset_guess* in seconds, and the search reaches seven
     seconds either side of it rather than either side of zero.
 
-    Platforms whose clock is disciplined -- the KLM series and Metop, whose along-track
-    displacement never leaves the coarse matcher's noise floor -- should pass
-    *solve_for_time* as False. Solving for an offset already known to be zero only
-    lets the pitch absorb its noise, since the two are barely distinguishable.
+    A shift along the track can be written as a time offset or as a pitch, and the two
+    exchange at about 2.25 seconds per degree. Only the curvature the shift leaves
+    across the swath tells them apart, and a single pass rarely constrains that, so
+    solving for both together lets each absorb the other's noise. Pass
+    *solve_for_time* or *solve_for_pitch* as False to hold one of them at zero and
+    fit the other. Which to hold is a property of the platform: one whose clock is
+    steered in flight can be believed and its pitch fitted, while one whose clock
+    drifts must have its time fitted instead.
+
+    A parameter held this way is not being ignored. It is being asserted to be zero,
+    and the answer returned for it is that assertion rather than a measurement.
     """
     from scipy.optimize import least_squares, minimize
 
@@ -95,19 +108,19 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
     reach = np.array((TIME_SEARCH_REACH, ATTITUDE_SEARCH_REACH, ATTITUDE_SEARCH_REACH,
                       ATTITUDE_SEARCH_REACH))
     middle = np.array((guessed, 0.0, 0.0, 0.0))
-    held = slice(None) if solve_for_time else slice(1, None)
+    free = np.array([solve_for_time, True, solve_for_pitch, True])
 
     def offsets(searched, *args):
-        return compute_gcp_offsets_to_reference_lonlats(_with_time(searched, solve_for_time), *args)
+        return compute_gcp_offsets_to_reference_lonlats(_all_four(searched, free), *args)
 
     res = least_squares(offsets,
-                        x0=middle[held],
+                        x0=middle[free],
                         args=(gcps, start_time, tle, max_scan_angle, (ref_lons, ref_lats), yaw_steering,
                               nadir_convention, rotation_order),
-                        bounds=(middle[held] - reach[held], middle[held] + reach[held]), x_scale="jac")
+                        bounds=(middle[free] - reach[free], middle[free] + reach[free]), x_scale="jac")
     if not res.success:
         raise RuntimeError("Time and attitude estimation did not converge")
-    settled = _with_time(res.x, solve_for_time)
+    settled = _all_four(res.x, free)
     if solve_for_time and res.active_mask[0] != 0:
         raise RuntimeError("The time offset did not settle inside its search; "
                            "nothing in the data holds it, and the attitude pays for it")

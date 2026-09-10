@@ -1924,6 +1924,24 @@ class TestFittingANavigation:
 
         assert not np.allclose(legacy_lons, corrected_lons)
 
+    def test_a_fit_not_asked_for_pitch_holds_it_at_zero(self):
+        """A shift along the track can be written as time or as pitch, so fit one.
+
+        The two exchange at about 2.25 seconds per degree and only the curvature
+        across the swath tells them apart, which a pass rarely constrains. A caller
+        that trusts neither into the other must be able to pin the one it does not
+        want, in whichever direction suits the platform.
+        """
+        from pyorbital.geoloc_avhrr import estimate_time_and_attitude_deviations
+
+        gcps, lons, lats = self.a_pass_displaced_along_its_track(6.0)
+
+        _, (_, pitch, _), _ = estimate_time_and_attitude_deviations(
+            gcps, lons, lats, self.STARTED, self.TLE, 55.37,
+            nadir_convention="geodetic", solve_for_pitch=False)
+
+        assert pitch == 0.0
+
     def test_a_fit_not_asked_for_time_holds_it_at_zero(self):
         """Where the clock is known, the swath must not be slid along its track to fit."""
         from pyorbital.geoloc_avhrr import estimate_time_and_attitude_deviations

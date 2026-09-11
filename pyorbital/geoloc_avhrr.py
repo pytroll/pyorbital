@@ -14,13 +14,23 @@ from pyorbital.geoloc import ScanGeometry, compute_pixels, get_lonlatalt
 logger = logging.getLogger(__name__)
 geod = Geod(ellps="WGS84")
 
-def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle) -> None:
+def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle, yaw_steering=False,
+                                 nadir_convention=None, rotation_order=None) -> None:
     """Compute the longitute, latitude and altitude of given gcps (scanlines, columns of the swath).
 
     The gcps are arbitrary location in swath coordinates, for example (10.3, 7.7) for a gcp at line 10.3 in the swath,
     and column 7.7. This function returns the geographical coordinates of the gcps.
 
     The scanlines are relative to the pass scanline numbers, zero-based.
+
+    Pass *yaw_steering* for a platform that turns as it flies to hold its swath
+    square to the ground track, as Metop does and the POES platforms do not. It
+    must match the convention the geolocation under study was computed with,
+    since a mismatch shows up as a whole-swath yaw of a few degrees.
+
+    *nadir_convention* must likewise match, for the same reason: a model standing
+    on a different nadir than the navigation it is fitted to absorbs the
+    difference, which reaches some hundreds of metres at the swath edge.
     """
     time_line_interval = 1/6
     time_row_interval = 25e-6
@@ -36,34 +46,90 @@ def compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, rpy, start_time, tle) -> 
     start_time = np.datetime64(start_time)
     s_times = geom.times(start_time)
 
-    pixels_pos = compute_pixels(tle, geom, s_times, rpy)
+    pixels_pos = compute_pixels(tle, geom, s_times, rpy, yaw_steering=yaw_steering,
+                                nadir_convention=nadir_convention,
+                                rotation_order=rotation_order)
     return get_lonlatalt(pixels_pos, s_times)
 
 
-def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, tle, max_scan_angle):
+# The minimiser carries the time offset in kiloseconds so that a step it considers
+# small is still far larger than the nanosecond the timestamps are stored in.
+TIME_SEARCH_REACH = 0.007   # kiloseconds, so seven seconds either side
+ATTITUDE_SEARCH_REACH = 0.5  # radians on each angle, about 28 degrees
+
+
+def _all_four(searched, free):
+    """Return the full four variables, holding at zero the ones not searched for.
+
+    A parameter that was not searched for is not unknown: it is being asserted to be
+    zero, which is the whole point of holding it.
+    """
+    full = np.zeros(4)
+    full[free] = searched
+    return full
+
+
+def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, tle, max_scan_angle,
+                                          yaw_steering=False, nadir_convention=None,
+                                          rotation_order=None, solve_for_pitch=True,
+                                          time_offset_guess=0.0, solve_for_time=True):
     """Estimate time offset and attitude deviations from gcps.
 
     Provided reference longitudes and latitudes for the gcps, this function minimises the attitude and time offset
     needed to match the gcp coordinates to the reference coordinates.
-    """
-    from scipy.optimize import minimize
 
-    original_distances = compute_gcp_distances_to_reference_lonlats((0, 0, 0, 0), gcps, start_time, tle, max_scan_angle,
-                                                                    (ref_lons, ref_lats))
+    The search reaches only seven seconds, which is a deliberate guard: a time offset the
+    data cannot pin down would otherwise wander off and drag the attitude with it, since
+    a shift along the track can be written either as time or as pitch. When something
+    upstream already knows roughly how far the swath has moved -- a coarse image match,
+    say -- pass that as *time_offset_guess* in seconds, and the search reaches seven
+    seconds either side of it rather than either side of zero.
+
+    A shift along the track can be written as a time offset or as a pitch, and the two
+    exchange at about 2.25 seconds per degree. Only the curvature the shift leaves
+    across the swath tells them apart, and a single pass rarely constrains that, so
+    solving for both together lets each absorb the other's noise. Pass
+    *solve_for_time* or *solve_for_pitch* as False to hold one of them at zero and
+    fit the other. Which to hold is a property of the platform: one whose clock is
+    steered in flight can be believed and its pitch fitted, while one whose clock
+    drifts must have its time fitted instead.
+
+    A parameter held this way is not being ignored. It is being asserted to be zero,
+    and the answer returned for it is that assertion rather than a measurement.
+    """
+    from scipy.optimize import least_squares, minimize
+
+    original_distances = compute_gcp_distances_to_reference_lonlats(
+        (0, 0, 0, 0), gcps, start_time, tle, max_scan_angle, (ref_lons, ref_lats),
+        yaw_steering, nadir_convention, rotation_order)
     original_median_distance = np.median(original_distances)
     logger.debug(f"GCP distances: median {original_median_distance}, std {np.std(original_distances)}")
-    # we need to work in seconds*1e3 to avoid the nanosecond precision issue
-    res = minimize(compute_gcp_accumulated_squared_distances_to_reference_lonlats,
-                   x0=(0, 0, 0, 0),
-                   args=(gcps, start_time, tle, max_scan_angle, (ref_lons, ref_lats)),
-                   bounds=((-0.007, 0.007) , (-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5)))
+    guessed = time_offset_guess / 1e3
+    reach = np.array((TIME_SEARCH_REACH, ATTITUDE_SEARCH_REACH, ATTITUDE_SEARCH_REACH,
+                      ATTITUDE_SEARCH_REACH))
+    middle = np.array((guessed, 0.0, 0.0, 0.0))
+    free = np.array([solve_for_time, True, solve_for_pitch, True])
+
+    def offsets(searched, *args):
+        return compute_gcp_offsets_to_reference_lonlats(_all_four(searched, free), *args)
+
+    res = least_squares(offsets,
+                        x0=middle[free],
+                        args=(gcps, start_time, tle, max_scan_angle, (ref_lons, ref_lats), yaw_steering,
+                              nadir_convention, rotation_order),
+                        bounds=(middle[free] - reach[free], middle[free] + reach[free]), x_scale="jac")
     if not res.success:
         raise RuntimeError("Time and attitude estimation did not converge")
-    time_diff, roll, pitch, yaw = res.x * [1e3, 1, 1, 1]
+    settled = _all_four(res.x, free)
+    if solve_for_time and res.active_mask[0] != 0:
+        raise RuntimeError("The time offset did not settle inside its search; "
+                           "nothing in the data holds it, and the attitude pays for it")
+    time_diff, roll, pitch, yaw = settled * [1e3, 1, 1, 1]
     logger.debug(f"Estimated time difference to {time_diff} seconds, "
                  f"attitude to {np.rad2deg(roll)}, {np.rad2deg(pitch)}, {np.rad2deg(yaw)} degrees")
-    distances = compute_gcp_distances_to_reference_lonlats(res.x, gcps, start_time, tle, max_scan_angle,
-                                                           (ref_lons, ref_lats))
+    distances = compute_gcp_distances_to_reference_lonlats(settled, gcps, start_time, tle, max_scan_angle,
+                                                           (ref_lons, ref_lats), yaw_steering, nadir_convention,
+                                                           rotation_order)
 
     minimized_median_distance = np.median(distances)
     logger.debug(f"Remaining GCP distances: median {minimized_median_distance}, std {np.std(distances)}")
@@ -109,27 +175,53 @@ def estimate_time_offset(gcps, ref_lons, ref_lats, start_time, tle, max_scan_ang
 
 
 def compute_gcp_accumulated_squared_distances_to_reference_lonlats(
-        variables, gcps, start_time, tle, max_scan_angle, refs):
+        variables, gcps, start_time, tle, max_scan_angle, refs, yaw_steering=False,
+        nadir_convention=None, rotation_order=None):
     """Compute the summed squared distance fot gcps to reference lonlats.
 
     Given the gcps (in swath coordinates) along with attitude and time offset, compute the sum of squared distances to
     the reference lons and lats of the gcps.
     """
-    distances = compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs)
+    distances = compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs,
+                                                           yaw_steering, nadir_convention, rotation_order)
     return np.sum(distances**2)
 
 
-def compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs):
-    """Compute the gcp distances to references lonlats."""
+def _misses_from_reference(variables, gcps, start_time, tle, max_scan_angle, refs,
+                           yaw_steering=False, nadir_convention=None, rotation_order=None):
+    """Return which way and how far each gcp landed from its reference point."""
     time_diff, roll, pitch, yaw = variables
-    # we need to work in seconds*1e3 to avoid the nanosecond precision issue
     time = np.datetime64(start_time) + np.timedelta64(int(time_diff * 1e12), "ns")
-    lons, lats, _ = compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, (roll, pitch, yaw), time, tle)
+    lons, lats, _ = compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, (roll, pitch, yaw), time, tle,
+                                                yaw_steering, nadir_convention, rotation_order)
     valid = np.isfinite(lons)
     lons = lons[valid]
     lats = lats[valid]
     ref_lons, ref_lats = refs
     ref_lons = np.array(ref_lons)[valid]
     ref_lats = np.array(ref_lats)[valid]
-    _, _, distances = geod.inv(ref_lons, ref_lats, lons, lats)
+    bearings, _, distances = geod.inv(ref_lons, ref_lats, lons, lats)
+    return np.radians(bearings), distances
+
+
+def compute_gcp_distances_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs,
+                                               yaw_steering=False, nadir_convention=None,
+                                               rotation_order=None):
+    """Compute the gcp distances to references lonlats."""
+    _, distances = _misses_from_reference(variables, gcps, start_time, tle, max_scan_angle, refs,
+                                          yaw_steering, nadir_convention, rotation_order)
     return distances
+
+
+def compute_gcp_offsets_to_reference_lonlats(variables, gcps, start_time, tle, max_scan_angle, refs,
+                                             yaw_steering=False, nadir_convention=None,
+                                             rotation_order=None):
+    """Return each gcp's miss as a northward and an eastward component, in metres.
+
+    The same misses as the distances, kept signed instead of collapsed into a magnitude.
+    A least-squares solver wants the residuals themselves; a magnitude has already thrown
+    away which way each point missed, which is most of what tells the parameters apart.
+    """
+    bearings, distances = _misses_from_reference(variables, gcps, start_time, tle, max_scan_angle, refs,
+                                                 yaw_steering, nadir_convention, rotation_order)
+    return np.concatenate([distances * np.cos(bearings), distances * np.sin(bearings)])

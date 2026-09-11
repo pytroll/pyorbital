@@ -338,6 +338,62 @@ def test_minimize_geoloc_error(convention):
         assert min(do) > max(dm)
 
 
+def test_minimize_geoloc_error_beyond_the_bound_when_told_where_to_look():
+    """A time offset outside the search box is found when a guess centres the box on it."""
+    with config.set(nadir_convention="geodetic", rotation_order="legacy"):
+        tle = ("1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+               "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875")
+        t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+        ref_time_displacement = 25.0
+        max_scan_angle = 55.37
+        gcps = np.array([[2, 500], [1500, 700], [20, 1000], [500, 1100], [100, 2000]])
+        ref_lons, ref_lats, _ = compute_avhrr_gcps_lonlatalt(
+            gcps, max_scan_angle, (0, 0, 0), t + dt.timedelta(seconds=ref_time_displacement), tle)
+
+        time_diff, _, _ = estimate_time_and_attitude_deviations(
+            gcps, ref_lons, ref_lats, t, tle, max_scan_angle, time_offset_guess=24.0)
+
+        assert time_diff == pytest.approx(ref_time_displacement, abs=1e-2)
+
+
+def test_a_time_offset_resting_on_its_bound_is_refused():
+    """A time the data cannot pin down would be paid for in pitch, so refuse it instead."""
+    with config.set(nadir_convention="geodetic", rotation_order="legacy"):
+        tle = ("1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+               "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875")
+        t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+        max_scan_angle = 55.37
+        gcps = np.array([[2, 500], [1500, 700], [20, 1000], [500, 1100], [100, 2000]])
+        ref_lons, ref_lats, _ = compute_avhrr_gcps_lonlatalt(
+            gcps, max_scan_angle, (0, 0, 0), t + dt.timedelta(seconds=25.0), tle)
+
+        with pytest.raises(RuntimeError, match="did not settle"):
+            estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, t, tle, max_scan_angle)
+
+
+def test_only_the_attitude_is_fitted_when_the_clock_is_trusted():
+    """A disciplined clock leaves three parameters to find, not four.
+
+    Time and pitch are all but the same observable, so solving for a time offset that
+    is known to be zero spends the pitch on absorbing its noise.
+    """
+    with config.set(nadir_convention="geodetic", rotation_order="legacy"):
+        tle = ("1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+               "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875")
+        t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+        planted_yaw = 0.1
+        max_scan_angle = 55.37
+        gcps = np.array([[2, 500], [1500, 700], [20, 1000], [500, 1100], [100, 2000]])
+        ref_lons, ref_lats, _ = compute_avhrr_gcps_lonlatalt(
+            gcps, max_scan_angle, (0, 0, planted_yaw), t, tle)
+
+        time_diff, (_, _, yaw), _ = estimate_time_and_attitude_deviations(
+            gcps, ref_lons, ref_lats, t, tle, max_scan_angle, solve_for_time=False)
+
+        assert time_diff == 0.0
+        assert yaw == pytest.approx(planted_yaw, abs=1e-2)
+
+
 @pytest.mark.parametrize("convention", NADIR_CONFIG_CASES)
 def test_minimize_time_error(convention):
     """Test minimizing the distance to a set of gcps using only time offset."""
@@ -1650,3 +1706,250 @@ def test_geocentric_nadir_stays_geocentric_when_velocity_is_not_perpendicular():
     # and the frame is still orthonormal, which the rotations require
     assert abs(float(np.sum(nadir * along_track))) < 1e-12
     assert abs(float(np.sum(nadir * cross_track))) < 1e-12
+
+
+def test_yaw_steering_with_a_position_for_every_pixel():
+    """Yaw steering must work when the caller gives a position per pixel.
+
+    A caller holding a time for every pixel, as an AVHRR reader does, passes
+    positions of shape (3, scans * pixels) rather than one per scan. The scan
+    angles are then flattened to match, and the yaw has to be flattened with
+    them.
+    """
+    scans, pixels = 4, 3
+    across = np.deg2rad(np.array([10.0, 0.0, -10.0]))
+    fovs = np.tile(np.vstack((across, np.zeros(pixels)))[:, np.newaxis, :],
+                   [1, scans, 1])
+    instrument = ScanGeometry(fovs, np.zeros((scans, pixels)))
+
+    position = np.tile(np.array([[7000.0], [0.0], [0.0]]), (1, scans * pixels))
+    velocity = np.tile(np.array([[0.0], [7.5], [0.0]]), (1, scans * pixels))
+
+    steered = instrument.vectors(position, velocity, yaw_steering=True,
+                                 nadir_convention="geocentric")
+
+    assert steered.shape[-1] == scans * pixels
+    assert np.all(np.isfinite(steered))
+
+
+def test_yaw_steering_reverses_with_the_direction_of_travel():
+    """The correction is opposite on the two legs of the orbit.
+
+    Yaw steering compensates for the ground turning beneath the spacecraft. Seen
+    from a southbound pass the ground runs the other way than from a northbound
+    one, so the angle has to change sign with the direction of travel.
+    """
+    from pyorbital.geoloc import compute_yaw_steering
+
+    position = np.array([[7000.0], [0.0], [0.0]])
+    northbound = np.array([[0.0], [1.0], [7.4]])
+    southbound = np.array([[0.0], [1.0], [-7.4]])
+
+    going_up = compute_yaw_steering(position, northbound)
+    going_down = compute_yaw_steering(position, southbound)
+
+    assert np.sign(going_up) == -np.sign(going_down)
+
+
+def test_a_steered_platform_lands_its_swath_elsewhere():
+    """A platform that turns to hold its swath square to the ground track sees different ground."""
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    when = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    swath_edge = np.array([[100, 2047]])
+
+    with config.set(nadir_convention="geocentric"):
+        straight = compute_avhrr_gcps_lonlatalt(swath_edge, 55.37, (0, 0, 0), when, (tle1, tle2))
+        turned = compute_avhrr_gcps_lonlatalt(swath_edge, 55.37, (0, 0, 0), when, (tle1, tle2),
+                                              yaw_steering=True)
+
+    moved = np.hypot(turned[0][0] - straight[0][0], turned[1][0] - straight[1][0])
+    assert moved > 0.3
+
+
+def test_steering_squares_the_swath_to_the_ground_track():
+    """Steering holds the scan square to the track the platform draws over the turning Earth.
+
+    Without it the scan stays square to the inertial track instead, which the
+    ground sees as a swath skewed by the few degrees the Earth turns beneath.
+    """
+    from pyproj import Geod
+
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    southbound = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    northbound = southbound + dt.timedelta(minutes=51)
+    either_side_of_nadir = np.array([[100, 1004], [100, 1044]])
+    earth = Geod(ellps="WGS84")
+    orbit = Orbital("", line1=tle1, line2=tle2)
+
+    def out_of_square(when, steering):
+        with config.set(nadir_convention="geocentric"):
+            lon, lat, _ = compute_avhrr_gcps_lonlatalt(either_side_of_nadir, 55.37, (0, 0, 0),
+                                                       when, (tle1, tle2), yaw_steering=steering)
+        along_the_scan, _, _ = earth.inv(lon[0], lat[0], lon[1], lat[1])
+        here = orbit.get_lonlatalt(when)
+        ahead = orbit.get_lonlatalt(when + dt.timedelta(seconds=10))
+        along_the_track, _, _ = earth.inv(here[0], here[1], ahead[0], ahead[1])
+        return abs(abs((along_the_scan - along_the_track + 180) % 360 - 180) - 90)
+
+    for when in (southbound, northbound):
+        assert out_of_square(when, True) < 1.0
+        assert out_of_square(when, True) < out_of_square(when, False)
+
+
+def test_a_steered_swath_is_fitted_by_a_model_that_turns_with_it():
+    """A model that turns with the swath finds the attitude planted in it, and no more."""
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    tle = (tle1, tle2)
+    when = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    gcps = np.array([[2, 500], [1500, 700], [20, 1000], [500, 1100], [100, 2000]])
+    max_scan_angle = 55.37
+
+    planted_yaw = 0.1
+
+    with config.set(nadir_convention="geocentric", rotation_order="pitch_first"):
+        ref_lons, ref_lats, _ = compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, (0, 0, planted_yaw),
+                                                             when, tle, yaw_steering=True)
+        _, (_, _, yaw), _ = estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, when, tle,
+                                                                  max_scan_angle, yaw_steering=True)
+
+    assert yaw == pytest.approx(planted_yaw, abs=1e-2)
+
+
+def test_the_steering_balances_the_spin_against_the_speed_over_the_ground():
+    """The subpoint crosses the ground more slowly than the platform crosses space.
+
+    The turn holds the swath square to the track drawn on the ground, so it
+    balances the ground's eastward run against the speed of the subpoint, which
+    is the platform's speed shrunk by the ratio of the two radii.
+    """
+    from pyorbital.geoloc import A, OMEGA_EARTH, compute_yaw_steering
+
+    height = 817.0
+    speed = 7.45
+    above_the_equator = np.array([[A + height], [0.0], [0.0]])
+    going_north = np.array([[0.0], [0.0], [speed]])
+
+    turn = compute_yaw_steering(above_the_equator, going_north)
+
+    subpoint_speed = speed * A / (A + height)
+    assert turn[0] == pytest.approx(np.arctan2(OMEGA_EARTH * A, subpoint_speed))
+
+
+def test_the_gcp_geolocation_takes_the_nadir_convention_it_is_given():
+    """The model a correction fits must stand on the same nadir as the navigation it corrects."""
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    when = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    across_the_swath = np.array([[100, 0], [100, 1024], [100, 2047]])
+
+    straight_down = compute_avhrr_gcps_lonlatalt(across_the_swath, 55.37, (0, 0, 0), when,
+                                                 (tle1, tle2), nadir_convention="geocentric")
+    along_the_normal = compute_avhrr_gcps_lonlatalt(across_the_swath, 55.37, (0, 0, 0), when,
+                                                    (tle1, tle2), nadir_convention="geodetic")
+
+    apart = np.hypot(np.asarray(along_the_normal[0]) - np.asarray(straight_down[0]),
+                     np.asarray(along_the_normal[1]) - np.asarray(straight_down[1]))
+    assert apart.max() > 0.01
+
+
+def test_the_attitude_fit_stands_on_the_nadir_it_is_given():
+    """A fit told which nadir the navigation used finds the attitude planted in it."""
+    tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
+    tle2 = "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875"
+    tle = (tle1, tle2)
+    when = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    gcps = np.array([[2, 500], [1500, 700], [20, 1000], [500, 1100], [100, 2000]])
+    max_scan_angle = 55.37
+    planted_yaw = 0.1
+
+    with config.set(rotation_order="pitch_first"):
+        ref_lons, ref_lats, _ = compute_avhrr_gcps_lonlatalt(gcps, max_scan_angle, (0, 0, planted_yaw),
+                                                             when, tle, nadir_convention="geodetic")
+        _, (roll, _, yaw), _ = estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, when, tle,
+                                                                     max_scan_angle,
+                                                                     nadir_convention="geodetic")
+
+    assert yaw == pytest.approx(planted_yaw, abs=1e-2)
+    # Standing on the wrong nadir tilts the swath meridionally, which the fit takes
+    # up as roll: a mismatched convention lands here at 5.6e-4, not at nothing.
+    assert roll == pytest.approx(0, abs=1e-4)
+
+
+@pytest.mark.filterwarnings("ignore:pyorbital is using the legacy rotation order")
+class TestFittingANavigation:
+    """Fit a navigation to control points whose true position is known.
+
+    The pass is synthesised from pyorbital's own geolocation at a known offset, so
+    the answer the fit should return is known independently of the fit.
+    """
+
+    TLE = ("1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+           "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875")
+    STARTED = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    LINES = 400
+
+    def a_pass_displaced_along_its_track(self, seconds):
+        """Return control points, and where they truly are for a swath that late."""
+        from pyorbital.geoloc_avhrr import compute_avhrr_gcps_lonlatalt
+
+        gcps = np.array([[float(line), float(sample)]
+                         for line in range(20, self.LINES, 40) for sample in (300, 1000, 1700)])
+        lons, lats, _ = compute_avhrr_gcps_lonlatalt(
+            gcps, 55.37, (0, 0, 0), self.STARTED + dt.timedelta(seconds=seconds), self.TLE,
+            nadir_convention="geodetic")
+        return gcps, lons, lats
+
+    def test_the_rotation_order_reaches_the_geolocation(self):
+        """The corrected rotation order has to be selectable from the top of the chain.
+
+        pyorbital defaults to the legacy order, which its own documentation puts at up
+        to 2.7 km once a pitch bias is involved. Nothing underneath can be asked for the
+        corrected order unless the entry points carry the choice down.
+        """
+        from pyorbital.geoloc_avhrr import compute_avhrr_gcps_lonlatalt
+
+        gcps = np.array([[float(line), float(sample)]
+                         for line in range(20, self.LINES, 40) for sample in (300, 1000, 1700)])
+        pitched = (0.0, 0.01, 0.0)
+
+        legacy_lons, _, _ = compute_avhrr_gcps_lonlatalt(
+            gcps, 55.37, pitched, self.STARTED, self.TLE,
+            nadir_convention="geodetic", rotation_order="legacy")
+        corrected_lons, _, _ = compute_avhrr_gcps_lonlatalt(
+            gcps, 55.37, pitched, self.STARTED, self.TLE,
+            nadir_convention="geodetic", rotation_order="pitch_first")
+
+        assert not np.allclose(legacy_lons, corrected_lons)
+
+    def test_a_fit_not_asked_for_pitch_holds_it_at_zero(self):
+        """A shift along the track can be written as time or as pitch, so fit one.
+
+        The two exchange at about 2.25 seconds per degree and only the curvature
+        across the swath tells them apart, which a pass rarely constrains. A caller
+        that trusts neither into the other must be able to pin the one it does not
+        want, in whichever direction suits the platform.
+        """
+        from pyorbital.geoloc_avhrr import estimate_time_and_attitude_deviations
+
+        gcps, lons, lats = self.a_pass_displaced_along_its_track(6.0)
+
+        _, (_, pitch, _), _ = estimate_time_and_attitude_deviations(
+            gcps, lons, lats, self.STARTED, self.TLE, 55.37,
+            nadir_convention="geodetic", solve_for_pitch=False)
+
+        assert pitch == 0.0
+
+    def test_a_fit_not_asked_for_time_holds_it_at_zero(self):
+        """Where the clock is known, the swath must not be slid along its track to fit."""
+        from pyorbital.geoloc_avhrr import estimate_time_and_attitude_deviations
+
+        gcps, lons, lats = self.a_pass_displaced_along_its_track(6.0)
+
+        seconds, _, _ = estimate_time_and_attitude_deviations(
+            gcps, lons, lats, self.STARTED, self.TLE, 55.37,
+            nadir_convention="geodetic", solve_for_time=False)
+
+        assert seconds == 0.0

@@ -1650,3 +1650,92 @@ def test_geocentric_nadir_stays_geocentric_when_velocity_is_not_perpendicular():
     # and the frame is still orthonormal, which the rotations require
     assert abs(float(np.sum(nadir * along_track))) < 1e-12
     assert abs(float(np.sum(nadir * cross_track))) < 1e-12
+
+
+def test_metimage_scan_geometry_shape():
+    """Test that metimage produces 24 lines per scan over the full swath."""
+    from pyorbital.geoloc_instrument_definitions import metimage, vii
+
+    geom = metimage(3)
+
+    assert geom.fovs.shape == (2, 3 * 24, 3144)
+    assert geom.lines_per_scan == 24
+    assert vii is metimage
+
+
+def test_metimage_swath_spans_the_earth_view():
+    """Check that the METimage swath edges cover the documented Earth view."""
+    from pyorbital.geoloc_instrument_definitions import metimage_edge_geom
+
+    geom = metimage_edge_geom(1)
+    cross_track = np.rad2deg(geom.fovs[0, 0, :])
+
+    assert cross_track[0] > 0
+    np.testing.assert_allclose(cross_track, [53.9828, -53.9828], atol=1e-4)
+    edge_to_edge = cross_track[0] - cross_track[-1] + 108.0 / 3144
+    np.testing.assert_allclose(edge_to_edge, 108.0, atol=1e-9)
+
+
+def test_metimage_sampling_step_matches_the_ifov():
+    """The across-track and detector-row spacing must match the 0.6 mrad IFOV."""
+    from pyorbital.geoloc_instrument_definitions import METIMAGE_SCAN
+
+    cross_track = METIMAGE_SCAN.cross_track_angles()
+    steps = np.diff(cross_track)
+
+    np.testing.assert_allclose(np.abs(steps), 6.0e-4, rtol=1e-2)
+    np.testing.assert_allclose(METIMAGE_SCAN.along_track_step, np.abs(steps), rtol=1e-9)
+
+
+def test_metimage_scan_times_cover_the_earth_view_fraction():
+    """The Earth view takes 108/360 of the 1.729 s revolution."""
+    from pyorbital.geoloc_instrument_definitions import METIMAGE_SCAN, metimage
+
+    geom = metimage(2)
+    first_scan = geom._times[:24, :]
+    sweep = (first_scan[0, -1] - first_scan[0, 0]) / np.timedelta64(1, "s")
+
+    np.testing.assert_allclose(sweep, 1.729 * 108.0 / 360.0, rtol=1e-3)
+    second_scan_start = geom._times[24, 0]
+    np.testing.assert_allclose(
+        (second_scan_start - first_scan[0, 0]) / np.timedelta64(1, "s"),
+        METIMAGE_SCAN.scan_rate, rtol=1e-9)
+
+
+@pytest.mark.parametrize("kwargs", NADIR_CONVENTION_CASES)
+def test_metimage_geolocates_a_swath(kwargs):
+    """Check that a METimage swath lands on the ground."""
+    from pyorbital.geoloc import compute_pixels, get_lonlatalt
+    from pyorbital.geoloc_instrument_definitions import metimage_edge_geom
+
+    tle1 = "1 33591U 09005A   21355.91138073  .00000074  00000+0  65091-4 0  9998"
+    tle2 = "2 33591  99.1688  21.1338 0013414 329.8936  30.1462 14.12516400663123"
+    observation_time = dt.datetime(2021, 12, 21, 12, 0, 0)
+
+    sgeom = metimage_edge_geom(3)
+    s_times = sgeom.times(observation_time)
+    with config.set(rotation_order="legacy"):
+        pixels = compute_pixels((tle1, tle2), sgeom, s_times, **kwargs)
+    lons, lats, alts = get_lonlatalt(pixels, s_times)
+
+    assert lons.shape == (3 * 24 * 2,)
+    assert np.all(np.isfinite(lons))
+    np.testing.assert_allclose(alts, 0.0, atol=1e-6)
+
+    left = _earth_centred_vector(lons[0], lats[0])
+    right = _earth_centred_vector(lons[1], lats[1])
+    width = np.linalg.norm(left - right)
+    assert 2700 < width < 2900
+
+
+def _earth_centred_vector(lon, lat):
+    """Get the WGS84 Cartesian position of a point on the ellipsoid, in km."""
+    equatorial_radius = 6378.137
+    polar_radius = 6356.7523142
+    lon, lat = np.deg2rad([lon, lat])
+    radius = (equatorial_radius**2 /
+              ((equatorial_radius * np.cos(lat))**2 +
+               (polar_radius * np.sin(lat))**2)**0.5)
+    return radius * np.array([np.cos(lat) * np.cos(lon),
+                              np.cos(lat) * np.sin(lon),
+                              np.sin(lat)])

@@ -153,6 +153,105 @@ If we take a TLE from one week earlier we get a slightly different result:
 
 
 
+Instrument geolocation conventions
+----------------------------------
+
+The geolocation code builds a local orbital frame from the satellite position
+and velocity, and rotates the instrument line of sight within it. Two choices in
+that construction affect the ground solution, and both are selectable, because
+changing them moves the geolocation of *existing* products.
+
+**Nadir convention** -- which direction counts as "down":
+
+``"legacy"`` (current default)
+   The direction released versions of Pyorbital have always used: the
+   normalised position of the ellipsoid subpoint of the antipode. The frame is
+   left exactly as released, which means the nadir is *not* re-orthogonalised
+   against the velocity.
+
+``"geocentric"``
+   Straight at the centre of the Earth. Validation of FY-3 MERSI against
+   reference geolocation selects this one: the legacy convention leaves a
+   latitude-dependent error going as ``sin(2 * latitude)``, about 0.3 km at 45
+   degrees for an 850 km orbit and vanishing at the equator.
+
+``"geodetic"``
+   Along the ellipsoid normal. This departs furthest from the other two, by
+   about 2.8 km at 45 degrees, and is *not* what the FY-3 validation supports.
+
+**Rotation order** -- roll and pitch do not commute, and the cross-track field
+of view carries the whole scan angle while pitch is a small attitude bias, so
+the two orders diverge with scan angle: nothing at nadir, growing towards the
+swath edge in proportion to the pitch bias.
+
+``"legacy"`` (current default)
+   Roll first, then pitch, as released. The along-track component of the
+   pointing vector is compressed by ``cos(scan_angle)``.
+
+``"pitch_first"``
+   Pitch first, then roll, so the along-track component is independent of the
+   scan angle. For AVHRR with a fitted pitch bias of 0.16 degrees the two
+   differ by about 1.8 km at the swath edge; for FY-3F, whose bias is five
+   times smaller, by about 0.37 km -- too little for that data to say which is
+   right.
+
+Selecting a convention
+^^^^^^^^^^^^^^^^^^^^^^
+
+Both can be passed directly to :func:`~pyorbital.geoloc.geolocate` and
+:func:`~pyorbital.geoloc.compute_pixels`::
+
+    >>> from pyorbital.geoloc import geolocate
+    >>> lons, lats, alts = geolocate(orbital, scan_geometry, times,   # doctest: +SKIP
+    ...                              nadir_convention="geocentric",
+    ...                              rotation_order="pitch_first")
+
+Libraries built on Pyorbital -- pygac and the readers using it, for instance --
+call the geolocation without forwarding these arguments, so they can also be set
+process-wide through the configuration, which reaches those callers with no
+change to them::
+
+    >>> import pyorbital                                              # doctest: +SKIP
+    >>> with pyorbital.config.set(nadir_convention="geocentric",      # doctest: +SKIP
+    ...                           rotation_order="pitch_first"):
+    ...     reprocess()
+
+or for a whole processing run, through the environment::
+
+    PYORBITAL_NADIR_CONVENTION=geocentric PYORBITAL_ROTATION_ORDER=pitch_first ...
+
+An explicit argument takes precedence over the configuration.
+
+Reproducing existing products
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Leaving both unset keeps the released behaviour, so results do not move
+underneath existing processing chains. Because that behaviour is measurably
+less accurate, relying on the default raises a :exc:`DeprecationWarning`;
+requesting ``"legacy"`` explicitly, or setting it in the configuration, is
+treated as a deliberate choice and is silent.
+
+Pinning both to ``"legacy"`` reproduces released Pyorbital to within floating
+point (4e-11 degrees, well below a micrometre on the ground), which is what an
+archive reprocessing needs::
+
+    >>> with pyorbital.config.set(nadir_convention="legacy",          # doctest: +SKIP
+    ...                           rotation_order="legacy"):
+    ...     reprocess_the_archive()
+
+Note this is a property of the pair. The legacy nadir also implies the released,
+non-orthogonalised frame; mixing the legacy nadir with ``"pitch_first"`` does
+*not* reproduce released output, and differs from it by kilometres once a pitch
+bias is present.
+
+Attitude biases fitted under one set of conventions do not carry over to
+another: the rotation order in particular interacts with the pitch bias, so a
+processing chain that estimates roll, pitch and yaw from ground control points
+has to re-fit them if it changes conventions.
+
+The defaults will change to the corrected conventions in a future release.
+
+
 Computing astronomical parameters
 ---------------------------------
 The astronomy module enables computation of certain parameters of interest for satellite remote sensing for instance the Sun-zenith angle:

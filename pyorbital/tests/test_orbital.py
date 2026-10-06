@@ -2,6 +2,7 @@
 
 import datetime as dt
 import unittest
+import warnings
 from unittest import mock
 
 import numpy as np
@@ -37,10 +38,39 @@ class Test(unittest.TestCase):
         lon, lat, alt = sat.get_lonlatalt(d)
         expected_lon = -68.199894472013213
         expected_lat = 23.159747677881075
-        expected_alt = 392.01953430856935
+        expected_alt = 392.01741432336377
         assert np.abs(lon - expected_lon) < eps_deg, "Calculation of sublon failed"
         assert np.abs(lat - expected_lat) < eps_deg, "Calculation of sublat failed"
-        assert np.abs(alt - expected_alt) < eps_deg, "Calculation of altitude failed"
+        assert np.abs(alt - expected_alt) < 1e-6, "Calculation of altitude failed"
+
+    def test_sublonlat_altitude_is_geodetic_on_wgs84(self):
+        """The altitude is the WGS84 ellipsoidal height of the kilometer position.
+
+        Converting the propagated position to geodetic coordinates entirely in
+        WGS84 (equatorial radius A, flattening F) must reproduce get_lonlatalt.
+        Scaling the position by the WGS72 radius XKMPER and the altitude by A
+        instead inflates the altitude by A / XKMPER - 1, about 2 m for this orbit.
+        """
+        sat = orbital.Orbital("ISS (ZARYA)",
+                              line1="1 25544U 98067A   03097.78853147  "
+                                    ".00021906  00000-0  28403-3 0  8652",
+                              line2="2 25544  51.6361  13.7980 0004256  "
+                                    "35.6671  59.2566 15.58778559250029")
+        times = [dt.datetime(2003, 3, 23, 0, 3, 22) + dt.timedelta(minutes=m) for m in range(0, 90, 10)]
+        for d in times:
+            _, _, alt = sat.get_lonlatalt(d)
+            (x, y, z), _ = sat.get_position(d, normalize=False)
+            r = np.hypot(x, y)
+            e2 = orbital.F * (2 - orbital.F)
+            phi = np.arctan2(z, r)
+            for _ in range(50):
+                n = orbital.A / np.sqrt(1 - e2 * np.sin(phi) ** 2)
+                phi = np.arctan2(z + n * e2 * np.sin(phi), r)
+            n = orbital.A / np.sqrt(1 - e2 * np.sin(phi) ** 2)
+            expected_alt = r / np.cos(phi) - n
+            assert abs(alt - expected_alt) < 1e-9, d
+            inflated = expected_alt + (orbital.A / orbital.XKMPER - 1) * np.hypot(r, z)
+            assert abs(alt - inflated) > 1e-3, d
 
     def test_observer_look(self):
         """Test getting the observer look angles."""
@@ -390,21 +420,36 @@ class TestRegressions(unittest.TestCase):
         warnings.filterwarnings("default")
 
 
+@pytest.fixture
+def noaa_20():
+    """Orbital for NOAA-20, from a TLE of the 24th of June 2024."""
+    from pyorbital.orbital import Orbital
+    return Orbital("NOAA-20",
+                   line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
+                   line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
+
+
+# An observer in Copenhagen: longitude and latitude in degrees, altitude in km.
+OBSERVER = (12.4143, 55.9065, 0.02)
+
+
+def elevations_astride(orb, time, lon, lat, alt):
+    """Get the elevation of *orb* ten seconds before and ten seconds after *time*."""
+    a_moment = dt.timedelta(seconds=10)
+    return (orb.get_observer_look(time - a_moment, lon, lat, alt)[1],
+            orb.get_observer_look(time + a_moment, lon, lat, alt)[1])
+
+
 @pytest.mark.parametrize("dtime",
                          [dt.datetime(2024, 6, 25, 11, 0, 18),
                           dt.datetime(2024, 6, 25, 11, 5, 0, 0, dt.timezone.utc),
                           np.datetime64("2024-06-25T11:10:00.000000")
                           ]
                          )
-def test_get_last_an_time_scalar_input(dtime):
+def test_get_last_an_time_scalar_input(dtime, noaa_20):
     """Test getting the time of the last ascending node - input time is a scalar."""
-    from pyorbital.orbital import Orbital
-    orb = Orbital("NOAA-20",
-                  line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
-                  line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
-
     expected = np.datetime64("2024-06-25T10:44:18.234375")
-    result = orb.get_last_an_time(dtime)
+    result = noaa_20.get_last_an_time(dtime)
     assert abs(expected - result) < np.timedelta64(1, "s")
 
 
@@ -412,16 +457,126 @@ def test_get_last_an_time_scalar_input(dtime):
                          [dt.datetime(2024, 6, 25, 11, 5, 0, 0, dt.timezone(dt.timedelta(hours=1))),
                           ]
                          )
-def test_get_last_an_time_wrong_input(dtime):
+def test_get_last_an_time_wrong_input(dtime, noaa_20):
     """Test getting the time of the last ascending node - wrong input."""
-    from pyorbital.orbital import Orbital
-    orb = Orbital("NOAA-20",
-                  line1="1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
-                  line2="2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
-
     expected = "UTC time expected! Parsing a timezone aware datetime object requires it to be UTC!"
     with pytest.raises(ValueError, match=expected):
-        _ = orb.get_last_an_time(dtime)
+        _ = noaa_20.get_last_an_time(dtime)
+
+
+def test_a_circular_orbit_can_be_propagated():
+    """An orbit of no eccentricity at all is a real orbit, not a bad element set.
+
+    Its distance from the centre of the Earth stays nearly constant, varying
+    only by the short period wobble the equatorial bulge imposes.
+    """
+    from pyorbital.orbital import Orbital
+    orb = Orbital(
+        "CIRCULAR",
+        line1="1 43013U 06001A   24176.00000000  .00000000  00000+0  00000+0 0  9996",
+        line2="2 43013  98.7060 114.5340 0000000 139.3958 190.7541 14.19599847    14")
+
+    times = orb.tle.epoch + np.arange(0, 101) * np.timedelta64(60, "s")
+    position, _ = orb.get_position(times, normalize=False)
+
+    radius = np.sqrt((np.asarray(position) ** 2).sum(axis=0))
+    assert radius.max() - radius.min() < 20.0
+    np.testing.assert_allclose(radius.mean(), 7205.0, atol=20.0)
+
+
+def test_get_last_dn_time_is_a_descending_node(noaa_20):
+    """The last descending node is a time when the satellite crosses the equator southbound."""
+    result = noaa_20.get_last_dn_time(dt.datetime(2024, 6, 25, 11, 0, 18))
+
+    (_, _, pos_z), (_, _, vel_z) = noaa_20.get_position(result, normalize=False)
+    assert abs(pos_z) < 1
+    assert vel_z < 0
+
+
+def test_find_aos_is_the_satellite_rising_through_the_horizon(noaa_20):
+    """Acquisition of signal is when the satellite comes up over the horizon."""
+    # 11:00 falls in the middle of a pass, so the answer is the pass after
+    # this one, not the horizon crossing this one already made at 10:53.
+    utc_time = dt.datetime(2024, 6, 25, 11, 0)
+
+    aos = noaa_20.find_aos(utc_time, *OBSERVER)
+
+    before, after = elevations_astride(noaa_20, aos, *OBSERVER)
+    assert before < 0 < after
+    assert aos > utc_time
+
+
+def test_find_aol_ends_the_pass_already_under_way(noaa_20):
+    """Loss of signal is the next time the satellite sets, which may end the current pass."""
+    # The satellite is already up at 11:00, so it sets before it next rises.
+    utc_time = dt.datetime(2024, 6, 25, 11, 0)
+
+    aol = noaa_20.find_aol(utc_time, *OBSERVER)
+
+    before, after = elevations_astride(noaa_20, aol, *OBSERVER)
+    assert before > 0 > after
+    assert utc_time < aol < noaa_20.find_aos(utc_time, *OBSERVER)
+
+
+def test_find_aos_says_so_when_the_satellite_never_rises_that_far(noaa_20):
+    """A horizon the satellite never clears is reported, not left to an IndexError."""
+    # The horizon asked for belongs in the message; its exact prose does not.
+    with pytest.raises(ValueError, match="85"):
+        noaa_20.find_aos(dt.datetime(2024, 6, 25, 11, 0), *OBSERVER, horizon=85)
+
+
+def test_find_aol_says_so_when_the_satellite_never_sets_that_far(noaa_20):
+    """A horizon the satellite never sets below is reported, not returned as a silent None."""
+    with pytest.raises(ValueError, match="85"):
+        noaa_20.find_aol(dt.datetime(2024, 6, 25, 11, 0), *OBSERVER, horizon=85)
+
+NOAA_20 = ("1 43013U 17073A   24176.73674251  .00000000  00000+0  11066-3 0 00014",
+           "2 43013  98.7060 114.5340 0001454 139.3958 190.7541 14.19599847341971")
+
+def _noaa_20():
+    return orbital.Orbital("NOAA-20", line1=NOAA_20[0], line2=NOAA_20[1])
+
+
+def test_satellite_overhead_is_ninety_degrees_up():
+    """An observer under the satellite sees it at the zenith.
+
+    There the ratio the elevation is taken from is one, and rounding can put it
+    a hair above, which is outside the domain of the arc sine. The answer is
+    ninety degrees, not a nan.
+    """
+    orb = _noaa_20()
+
+    for minutes in range(120):
+        time = dt.datetime(2024, 6, 25, 11, 5) + dt.timedelta(minutes=minutes)
+        sub_lon, sub_lat, _ = orb.get_lonlatalt(time)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            _, elevation = orb.get_observer_look(time, float(sub_lon), float(sub_lat), 0.0)
+
+        np.testing.assert_allclose(float(elevation), 90.0, atol=1e-5)
+
+
+def test_the_method_answers_as_the_function_does():
+    """Both ways of asking give the same angles, including due east and west.
+
+    They were written twice and drifted apart, which is what issue #44 reports.
+    """
+    orb = _noaa_20()
+
+    for minutes in range(0, 240, 7):
+        time = dt.datetime(2024, 6, 25, 11, 5) + dt.timedelta(minutes=minutes)
+        sat_lon, sat_lat, sat_alt = orb.get_lonlatalt(time)
+
+        for east_west_offset in (-40.0, -10.0, 10.0, 40.0):
+            lon = float(sat_lon) + east_west_offset
+            lat = float(sat_lat)
+
+            from_method = orb.get_observer_look(time, lon, lat, 0.0)
+            from_function = orbital.get_observer_look(sat_lon, sat_lat, sat_alt,
+                                                      time, lon, lat, 0.0)
+
+            np.testing.assert_allclose(from_method, from_function, atol=1e-3)
 
 
 # The propagator gives the same answer either way; numpy may evaluate a sine

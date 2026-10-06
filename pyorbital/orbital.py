@@ -61,6 +61,17 @@ SECDAY = 8.6400E4
 F = 1 / 298.257223563  # Earth flattening WGS-84
 A = 6378.137  # WGS84 Equatorial radius
 
+# How far back to step when hunting for the equator crossing before a given time,
+# and how close to the equatorial plane counts as having found it.
+_NODE_SEARCH_STEP = np.timedelta64(10, "m")
+_NODE_TOLERANCE_KM = 1
+
+# How far ahead to look for the next horizon crossing.
+_HORIZON_SEARCH_HOURS = 24
+
+# Precision of a computed horizon crossing, in seconds.
+_CROSSING_TOLERANCE_SECONDS = 0.001
+
 
 SGDP4_DEEP_NORM = 1
 SGDP4_NEAR_SIMP = 2
@@ -91,41 +102,49 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
     (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = astronomy.observer_position(
         utc_time, sat_lon, sat_lat, sat_alt)
 
+    return get_observer_look_from_cartesian_position(utc_time, lon, lat, alt, pos_x, pos_y, pos_z)
+
+
+def get_observer_look_from_cartesian_position(utc_time, lon, lat, alt, pos_x, pos_y, pos_z):
+    """Calculate an observer's look angle to a satellite given in cartesian coordinates.
+
+    The satellite is given as an earth-centered inertial position, which is what
+    the propagator produces, so that a caller holding one need not turn it into
+    a longitude and latitude and back again.
+
+    :utc_time: Observation time (datetime object)
+    :lon: Longitude of observer position on ground in degrees east
+    :lat: Latitude of observer position on ground in degrees north
+    :alt: Altitude above sea-level (geoid) of observer position on ground in km
+    :pos_x, pos_y, pos_z: Satellite position in km
+
+    :return: (Azimuth, Elevation) in degrees
+    """
     (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \
         astronomy.observer_position(utc_time, lon, lat, alt)
-
     lon = np.deg2rad(lon)
     lat = np.deg2rad(lat)
-
     theta = (astronomy.gmst(utc_time) + lon) % (2 * np.pi)
-
     rx = pos_x - opos_x
     ry = pos_y - opos_y
     rz = pos_z - opos_z
-
     sin_lat = np.sin(lat)
     cos_lat = np.cos(lat)
     sin_theta = np.sin(theta)
     cos_theta = np.cos(theta)
-
     top_s = sin_lat * cos_theta * rx + \
         sin_lat * sin_theta * ry - cos_lat * rz
     top_e = -sin_theta * rx + cos_theta * ry
     top_z = cos_lat * cos_theta * rx + \
         cos_lat * sin_theta * ry + sin_lat * rz
-
     # Azimuth is undefined when elevation is 90 degrees, 180 (pi) will be returned.
     az_ = np.arctan2(-top_e, top_s) + np.pi
     az_ = np.mod(az_, 2 * np.pi)  # Needed on some platforms
-
     rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
-
     top_z_divided_by_rg_ = top_z / rg_
-
     # Due to rounding top_z can be larger than rg_ (when el_ ~ 90).
     top_z_divided_by_rg_ = top_z_divided_by_rg_.clip(max=1)
     el_ = np.arcsin(top_z_divided_by_rg_)
-
     return np.rad2deg(az_), np.rad2deg(el_)
 
 
@@ -154,37 +173,52 @@ class Orbital(object):
 
     def get_last_an_time(self, utc_time):
         """Calculate time of last ascending node relative to the specified time."""
-        # Propagate backwards to ascending node
-        dt = np.timedelta64(10, "m")
+        return self._get_last_node_time(utc_time, ascending=True)
 
-        t_old = np.datetime64(_get_tz_unaware_utctime(utc_time))
-        t_new = t_old - dt
-        pos0, vel0 = self.get_position(t_old, normalize=False)
-        pos1, vel1 = self.get_position(t_new, normalize=False)
-        while not (pos0[2] > 0 and pos1[2] < 0):
-            pos0 = pos1
-            t_old = t_new
-            t_new = t_old - dt
-            pos1, vel1 = self.get_position(t_new, normalize=False)
+    def get_last_dn_time(self, utc_time):
+        """Calculate time of last descending node relative to the specified time."""
+        return self._get_last_node_time(utc_time, ascending=False)
 
-        # Return if z within 1 km of an
-        if np.abs(pos0[2]) < 1:
-            return t_old
-        elif np.abs(pos1[2]) < 1:
-            return t_new
+    def _get_last_node_time(self, utc_time, ascending):
+        """Calculate time of the last equator crossing before the specified time.
 
-        # Bisect to z within 1 km
-        while np.abs(pos1[2]) > 1:
-            # pos0, vel0 = pos1, vel1
-            dt = (t_old - t_new) / 2
-            t_mid = t_old - dt
-            pos1, vel1 = self.get_position(t_mid, normalize=False)
-            if pos1[2] > 0:
-                t_old = t_mid
+        The satellite crosses an ascending node heading north and a descending
+        node heading south. Multiplying its z coordinate by *heading* makes the
+        two cases one: the product is positive after the node and negative
+        before it, whichever node is asked for.
+        """
+        heading = 1 if ascending else -1
+
+        later = np.datetime64(_get_tz_unaware_utctime(utc_time))
+        earlier = later - _NODE_SEARCH_STEP
+        z_later = self._z_position(later)
+        z_earlier = self._z_position(earlier)
+
+        while not (z_later * heading > 0 and z_earlier * heading < 0):
+            z_later = z_earlier
+            later = earlier
+            earlier = later - _NODE_SEARCH_STEP
+            z_earlier = self._z_position(earlier)
+
+        if np.abs(z_later) < _NODE_TOLERANCE_KM:
+            return later
+        if np.abs(z_earlier) < _NODE_TOLERANCE_KM:
+            return earlier
+
+        while True:
+            middle = later - (later - earlier) / 2
+            z_middle = self._z_position(middle)
+            if np.abs(z_middle) <= _NODE_TOLERANCE_KM:
+                return middle
+            if z_middle * heading > 0:
+                later = middle
             else:
-                t_new = t_mid
+                earlier = middle
 
-        return t_mid
+    def _z_position(self, utc_time):
+        """Get the satellite's distance north of the equatorial plane, in km."""
+        position, _ = self.get_position(utc_time, normalize=False)
+        return position[2]
 
     def get_position(self, utc_time, normalize=True):
         """Get the cartesian position and velocity from the satellite."""
@@ -203,9 +237,18 @@ class Orbital(object):
         http://celestrak.com/columns/v02n03/
         """
         (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(
-            utc_time, normalize=True)
+            utc_time, normalize=False)
 
-        lon = ((np.arctan2(pos_y * XKMPER, pos_x * XKMPER) - astronomy.gmst(utc_time))
+        # The geodetic conversion below is written in WGS84 Earth radii, so the
+        # kilometer position is scaled by the WGS84 equatorial radius A. Scaling
+        # by XKMPER instead (the WGS72 radius SGP4 propagates with) and then
+        # multiplying the altitude by A inflates it by A / XKMPER - 1, about
+        # 2 m for a low orbit and 13 m at geostationary altitude.
+        pos_x = pos_x / A
+        pos_y = pos_y / A
+        pos_z = pos_z / A
+
+        lon = ((np.arctan2(pos_y, pos_x) - astronomy.gmst(utc_time))
                % (2 * np.pi))
 
         lon = np.where(lon > np.pi, lon - np.pi * 2, lon)
@@ -224,13 +267,60 @@ class Orbital(object):
         alt *= A
         return np.rad2deg(lon), np.rad2deg(lat), alt
 
-    def find_aos(self, utc_time, lon, lat):
-        """Find AOS."""
-        pass
+    def find_aos(self, utc_time, lon, lat, alt=0, horizon=0):
+        """Find when the satellite next rises above the observer's horizon.
 
-    def find_aol(self, utc_time, lon, lat):
-        """Find AOL."""
-        pass
+        The search runs over the next 24 hours, and raises a ValueError if
+        nothing rises in that time. A pass already under way when *utc_time*
+        falls inside it is not reported; the answer is the rise of the pass
+        after it.
+
+        Elevation is sampled once a minute to bracket the crossing, so a pass
+        that begins and ends between two samples is not seen.
+        """
+        passes = self.get_next_passes(utc_time, _HORIZON_SEARCH_HOURS, lon, lat, alt, horizon=horizon)
+        if not passes:
+            raise self._no_crossing_found(horizon, utc_time, rising=True)
+        rise_time, _, _ = passes[0]
+        return rise_time
+
+    def find_aol(self, utc_time, lon, lat, alt=0, horizon=0):
+        """Find when the satellite next sets below the observer's horizon.
+
+        The search runs over the next 24 hours, and raises a ValueError if no
+        setting is found in that time. Unlike find_aos, a pass already
+        under way when *utc_time* falls inside it does count: the answer is
+        then the end of that pass, so the two need not describe the same one.
+
+        Elevation is sampled once a minute to bracket the crossing, so a pass
+        that begins and ends between two samples is not seen.
+        """
+        elevation, crossings = self._scan_elevation(utc_time, _HORIZON_SEARCH_HOURS,
+                                                    lon, lat, alt, horizon)
+        elevation_at = partial(self._elevation, utc_time, lon, lat, alt, horizon)
+        for crossing in crossings:
+            if elevation[crossing] > 0:
+                minutes = _get_root(elevation_at, crossing, crossing + 1.0,
+                                    tol=_CROSSING_TOLERANCE_SECONDS / 60.0)
+                return utc_time + dt.timedelta(minutes=minutes)
+        raise self._no_crossing_found(horizon, utc_time, rising=False)
+
+    def _no_crossing_found(self, horizon, utc_time, rising):
+        """Explain that the horizon crossing asked for is not in the searched window."""
+        crossing = "rise above" if rising else "set below"
+        return ValueError(f"{self.satellite_name} does not {crossing} {horizon} degrees "
+                          f"for this observer within {_HORIZON_SEARCH_HOURS} hours of {utc_time}")
+
+    def _scan_elevation(self, utc_time, hours, lon, lat, alt, horizon):
+        """Sample the elevation above *horizon* once a minute, and find the horizon crossings.
+
+        Returns the samples and the indices preceding a crossing, so crossing
+        *i* lies between minute *i* and minute *i* + 1.
+        """
+        times = utc_time + np.array([dt.timedelta(minutes=minutes)
+                                     for minutes in range(hours * 60)])
+        elevation = self.get_observer_look(times, lon, lat, alt)[1] - horizon
+        return elevation, np.where(np.diff(np.sign(elevation)))[0]
 
     def get_observer_look(self, utc_time, lon, lat, alt):
         """Calculate observers look angle to a satellite.
@@ -246,40 +336,9 @@ class Orbital(object):
 
         """
         utc_time = dt2np(utc_time)
-        (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(
-            utc_time, normalize=False)
-        (opos_x, opos_y, opos_z), (ovel_x, ovel_y, ovel_z) = \
-            astronomy.observer_position(utc_time, lon, lat, alt)
+        (pos_x, pos_y, pos_z), (vel_x, vel_y, vel_z) = self.get_position(utc_time, normalize=False)
 
-        lon = np.deg2rad(lon)
-        lat = np.deg2rad(lat)
-
-        theta = (astronomy.gmst(utc_time) + lon) % (2 * np.pi)
-
-        rx = pos_x - opos_x
-        ry = pos_y - opos_y
-        rz = pos_z - opos_z
-
-        sin_lat = np.sin(lat)
-        cos_lat = np.cos(lat)
-        sin_theta = np.sin(theta)
-        cos_theta = np.cos(theta)
-
-        top_s = sin_lat * cos_theta * rx + \
-            sin_lat * sin_theta * ry - cos_lat * rz
-        top_e = -sin_theta * rx + cos_theta * ry
-        top_z = cos_lat * cos_theta * rx + \
-            cos_lat * sin_theta * ry + sin_lat * rz
-
-        az_ = np.arctan(-top_e / top_s)
-
-        az_ = np.where(top_s > 0, az_ + np.pi, az_)
-        az_ = np.where(az_ < 0, az_ + 2 * np.pi, az_)
-
-        rg_ = np.sqrt(rx * rx + ry * ry + rz * rz)
-        el_ = np.arcsin(top_z / rg_)
-
-        return np.rad2deg(az_), np.rad2deg(el_)
+        return get_observer_look_from_cartesian_position(utc_time, lon, lat, alt, pos_x, pos_y, pos_z)
 
     def get_orbit_number(self, utc_time, tbus_style=False, as_float=False):
         """Calculate orbit number at specified time.
@@ -322,7 +381,8 @@ class Orbital(object):
 
         return orbit
 
-    def get_next_passes(self, utc_time, length, lon, lat, alt, tol=0.001, horizon=0):
+    def get_next_passes(self, utc_time, length, lon, lat, alt,
+                        tol=_CROSSING_TOLERANCE_SECONDS, horizon=0):
         """Calculate passes for the next hours for a given start time and a given observer.
 
         Original by Martin.
@@ -338,11 +398,7 @@ class Orbital(object):
         :return: [(rise-time, fall-time, max-elevation-time), ...]
 
         """
-        # every minute
-        times = utc_time + np.array([dt.timedelta(minutes=minutes)
-                                     for minutes in range(length * 60)])
-        elev = self.get_observer_look(times, lon, lat, alt)[1] - horizon
-        zcs = np.where(np.diff(np.sign(elev)))[0]
+        elev, zcs = self._scan_elevation(utc_time, length, lon, lat, alt, horizon)
         res = []
         risetime = None
         risemins = None
@@ -1205,7 +1261,9 @@ class _Keplerians:
 
 
 def _check_orbital_elements(orbit_elements):
-    if not (0 < orbit_elements.eccentricity < ECC_LIMIT_HIGH):
+    # An orbit of no eccentricity at all is a circle, which is a perfectly good
+    # orbit and one this model propagates as well as any other.
+    if not (0 <= orbit_elements.eccentricity < ECC_LIMIT_HIGH):
         raise OrbitalError("Eccentricity out of range: %e" % orbit_elements.eccentricity)
     if not ((0.0035 * 2 * np.pi / XMNPDA) < orbit_elements.original_mean_motion < (18 * 2 * np.pi / XMNPDA)):
         raise OrbitalError("Mean motion out of range: %e" % orbit_elements.original_mean_motion)

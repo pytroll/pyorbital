@@ -1,3 +1,29 @@
+## Version 1.13.0 (2026/09/01)
+
+### Issues Closed
+
+* [Issue 226](https://github.com/pytroll/pyorbital/issues/226) - Listed on awesome-europe
+
+In this release 1 issue was closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 238](https://github.com/pytroll/pyorbital/pull/238) - Fix sun_zenith_angle on integer lon/lat (crash + silent truncation)
+
+#### Features added
+
+* [PR 244](https://github.com/pytroll/pyorbital/pull/244) - Propagate orbits of no eccentricity at all
+* [PR 229](https://github.com/pytroll/pyorbital/pull/229) - Rework geoloc to support yaw steering and numba for optimisation
+
+#### Documentation changes
+
+* [PR 227](https://github.com/pytroll/pyorbital/pull/227) - Update RTD to ubuntu 24 and miniforge
+
+In this release 4 pull requests were closed.
+
+
 ## Version 1.12.1 (2026/03/05)
 
 ### Pull Requests Merged

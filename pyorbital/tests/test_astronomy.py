@@ -130,6 +130,15 @@ class TestAstronomy:
         assert np.issubdtype(result.dtype, np.floating)
         np.testing.assert_allclose(result, expected, atol=1e-8)
 
+    def test_gmst_far_from_j2000(self):
+        """Test GMST against the AIAA 2006 gstime polynomial two centuries from J2000."""
+        utc_time = dt.datetime(2200, 1, 1, 12, 0)
+        t = astr.jdays2000(utc_time) / 36525.0
+        theta = (-6.2e-6 * t ** 3 + 0.093104 * t ** 2 + (876600 * 3600 + 8640184.812866) * t
+                 + 67310.54841)
+        expected = np.deg2rad(theta / 240.0) % (2 * np.pi)
+        assert astr.gmst(utc_time) == pytest.approx(expected, abs=1e-10)
+
     def test_sun_earth_distance_correction(self):
         """Test the sun-earth distance correction."""
         utc_time = dt.datetime(2022, 6, 15, 12, 0, 0)

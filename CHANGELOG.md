@@ -1,3 +1,30 @@
+## Version 1.14.0 (2026/10/12)
+
+### Issues Closed
+
+* [Issue 250](https://github.com/pytroll/pyorbital/issues/250) - Do we need to add VII/MetImage ?
+* [Issue 95](https://github.com/pytroll/pyorbital/issues/95) - Would be nice to have a `get_last_dn_time` to get the last descending node ([PR 246](https://github.com/pytroll/pyorbital/pull/246) by [@mraspaud](https://github.com/mraspaud))
+* [Issue 94](https://github.com/pytroll/pyorbital/issues/94) - get_last_an_time does not work with a datetime object as input
+
+In this release 3 issues were closed.
+
+### Pull Requests Merged
+
+#### Bugs fixed
+
+* [PR 248](https://github.com/pytroll/pyorbital/pull/248) - Fix yaw steering and gcp minimisation
+* [PR 247](https://github.com/pytroll/pyorbital/pull/247) - Compute get_lonlatalt altitude on WGS84 consistently
+
+#### Features added
+
+* [PR 246](https://github.com/pytroll/pyorbital/pull/246) - Add get_last_dn_time, find_aos and find_aol ([95](https://github.com/pytroll/pyorbital/issues/95))
+* [PR 245](https://github.com/pytroll/pyorbital/pull/245) - Add the METimage instrument definition
+* [PR 243](https://github.com/pytroll/pyorbital/pull/243) - Propagate deep-space satellites (SDP4)
+* [PR 87](https://github.com/pytroll/pyorbital/pull/87) - Make the look angle one computation instead of two ([44](https://github.com/pytroll/pyorbital/issues/44))
+
+In this release 6 pull requests were closed.
+
+
 ## Version 1.13.0 (2026/09/01)
 
 ### Issues Closed

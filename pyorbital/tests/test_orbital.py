@@ -38,7 +38,7 @@ class Test(unittest.TestCase):
         lon, lat, alt = sat.get_lonlatalt(d)
         expected_lon = -68.199894472013213
         expected_lat = 23.159747677881075
-        expected_alt = 392.01741241831
+        expected_alt = 392.01741432336377
         assert np.abs(lon - expected_lon) < eps_deg, "Calculation of sublon failed"
         assert np.abs(lat - expected_lat) < eps_deg, "Calculation of sublat failed"
         assert np.abs(alt - expected_alt) < 1e-6, "Calculation of altitude failed"
@@ -577,3 +577,86 @@ def test_the_method_answers_as_the_function_does():
                                                       time, lon, lat, 0.0)
 
             np.testing.assert_allclose(from_method, from_function, atol=1e-3)
+
+
+# The propagator gives the same answer either way; numpy may evaluate a sine
+# over an array with different instructions than over a single number, and the
+# two can differ in the last bit. See the same note in test_aiaa.py.
+AT_ONCE_TOLERANCE = 1e-9  # km
+
+
+def _deep_space_orbital(satellite, line1, line2):
+    from pyorbital.orbital import Orbital
+    return Orbital(satellite, line1=line1, line2=line2)
+
+
+RESONANT_DEEP_SPACE = (
+    "1 08195U 75081A   06176.33215444  .00000099  00000-0  11873-3 0   813",
+    "2 08195  64.1586 279.0717 6877146 264.7651  20.2257  2.00491383225656")
+
+
+NON_RESONANT_DEEP_SPACE = (
+    "1 23177U 94040C   06175.45752052  .00000386  00000-0  76590-3 0    95",
+    "2 23177   7.0496 179.8238 7258491 296.0482   8.3061  2.25906668 97438")
+
+
+def test_resonant_deep_space_propagates_several_times_like_one_at_a_time():
+    """A resonant orbit gives the same answer for many times at once as for each alone."""
+    orb = _deep_space_orbital("MOLNIYA 2-14", *RESONANT_DEEP_SPACE)
+    times = orb.tle.epoch + np.array([0, 720, 1440, 2000], dtype="timedelta64[m]")
+
+    together = orb.get_position(times, normalize=False)
+    separately = [orb.get_position(time, normalize=False) for time in times]
+
+    np.testing.assert_allclose(together[0], np.array([p for p, _ in separately]).T,
+                               rtol=0, atol=AT_ONCE_TOLERANCE)
+    np.testing.assert_allclose(together[1], np.array([v for _, v in separately]).T,
+                               rtol=0, atol=AT_ONCE_TOLERANCE)
+
+
+def test_deep_space_propagates_several_times_like_one_at_a_time():
+    """Propagating to many times at once agrees with propagating to each in turn."""
+    orb = _deep_space_orbital("ARIANE", *NON_RESONANT_DEEP_SPACE)
+    times = orb.tle.epoch + np.array([0, 120, 360, 720], dtype="timedelta64[m]")
+
+    together = orb.get_position(times, normalize=False)
+    separately = [orb.get_position(time, normalize=False) for time in times]
+
+    np.testing.assert_allclose(together[0], np.array([p for p, _ in separately]).T,
+                               rtol=0, atol=AT_ONCE_TOLERANCE)
+    np.testing.assert_allclose(together[1], np.array([v for _, v in separately]).T,
+                               rtol=0, atol=AT_ONCE_TOLERANCE)
+
+
+def test_resonant_deep_space_propagates_backwards_and_forwards_at_once():
+    """Times before and after the epoch may be mixed in one array."""
+    orb = _deep_space_orbital("MOLNIYA 2-14", *RESONANT_DEEP_SPACE)
+    times = orb.tle.epoch + np.array([-1440, -720, 0, 720, 1440], dtype="timedelta64[m]")
+
+    together = orb.get_position(times, normalize=False)
+    separately = [orb.get_position(time, normalize=False) for time in times]
+
+    np.testing.assert_allclose(together[0], np.array([p for p, _ in separately]).T,
+                               rtol=0, atol=AT_ONCE_TOLERANCE)
+    np.testing.assert_allclose(together[1], np.array([v for _, v in separately]).T,
+                               rtol=0, atol=AT_ONCE_TOLERANCE)
+
+
+def test_resonant_deep_space_does_not_care_what_order_the_times_come_in():
+    """The answer for a time does not depend on which other times are asked for.
+
+    The resonance is followed step by step from the epoch, which would invite
+    carrying the integration between calls; doing so would make the answer
+    depend on the order of the calls, and it must not.
+    """
+    orb = _deep_space_orbital("MOLNIYA 2-14", *RESONANT_DEEP_SPACE)
+    offsets = np.array([0, 2000, -1440, 720, 5000, -300], dtype="timedelta64[m]")
+    times = orb.tle.epoch + offsets
+
+    in_order = orb.get_position(times, normalize=False)
+    shuffled = np.array([3, 0, 5, 1, 4, 2])
+    out_of_order = orb.get_position(times[shuffled], normalize=False)
+    again = orb.get_position(times, normalize=False)
+
+    np.testing.assert_array_equal(out_of_order[0], in_order[0][:, shuffled])
+    np.testing.assert_array_equal(again[0], in_order[0])

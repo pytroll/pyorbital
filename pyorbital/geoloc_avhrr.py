@@ -97,7 +97,7 @@ def estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, start_time, 
     A parameter held this way is not being ignored. It is being asserted to be zero,
     and the answer returned for it is that assertion rather than a measurement.
     """
-    from scipy.optimize import least_squares, minimize
+    from scipy.optimize import least_squares
 
     original_distances = compute_gcp_distances_to_reference_lonlats(
         (0, 0, 0, 0), gcps, start_time, tle, max_scan_angle, (ref_lons, ref_lats),

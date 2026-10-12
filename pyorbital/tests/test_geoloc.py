@@ -1825,7 +1825,7 @@ def test_the_steering_balances_the_spin_against_the_speed_over_the_ground():
     balances the ground's eastward run against the speed of the subpoint, which
     is the platform's speed shrunk by the ratio of the two radii.
     """
-    from pyorbital.geoloc import A, OMEGA_EARTH, compute_yaw_steering
+    from pyorbital.geoloc import OMEGA_EARTH, A, compute_yaw_steering
 
     height = 817.0
     speed = 7.45
@@ -2043,4 +2043,3 @@ def _earth_centred_vector(lon, lat):
     return np.array([prime_vertical * np.cos(lat) * np.cos(lon),
                      prime_vertical * np.cos(lat) * np.sin(lon),
                      prime_vertical * (1 - e2) * np.sin(lat)])
-

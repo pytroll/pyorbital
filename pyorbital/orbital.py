@@ -145,6 +145,7 @@ def get_observer_look_from_cartesian_position(utc_time, lon, lat, alt, pos_x, po
     # Due to rounding top_z can be larger than rg_ (when el_ ~ 90).
     top_z_divided_by_rg_ = top_z_divided_by_rg_.clip(max=1)
     el_ = np.arcsin(top_z_divided_by_rg_)
+    az_ = az_ + (np.pi - az_) * (top_z_divided_by_rg_ == 1)
     return np.rad2deg(az_), np.rad2deg(el_)
 
 

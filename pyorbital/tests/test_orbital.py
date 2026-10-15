@@ -137,6 +137,23 @@ class Test(unittest.TestCase):
         res = orb.get_next_passes(d, 1, 170.556, -43.368, 0.5, horizon=40)
         assert abs(res[0][2] - dt.datetime(2018, 3, 7, 3, 48, 13, 178439)) < dt.timedelta(seconds=0.01)
 
+    def test_get_next_passes_ending_in_final_minute(self):
+        """Include complete passes that end in the last minute of the search."""
+        line1 = "1 06251U 62025E   06176.82412014  .00008885  00000-0  12808-3 0  3985"
+        line2 = "2 06251  58.0579  54.0425 0030035 139.1568 221.1854 15.56387291  6774"
+        orb = orbital.Orbital("DELTA 1 DEB", line1=line1, line2=line2)
+        start = dt.datetime(2006, 6, 25, 19, 25, 26, 449438)
+
+        res = orb.get_next_passes(start, 1, 0.0, 45.0, 0.0)
+
+        assert len(res) == 1
+        rise, fall, maximum = res[0]
+        assert abs(rise - dt.datetime(2006, 6, 25, 20, 17, 12, 116017)) < dt.timedelta(seconds=0.01)
+        assert abs(fall - dt.datetime(2006, 6, 25, 20, 24, 56, 449438)) < dt.timedelta(seconds=0.01)
+        assert start < rise < maximum < fall < start + dt.timedelta(hours=1)
+        assert res == orb.get_next_passes(start, 2, 0.0, 45.0, 0.0)
+        assert orb.get_next_passes(start - dt.timedelta(minutes=1), 1, 0.0, 45.0, 0.0) == []
+
     def test_get_next_passes_tricky(self):
         """Check issue #34 for reference."""
         line1 = "1 43125U 18004Q   18251.42128650 " \

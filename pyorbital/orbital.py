@@ -318,7 +318,7 @@ class Orbital(object):
         *i* lies between minute *i* and minute *i* + 1.
         """
         times = utc_time + np.array([dt.timedelta(minutes=minutes)
-                                     for minutes in range(hours * 60)])
+                                     for minutes in range(hours * 60 + 1)])
         elevation = self.get_observer_look(times, lon, lat, alt)[1] - horizon
         return elevation, np.where(np.diff(np.sign(elevation)))[0]
 

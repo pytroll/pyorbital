@@ -541,10 +541,34 @@ class Downloader(object):
 
         return tles
 
+    def fetch_n2yo(self):
+        """Fetch TLE data from N2YO."""
+        tles = []
+        api_key = self.config["downloaders"]["fetch_n2yo"]["api_key"]
+        for platform in self.config["platforms"]:
+            url = f"https://www.n2yo.com/rest/v1/satellite/tle/{platform}/&apiKey={api_key}"
+            req = requests.get(url, timeout=10)
+            if req.status_code == 200:
+                tles.append(_parse_n2yo_response(req.text))
+            else:
+                logging.error("Could not retrieve TLEs from N2YO for platform %s", platform)
+
+        logging.info("Downloaded %d TLEs from %s", len(tles), "n2yo")
+
+        return tles
 
 def _parse_tles_for_downloader(item, open_func):
     return [Tle("", tle_file=io.StringIO(tle)) for tle in
             _get_tles_from_uris(item, open_func, platform="", only_first=False)]
+
+
+def _parse_n2yo_response(text):
+    """Parse N2YO API response and return a StringIO object containing the TLE."""
+    import json
+
+    data = json.loads(text)
+    line1, line2 = data["tle"].split("\n")
+    return Tle("", line1=line1, line2=line2)
 
 
 def collect_filenames(paths):

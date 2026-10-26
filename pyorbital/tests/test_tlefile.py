@@ -2,6 +2,7 @@
 
 
 import datetime as dt
+import glob
 import logging
 import os
 import time
@@ -20,6 +21,8 @@ LINE1 = "1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927"
 LINE2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537"
 LINE1_2 = "1 38771U 12049A   21137.30264622  .00000000  00000+0 -49996-5 0 00017"
 LINE2_2 = "2 38771  98.7162 197.7716 0002383 106.1049 122.6344 14.21477797449453"
+LINE1_ALPHA5 = "1 A0910U 26227AD  26298.94545882  .00004416  00000-0  22172-3 0  9993"
+LINE2_ALPHA5 = "2 A0910  97.4429   8.0526 0003941  83.8695 276.2988 15.17799901  3671"
 
 def _write_fake_platforms_txt_file(platforms_filename) -> None:
     with open(platforms_filename, "w") as platforms_file:
@@ -875,6 +878,40 @@ class TestSQLiteTLE(unittest.TestCase):
         assert len(data) == 2
         assert data[0] == LINE1
         assert data[1] == LINE2
+
+    def test_alpha5_satid(self):
+        """Test that satellites with Alpha-5 IDs are saved and written."""
+        from pyorbital.tlefile import Tle, table_exists
+
+        tle = Tle("FOO", line1=LINE1_ALPHA5, line2=LINE2_ALPHA5)
+        self.db.platforms["A0910"] = "FOO"
+        self.db.update_db(tle, "foo")
+        assert table_exists(self.db.db, "A0910")
+        res = self.db.db.execute("select satid, typeof(satid), platform_name from platform_names").fetchall()
+        assert ("A0910", "text", "FOO") in res
+        assert ("25544", "text", "ISS") not in res
+
+        self.db.update_db(self.tle, "foo")
+        res = self.db.db.execute("select satid, typeof(satid), platform_name from platform_names").fetchall()
+        assert ("25544", "text", "ISS") in res
+
+        self.db.write_tle_txt()
+        files = glob.glob(os.path.join(self.writer_config["output_dir"], "tle_*txt"))
+        with open(files[0], "r") as fid:
+            data = fid.read().strip("\n").split("\n")
+        assert data == ["ISS", LINE1, LINE2, "FOO", LINE1_ALPHA5, LINE2_ALPHA5]
+
+
+def test_normalize_satid():
+    """Test normalizing satellite IDs to strings."""
+    from pyorbital.tlefile import _normalize_satid
+
+    assert _normalize_satid(25544) == "25544"
+    assert _normalize_satid("25544") == "25544"
+    assert _normalize_satid("00900") == "900"
+    assert _normalize_satid(" 900") == "900"
+    assert _normalize_satid("A0910") == "A0910"
+
 
 def test_tle_instance_printing():
     """Test the print the Tle instance."""

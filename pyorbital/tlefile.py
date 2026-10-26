@@ -692,16 +692,24 @@ class SQLiteTLE(object):
         self.db.close()
 
 
-def _normalize_satid(satid):
-    """Convert satellite ID to a string.
+ALPHA5_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"
 
-    Purely numeric IDs have leading zeros and whitespace removed. IDs over 99999 are
-    given in Alpha-5 format (e.g. 'A0910') and are kept as-is.
+
+def _normalize_satid(satid):
+    """Convert satellite ID to the string used in the database.
+
+    Purely numeric IDs have leading zeros and whitespace removed. Numeric IDs over 99999
+    are converted to Alpha-5 format used in the TLEs (e.g. 100910 -> 'A0910'). IDs
+    already in Alpha-5 format are kept as-is.
     """
     satid = str(satid).strip()
-    if satid.isdigit():
-        return str(int(satid))
-    return satid
+    if not satid.isdigit():
+        return satid
+    num = int(satid)
+    if num < 100000:
+        return str(num)
+    prefix, rest = divmod(num, 10000)
+    return f"{ALPHA5_LETTERS[prefix - 10]}{rest:04d}"
 
 
 def table_exists(db, name):

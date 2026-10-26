@@ -884,7 +884,7 @@ class TestSQLiteTLE(unittest.TestCase):
         from pyorbital.tlefile import Tle, table_exists
 
         tle = Tle("FOO", line1=LINE1_ALPHA5, line2=LINE2_ALPHA5)
-        self.db.platforms["A0910"] = "FOO"
+        self.db.platforms = {25544: "ISS", 100910: "FOO"}
         self.db.update_db(tle, "foo")
         assert table_exists(self.db.db, "A0910")
         res = self.db.db.execute("select satid, typeof(satid), platform_name from platform_names").fetchall()
@@ -910,6 +910,11 @@ def test_normalize_satid():
     assert _normalize_satid("25544") == "25544"
     assert _normalize_satid("00900") == "900"
     assert _normalize_satid(" 900") == "900"
+    assert _normalize_satid(100910) == "A0910"
+    assert _normalize_satid("100910") == "A0910"
+    assert _normalize_satid(179999) == "H9999"
+    assert _normalize_satid(180000) == "J0000"
+    assert _normalize_satid(339999) == "Z9999"
     assert _normalize_satid("A0910") == "A0910"
 
 

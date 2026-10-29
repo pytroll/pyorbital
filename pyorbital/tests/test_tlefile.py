@@ -711,11 +711,33 @@ class TestDownloader:
         assert res[1].line1 == LINE1_2
         assert res[1].line2 == LINE2_2
 
+    def test_fetch_n2yo(self):
+        """Test fetching TLE data from N2YO."""
+        self.dl.config["downloaders"] = {
+            "fetch_n2yo": {
+                "api_key": "<api_key>"
+            }
+        }
+        self.dl.config["platforms"] = [25544]
+        with mock.patch("requests.get") as mock_get:
+            mock_get.return_value = _get_n2yo_req_response(200)
+            res = self.dl.fetch_n2yo()
+        assert len(res) == 1
+        assert res[0].line1 == LINE1
+        assert res[0].line2 == LINE2
+
 
 def _get_req_response(code):
     req = mock.MagicMock()
     req.status_code = code
     req.text = "\n".join((LINE0, LINE1, LINE2))
+    return req
+
+
+def _get_n2yo_req_response(code):
+    req = mock.MagicMock()
+    req.status_code = code
+    req.text = '{"tle": "' + LINE1 + "\\n" + LINE2 + r'"}'
     return req
 
 

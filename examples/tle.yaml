@@ -50,6 +50,8 @@ downloaders:
     paths:
       - /path/to/a/file/tle.txt
       - /path/to/many/files/tle*.txt
+  fetch_n2yo:
+    api_key: <api_key>
 
 logging:
   version: 1

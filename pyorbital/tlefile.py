@@ -636,13 +636,22 @@ class SQLiteTLE(object):
                 self.db.execute(cmd)
                 logging.info("Created database table 'platform_names'")
 
+    @property
+    def platforms(self):
+        """Get the configured platforms as a dictionary of satellite ID strings and platform names."""
+        return self._platforms
+
+    @platforms.setter
+    def platforms(self, platforms):
+        self._platforms = {_normalize_satid(satid): name for satid, name in platforms.items()}
+
     def update_db(self, tle, source):
         """Update the collected data.
 
         Only data with newer epoch than the existing one is used.
 
         """
-        num = int(tle.satnumber)
+        num = _normalize_satid(tle.satnumber)
         if num not in self.platforms:
             return
         tle.platform_name = self.platforms[num]
@@ -650,11 +659,11 @@ class SQLiteTLE(object):
             cmd = "CREATE TABLE " + SATID_TABLE.format(num)
             with self.db:
                 self.db.execute(cmd)
-                logging.info("Created database table '%d'", num)
+                logging.info("Created database table '%s'", num)
             cmd = ""
             with self.db:
                 self.db.execute(PLATFORM_VALUES, (num, self.platforms[num]))
-                logging.info("Added platform name '%s' for ID '%d'",
+                logging.info("Added platform name '%s' for ID '%s'",
                              self.platforms[num], num)
         cmd = SATID_VALUES.format(num)
         epoch = tle.epoch.item().isoformat()
@@ -663,7 +672,7 @@ class SQLiteTLE(object):
         try:
             with self.db:
                 self.db.execute(cmd, (epoch, tle, now, source))
-                logging.info("Added TLE for %d (%s), epoch: %s, source: %s",
+                logging.info("Added TLE for %s (%s), epoch: %s, source: %s",
                              num, self.platforms[num], epoch, source)
                 self.updated = True
         except sqlite3.IntegrityError:
@@ -687,7 +696,7 @@ class SQLiteTLE(object):
         for satid, platform_name in self.platforms.items():
             if self.writer_config.get("write_name", False):
                 data.append(platform_name)
-            query = f"SELECT epoch, tle FROM '{satid:d}' ORDER BY epoch DESC LIMIT 1"  # nosec
+            query = f"SELECT epoch, tle FROM '{satid}' ORDER BY epoch DESC LIMIT 1"  # nosec
             epoch, tle = self.db.execute(query).fetchone()  # nosec
             date_epoch = dt.datetime.strptime(epoch, ISO_TIME_FORMAT)
             tle_age = (_utcnow() - date_epoch).total_seconds() / 3600.
@@ -705,6 +714,26 @@ class SQLiteTLE(object):
     def close(self):
         """Close the database."""
         self.db.close()
+
+
+ALPHA5_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+
+
+def _normalize_satid(satid):
+    """Convert satellite ID to the string used in the database.
+
+    Purely numeric IDs have leading zeros and whitespace removed. Numeric IDs over 99999
+    are converted to Alpha-5 format used in the TLEs (e.g. 100910 -> 'A0910'). IDs
+    already in Alpha-5 format are kept as-is.
+    """
+    satid = str(satid).strip()
+    if not satid.isdigit():
+        return satid
+    num = int(satid)
+    if num < 100000:
+        return str(num)
+    prefix, rest = divmod(num, 10000)
+    return f"{ALPHA5_LETTERS[prefix - 10]}{rest:04d}"
 
 
 def table_exists(db, name):

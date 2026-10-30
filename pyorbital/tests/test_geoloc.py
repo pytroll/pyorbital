@@ -687,6 +687,25 @@ def test_pushbroom_swath_generates_scan_geometry():
     assert geom._times[1, -1] == time_sampling * 10
 
 
+@pytest.mark.parametrize("pixels", [
+    [0, 100, 4864],
+    [4864, 100, 0, 2432],
+    [2432, 2432, 100],
+    [100],
+    [],
+    slice(100, 100),
+])
+def test_pushbroom_pixel_selection_preserves_positions(pixels):
+    """Selecting pixels must preserve their angles, order and scan times."""
+    scan = SingleLinePushbroomScan(46.5, -22.1, 4865, forward_angle=10)
+    swath = PushbroomSwath(scan, np.timedelta64(44, "ms"))
+    full = swath.scan_geometry(slice(0, 3))
+    subset = swath.scan_geometry(slice(0, 3), pixels=pixels)
+
+    np.testing.assert_allclose(subset.fovs, full.fovs[:, :, pixels])
+    np.testing.assert_array_equal(subset._times, full._times[:, pixels])
+
+
 def test_olci_scan_step_scales_time_offsets():
     """Test that OLCI scan decimation preserves elapsed observation time."""
     from pyorbital.geoloc_instrument_definitions import olci

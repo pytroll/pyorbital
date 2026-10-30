@@ -546,7 +546,7 @@ class Downloader(object):
         tles = []
         api_key = self.config["downloaders"]["fetch_n2yo"]["api_key"]
         for platform in self.config["platforms"]:
-            url = f"https://www.n2yo.com/rest/v1/satellite/tle/{platform}/&apiKey={api_key}"
+            url = f"https://api.n2yo.com/rest/v1/satellite/tle/{platform}&apiKey={api_key}"
             req = requests.get(url, timeout=10)
             if req.status_code == 200:
                 tles.append(_parse_n2yo_response(req.text))

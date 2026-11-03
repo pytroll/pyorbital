@@ -264,6 +264,12 @@ def _rodrigues(vector, axis, angle):
     return vector * cos_a - ncrossv * sin_a + n * ndotv * (1 - cos_a)
 
 
+def _has_separable_scan_angles(fovs):
+    """Check the row/column invariants required by the compact rotation paths."""
+    return (np.all(fovs[0] == fovs[0, :1, :])
+            and np.all(fovs[1] == fovs[1, :, :1]))
+
+
 class ScanGeometry(object):
     """Description of the geometry of an instrument.
 
@@ -306,13 +312,14 @@ class ScanGeometry(object):
         )
         per_scan_state = (self.fovs.ndim == 3 and pos.ndim == 2
                           and pos.shape[1] == self.fovs.shape[1])
-        if per_scan_state and nadir_convention != "legacy":
+        if per_scan_state and nadir_convention != "legacy" and _has_separable_scan_angles(self.fovs):
             return self._vectors_broadcast(pos, vel, roll, pitch, yaw, yaw_steering,
                                            nadir_convention, rotation_order)
         if per_scan_state:
             # The broadcast rotation simplifies using nadir ⊥ along_track, which the
-            # legacy frame deliberately does not satisfy, so legacy takes the general
-            # path instead -- which needs the orbit state repeated for every pixel.
+            # legacy frame deliberately does not satisfy. Detector/scan corrections
+            # can also break the compact angle invariants. Both need the general
+            # path, with the orbit state repeated for every pixel.
             pixels_per_row = self.fovs.shape[2]
             pos = np.repeat(pos, pixels_per_row, axis=1)
             vel = np.repeat(vel, pixels_per_row, axis=1)
@@ -782,7 +789,7 @@ def geolocate(orb, sgeom, times, rpy=(0.0, 0.0, 0.0), yaw_steering=False,
         return _geolocate_with_per_pixel_orbit(orb, sgeom, times_arr, rpy, yaw_steering,
                                                nadir_convention, rotation_order)
 
-    if _HAS_NUMBA and sgeom.fovs.ndim == 3:
+    if _HAS_NUMBA and sgeom.fovs.ndim == 3 and _has_separable_scan_angles(sgeom.fovs):
         return _geolocate_fused(orb, sgeom, times, roll, pitch, yaw, yaw_steering,
                                 nadir_convention, rotation_order)
 

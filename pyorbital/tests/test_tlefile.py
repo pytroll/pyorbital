@@ -789,7 +789,7 @@ class TestSQLiteTLE(unittest.TestCase):
 
     def test_update_db(self):
         """Test updating database with new data."""
-        from pyorbital.tlefile import ISO_TIME_FORMAT, SATID_TABLE, _utcnow, table_exists
+        from pyorbital.tlefile import SATID_TABLE, _utcnow, table_exists
 
         # Get the column names
         columns = [col.strip() for col in
@@ -823,7 +823,7 @@ class TestSQLiteTLE(unittest.TestCase):
         # TLE
         assert data[0][1] == "\n".join((LINE1, LINE2))
         # Date when the data were added should be close to current time
-        date_added = dt.datetime.strptime(data[0][2], ISO_TIME_FORMAT)
+        date_added = dt.datetime.fromisoformat(data[0][2])
         now = _utcnow()
         assert (now - date_added).total_seconds() < 1.0
         # Source of the data
@@ -835,7 +835,7 @@ class TestSQLiteTLE(unittest.TestCase):
         res = self.db.db.execute(f"select * from '{satid:d}'")  # noseq
         data = res.fetchall()
         assert len(data) == 1
-        date_added2 = dt.datetime.strptime(data[0][2], ISO_TIME_FORMAT)
+        date_added2 = dt.datetime.fromisoformat(data[0][2])
         assert date_added == date_added2
         # Source of the data
         assert data[0][3] == "foo"

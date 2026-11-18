@@ -1169,6 +1169,50 @@ def _fp_scan(lines_per_scan=4, altitude_km=830.0, det_position=(0.0, 0.0), bores
     )
 
 
+@pytest.mark.parametrize("rotation_order", ["legacy", "pitch_first"])
+def test_compact_geolocate_keeps_scan_pointing_offsets(numba_path, rotation_order):
+    """A single selected detector column must retain each scan's LOS offset."""
+    from pyorbital.geoloc_instrument_definitions import MERSI_1KM_SCAN
+
+    geom = MERSI_1KM_SCAN.scan_geometry(
+        2, scan_points=np.array([1024]),
+        scan_los_offsets_rad=np.array([[0., 0.], [0.01, 0.002]]),
+    )
+    times = geom.times(np.datetime64("2012-12-12T04:16:01.575"))
+    orb = Orbital(
+        "NOAA-19",
+        line1="1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+        line2="2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875",
+    )
+    flat = ScanGeometry(geom.fovs.reshape(2, -1), (times - times[0, 0]).reshape(-1))
+    kwargs = dict(nadir_convention="geocentric", rotation_order=rotation_order)
+
+    expected = geolocate(orb, flat, times.reshape(-1), **kwargs)
+    actual = geolocate(orb, geom, times, **kwargs)
+
+    np.testing.assert_allclose(actual, expected, rtol=0, atol=1e-7)
+
+
+@pytest.mark.parametrize("correction", ["offsets", "slopes"])
+@pytest.mark.parametrize("rotation_order", ["legacy", "pitch_first"])
+def test_compact_vectors_keep_focal_plane_corrections(correction, rotation_order):
+    """Compact vectors must retain detector offsets and scan-dependent slopes."""
+    corrections = np.array([[0., 0.], [0.001, 0.002], [0.003, -0.001], [0.002, 0.003]])
+    field = "detector_offsets_rad" if correction == "offsets" else "detector_scan_slopes_rad"
+    scan = replace(_fp_scan(), **{field: corrections})
+    geom = scan.scan_geometry(1, scan_points=np.array([0, 5, 19]))
+    pos, vel = _inclined_orbit_state()
+    pos = np.repeat(pos, 4, axis=1)
+    vel = np.repeat(vel, 4, axis=1)
+    flat = ScanGeometry(geom.fovs.reshape(2, -1), geom._times.reshape(-1))
+    kwargs = dict(nadir_convention="geocentric", rotation_order=rotation_order)
+
+    expected = flat.vectors(np.repeat(pos, 3, axis=1), np.repeat(vel, 3, axis=1), **kwargs)
+    actual = geom.vectors(pos, vel, **kwargs)
+
+    np.testing.assert_allclose(actual, expected, rtol=0, atol=1e-12)
+
+
 def test_focal_plane_identity_matches_multiline_whiskbroom():
     """FocalPlaneWhiskbroomScan with identity boresight and zero offset matches MultiLineWhiskbroomScan."""
     altitude_km = 830.0

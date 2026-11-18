@@ -56,20 +56,14 @@ class SingleLinePushbroomScan:
         Returns:
             Tuple of (cross_track_angles, along_track_angles) in radians.
         """
-        left, right, count = self._resolve_pixel_range(pixels)
-        x_fovs = np.linspace(np.deg2rad(left), np.deg2rad(right), count)
-        y_fovs = np.full(count, np.deg2rad(self.forward_angle))
-        return x_fovs, y_fovs
-
-    def _resolve_pixel_range(self, pixels):
-        """Resolve a pixel selector to (left_angle_deg, right_angle_deg, count)."""
         if pixels is None:
-            return self.left_angle, self.right_angle, self.pixels_per_scan
-        positions = self._pixel_positions(pixels)
-        scale = (self.right_angle - self.left_angle) / (self.pixels_per_scan - 1)
-        left = positions[0] * scale + self.left_angle
-        right = positions[-1] * scale + self.left_angle
-        return left, right, len(positions)
+            x_fovs = np.linspace(np.deg2rad(self.left_angle), np.deg2rad(self.right_angle), self.pixels_per_scan)
+        else:
+            positions = np.asarray(self._pixel_positions(pixels))
+            scale = (self.right_angle - self.left_angle) / (self.pixels_per_scan - 1)
+            x_fovs = np.deg2rad(self.left_angle + positions * scale)
+        y_fovs = np.full(len(x_fovs), np.deg2rad(self.forward_angle))
+        return x_fovs, y_fovs
 
     def _pixel_positions(self, pixels):
         """Convert a pixel selector (slice or array-like) to a sequence of positions."""

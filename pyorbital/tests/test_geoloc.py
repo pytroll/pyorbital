@@ -213,6 +213,16 @@ class TestGeoloc:
         expected = np.array([0.78755832699854733, 0.78755832699854733])
         np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-8)
 
+    def test_the_geodetic_lat_of_an_unknown_point_is_unknown(self):
+        """A point with no position must come back as NaN, not keep the iteration waiting for it."""
+        points = np.array([[7000, 0, 7000],
+                           [np.nan, np.nan, np.nan]]).T
+
+        result = geodetic_lat(points)
+
+        np.testing.assert_allclose(result[0], 0.78755832699854733, rtol=1e-8)
+        assert np.isnan(result[1])
+
     def test_subpoint(self):
         """Test nadir determination."""
         a = 6378.137  # km
@@ -309,6 +319,7 @@ def test_arbitrary_point_geoloc(convention, numba_path):
         assert lats[2] == pytest.approx(expected[1][1])
 
 
+@pytest.mark.filterwarnings("ignore:estimate_time_and_attitude_deviations is deprecated")
 @pytest.mark.parametrize("convention", NADIR_CONFIG_CASES)
 def test_minimize_geoloc_error(convention):
     """Test minimizing the distance to a set of gcps."""
@@ -338,6 +349,7 @@ def test_minimize_geoloc_error(convention):
         assert min(do) > max(dm)
 
 
+@pytest.mark.filterwarnings("ignore:estimate_time_and_attitude_deviations is deprecated")
 def test_minimize_geoloc_error_beyond_the_bound_when_told_where_to_look():
     """A time offset outside the search box is found when a guess centres the box on it."""
     with config.set(nadir_convention="geodetic", rotation_order="legacy"):
@@ -356,6 +368,7 @@ def test_minimize_geoloc_error_beyond_the_bound_when_told_where_to_look():
         assert time_diff == pytest.approx(ref_time_displacement, abs=1e-2)
 
 
+@pytest.mark.filterwarnings("ignore:estimate_time_and_attitude_deviations is deprecated")
 def test_a_time_offset_resting_on_its_bound_is_refused():
     """A time the data cannot pin down would be paid for in pitch, so refuse it instead."""
     with config.set(nadir_convention="geodetic", rotation_order="legacy"):
@@ -371,6 +384,7 @@ def test_a_time_offset_resting_on_its_bound_is_refused():
             estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, t, tle, max_scan_angle)
 
 
+@pytest.mark.filterwarnings("ignore:estimate_time_and_attitude_deviations is deprecated")
 def test_only_the_attitude_is_fitted_when_the_clock_is_trusted():
     """A disciplined clock leaves three parameters to find, not four.
 
@@ -1798,6 +1812,7 @@ def test_steering_squares_the_swath_to_the_ground_track():
         assert out_of_square(when, True) < out_of_square(when, False)
 
 
+@pytest.mark.filterwarnings("ignore:estimate_time_and_attitude_deviations is deprecated")
 def test_a_steered_swath_is_fitted_by_a_model_that_turns_with_it():
     """A model that turns with the swath finds the attitude planted in it, and no more."""
     tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
@@ -1855,6 +1870,7 @@ def test_the_gcp_geolocation_takes_the_nadir_convention_it_is_given():
     assert apart.max() > 0.01
 
 
+@pytest.mark.filterwarnings("ignore:estimate_time_and_attitude_deviations is deprecated")
 def test_the_attitude_fit_stands_on_the_nadir_it_is_given():
     """A fit told which nadir the navigation used finds the attitude planted in it."""
     tle1 = "1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113"
@@ -1924,6 +1940,7 @@ class TestFittingANavigation:
 
         assert not np.allclose(legacy_lons, corrected_lons)
 
+    @pytest.mark.filterwarnings("ignore:estimate_time_and_attitude_deviations is deprecated")
     def test_a_fit_not_asked_for_pitch_holds_it_at_zero(self):
         """A shift along the track can be written as time or as pitch, so fit one.
 
@@ -1942,6 +1959,7 @@ class TestFittingANavigation:
 
         assert pitch == 0.0
 
+    @pytest.mark.filterwarnings("ignore:estimate_time_and_attitude_deviations is deprecated")
     def test_a_fit_not_asked_for_time_holds_it_at_zero(self):
         """Where the clock is known, the swath must not be slid along its track to fit."""
         from pyorbital.geoloc_avhrr import estimate_time_and_attitude_deviations
@@ -1953,6 +1971,424 @@ class TestFittingANavigation:
             nadir_convention="geodetic", solve_for_time=False)
 
         assert seconds == 0.0
+
+
+def test_the_fit_in_metres_points_to_its_successor():
+    """The fit in metres is superseded, and a caller must be told where to go.
+
+    It weighs each miss by its footprint and lets a few bad matches drag the rest;
+    :func:`fit_navigation` judges misses in swath pixels, robustly, and says how far
+    its answer can be trusted.
+    """
+    tle = ("1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+           "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875")
+    t = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    gcps = np.array([[2, 500], [1500, 700], [20, 1000], [500, 1100], [100, 2000]])
+    ref_lons, ref_lats, _ = compute_avhrr_gcps_lonlatalt(gcps, 55.37, (0, 0, 0), t, tle,
+                                                         nadir_convention="geodetic")
+
+    with pytest.warns(DeprecationWarning, match="fit_navigation"):
+        estimate_time_and_attitude_deviations(gcps, ref_lons, ref_lats, t, tle, 55.37,
+                                              nadir_convention="geodetic", rotation_order="pitch_first")
+
+@pytest.mark.filterwarnings("ignore:pyorbital is using the legacy rotation order")
+class TestMissesInSwathPixels:
+    """Report how far each control point lands from its reference, in the swath's own pixels.
+
+    The matching measures displacements in swath pixels, and its precision is roughly a
+    fixed fraction of a pixel wherever in the swath it looks. A pixel is about a kilometre
+    on the ground at nadir and several towards the edge, so a miss in metres says as much
+    about where the point sits in the swath as about how well it was matched.
+    """
+
+    TLE = ("1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+           "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875")
+    STARTED = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    GCPS = np.array([[float(line), float(sample)]
+                     for line in (20, 400, 800) for sample in (100, 1024, 1950)])
+
+    def references_displaced_by(self, lines, samples):
+        """Return where the control points truly are, if the swath shows them *lines* and *samples* off."""
+        lons, lats, _ = compute_avhrr_gcps_lonlatalt(
+            self.GCPS + np.array([lines, samples]), 55.37, (0, 0, 0), self.STARTED, self.TLE,
+            nadir_convention="geodetic")
+        return lons, lats
+
+    @pytest.mark.parametrize(("lines", "samples"), [(0.0, 1.0), (1.0, 0.0), (0.5, -0.5)])
+    def test_a_miss_is_counted_in_pixels_wherever_it_lands(self, lines, samples):
+        """The same miss in pixels reads the same at nadir and at the swath edge."""
+        from pyorbital.geoloc_avhrr import compute_gcp_misses_in_pixels
+
+        misses = compute_gcp_misses_in_pixels(
+            (0, 0, 0, 0), self.GCPS, self.STARTED, self.TLE, 55.37,
+            self.references_displaced_by(lines, samples), nadir_convention="geodetic")
+
+        np.testing.assert_allclose(misses, np.tile([-lines, -samples], (len(self.GCPS), 1)), atol=2e-2)
+
+    def test_a_point_that_cannot_be_placed_keeps_its_row(self):
+        """Misses are stored next to the gcps they belong to, so none may be dropped silently."""
+        from pyorbital.geoloc_avhrr import compute_gcp_misses_in_pixels
+
+        gcps = self.GCPS.copy()
+        gcps[4] = np.nan
+
+        misses = compute_gcp_misses_in_pixels(
+            (0, 0, 0, 0), gcps, self.STARTED, self.TLE, 55.37,
+            self.references_displaced_by(0.0, 1.0), nadir_convention="geodetic")
+
+        assert misses.shape == (len(gcps), 2)
+        assert np.all(np.isnan(misses[4]))
+        assert np.all(np.isfinite(np.delete(misses, 4, axis=0)))
+
+
+class TestJudgingWhatAFitLeft:
+    """Tell how far the trustworthy control points ended up, and how much of it is navigation.
+
+    What a fit leaves of a good point's miss is the matcher's own noise, which differs
+    from point to point, plus what the navigation still gets wrong, which varies
+    smoothly across the swath. Bad matches are neither, and must not count as either.
+    """
+
+    GCPS = np.array([[float(line), float(sample)]
+                     for line in np.linspace(0, 1200, 20) for sample in np.linspace(60, 1990, 15)])
+
+    def test_bad_matches_are_set_aside_before_the_spread_is_quoted(self):
+        """Ten mismatches among three hundred must not decide how good the rest look."""
+        from pyorbital.geoloc_avhrr import judge_what_a_fit_left
+
+        rng = np.random.default_rng(0)
+        misses = rng.normal(0.0, 0.3, self.GCPS.shape)
+        bad = rng.choice(len(self.GCPS), 10, replace=False)
+        misses[bad] += [[12.0, -15.0]] * 10
+
+        judged = judge_what_a_fit_left(self.GCPS, misses)
+
+        # the ten, and at most one good point that happened to stray as far
+        assert 10 <= judged.mismatches <= 11
+        np.testing.assert_allclose(judged.trusted_rms, 0.3, rtol=0.15)
+
+    def test_navigation_left_wrong_shows_as_a_smooth_part(self):
+        """A miss that grows across the swath is navigation the fit did not remove, not noise."""
+        from pyorbital.geoloc_avhrr import judge_what_a_fit_left
+
+        rng = np.random.default_rng(1)
+        across = (self.GCPS[:, 1] - 1024.0) / 1024.0
+        drift = np.column_stack([np.zeros(len(self.GCPS)), 1.2 * across])
+        misses = drift + rng.normal(0.0, 0.3, self.GCPS.shape)
+
+        judged = judge_what_a_fit_left(self.GCPS, misses)
+
+        assert judged.systematic_rms[1] == pytest.approx(np.sqrt(np.mean(drift[:, 1] ** 2)), rel=0.1)
+        assert judged.systematic_rms[0] < 0.1
+
+    def test_noise_alone_leaves_almost_no_smooth_part(self):
+        """Matching noise is not navigation error, however large it is."""
+        from pyorbital.geoloc_avhrr import judge_what_a_fit_left
+
+        misses = np.random.default_rng(2).normal(0.0, 1.5, self.GCPS.shape)
+
+        judged = judge_what_a_fit_left(self.GCPS, misses)
+
+        np.testing.assert_allclose(judged.trusted_rms, 1.5, rtol=0.15)
+        assert np.all(np.asarray(judged.systematic_rms) < 0.3)
+
+    def test_points_that_could_not_be_placed_are_left_out(self):
+        """A NaN row is no point at all, and is counted as neither good nor bad."""
+        from pyorbital.geoloc_avhrr import judge_what_a_fit_left
+
+        misses = np.random.default_rng(3).normal(0.0, 0.3, self.GCPS.shape)
+        misses[5] = np.nan
+
+        judged = judge_what_a_fit_left(self.GCPS, misses)
+
+        assert judged.mismatches <= 1
+        assert np.all(np.isfinite(judged.trusted_rms))
+
+@pytest.mark.filterwarnings("ignore:pyorbital is using the legacy rotation order")
+class TestFittingInSwathPixels:
+    """Fit a navigation to control points, judging each miss in the pixels it was measured in.
+
+    The pass is synthesised from pyorbital's own geolocation with a known time offset
+    and yaw, and its references displaced in swath pixels where a test needs them to be,
+    so the answer the fit should return is known independently of the fit.
+    """
+
+    TLE = ("1 33591U 09005A   12345.45213434  .00000391  00000-0  24004-3 0  6113",
+           "2 33591 098.8821 283.2036 0013384 242.4835 117.4960 14.11432063197875")
+    STARTED = dt.datetime(2012, 12, 12, 4, 16, 1, 575000)
+    LATE_BY = 0.51
+    YAWED_BY = 0.01
+    GCPS = np.array([[float(line), float(sample)]
+                     for line in range(20, 1200, 100) for sample in (100, 500, 1024, 1500, 1950)])
+
+    def references(self, displaced_by=None):
+        """Return where the gcps truly are, moved in swath pixels by *displaced_by* if given."""
+        seen_at = self.GCPS if displaced_by is None else self.GCPS + displaced_by
+        lons, lats, _ = compute_avhrr_gcps_lonlatalt(
+            seen_at, 55.37, (0, 0, self.YAWED_BY), self.STARTED + dt.timedelta(seconds=self.LATE_BY),
+            self.TLE, nadir_convention="geodetic")
+        return lons, lats
+
+    def fit(self, refs, **kwargs):
+        """Fit a navigation to the gcps against *refs*."""
+        from pyorbital.geoloc_avhrr import fit_navigation
+
+        return fit_navigation(self.GCPS, *refs, self.STARTED, self.TLE, 55.37,
+                              nadir_convention="geodetic", **kwargs)
+
+    def test_the_planted_navigation_is_recovered(self):
+        """On a pass the model describes exactly, the fit lands on the truth and nothing is left over."""
+        fit = self.fit(self.references())
+
+        assert fit.time_offset == pytest.approx(self.LATE_BY, abs=1e-3)
+        assert fit.attitude[2] == pytest.approx(self.YAWED_BY, abs=1e-4)
+        assert fit.misses.shape == (len(self.GCPS), 2)
+        np.testing.assert_allclose(fit.misses, 0.0, atol=1e-2)
+
+    def test_the_fit_says_in_the_log_what_it_found_and_what_it_left(self, caplog):
+        """A run log has to show how well the navigation fitted, not only the file it wrote.
+
+        The fit in metres logged the distances it left; its successor says the same in the
+        units it fits in, with how many points it stood on and what it changed.
+        """
+        import logging
+
+        misses = np.zeros_like(self.GCPS)
+        misses[:, 1] = np.tile([0.5, -0.5], len(self.GCPS) // 2)
+
+        with caplog.at_level(logging.DEBUG, logger="pyorbital.geoloc_avhrr"):
+            self.fit(self.references(displaced_by=misses), solve_for_pitch=False)
+
+        import re
+        said = re.search(r"Fitted (\d+) control points: time offset ([-\d.]+) s.*"
+                         r"rms ([-\d.]+) lines, ([-\d.]+) samples", caplog.text)
+        assert said, caplog.text
+        assert int(said[1]) == len(self.GCPS)
+        assert float(said[2]) == pytest.approx(self.LATE_BY, abs=0.01)
+        assert float(said[3]) == pytest.approx(0.0, abs=0.02)
+        assert float(said[4]) == pytest.approx(0.5, abs=0.02)
+        # and how much of it is the navigation rather than the matching
+        judged = re.search(r"(\d+) mismatches; trusted rms ([-\d.]+) lines, ([-\d.]+) samples; "
+                           r"smooth part ([-\d.]+) lines, ([-\d.]+) samples", caplog.text)
+        assert judged, caplog.text
+        assert int(judged[1]) == 0
+        assert float(judged[3]) == pytest.approx(0.5, abs=0.02)
+        assert float(judged[5]) < 0.1
+
+    def where_the_points_truly_stand(self, heights):
+        """Return the true positions of points seen where the planted navigation puts them, at *heights*.
+
+        Built by plain geometry, not by the fit's own shortcut: each true point is where the
+        line from the satellite to the ellipsoid point it was seen at reaches its height.
+        """
+        from pyproj import Transformer
+
+        from pyorbital.orbital import Orbital
+
+        to_cartesian = Transformer.from_crs("EPSG:4979", "EPSG:4978", always_xy=True)
+        to_geodetic = Transformer.from_crs("EPSG:4978", "EPSG:4979", always_xy=True)
+        late = self.STARTED + dt.timedelta(seconds=self.LATE_BY)
+        seen_lons, seen_lats = self.references()
+        orbit = Orbital("noaa", line1=self.TLE[0], line2=self.TLE[1])
+        lons, lats = [], []
+        for (line, sample), lon, lat, height in zip(self.GCPS, seen_lons, seen_lats, heights):
+            when = late + dt.timedelta(seconds=line / 6 + sample * 25e-6)
+            sat = np.array(to_cartesian.transform(*orbit.get_lonlatalt(when)[:2], orbit.get_lonlatalt(when)[2] * 1e3))
+            ground = np.array(to_cartesian.transform(lon, lat, 0.0))
+            low, high = 0.0, 1.0
+            for _ in range(60):
+                middle = (low + high) / 2
+                if to_geodetic.transform(*(ground + middle * (sat - ground)))[2] < height:
+                    low = middle
+                else:
+                    high = middle
+            true_lon, true_lat, _ = to_geodetic.transform(*(ground + low * (sat - ground)))
+            lons.append(true_lon)
+            lats.append(true_lat)
+        return np.array(lons), np.array(lats)
+
+    def test_a_fit_told_the_heights_finds_the_navigation_the_terrain_hid(self):
+        """A mountain is seen away from nadir of where it stands; told its height, the fit allows for it.
+
+        Without the heights, the fit takes the terrain's displacement for navigation error
+        and tilts the whole pass to meet it; with them, it finds what was planted and leaves
+        nothing behind.
+        """
+        from pyorbital.geoloc_avhrr import fit_navigation
+
+        heights = 4000.0 * (self.GCPS[:, 1] - 60.0) / 1900.0
+        true_lons, true_lats = self.where_the_points_truly_stand(heights)
+
+        def fit(**kwargs):
+            return fit_navigation(self.GCPS, true_lons, true_lats, self.STARTED, self.TLE, 55.37,
+                                  nadir_convention="geodetic", solve_for_pitch=False, **kwargs)
+
+        told = fit(heights=heights)
+        blind = fit()
+
+        assert told.attitude[2] == pytest.approx(self.YAWED_BY, abs=1e-4)
+        assert told.time_offset == pytest.approx(self.LATE_BY, abs=1e-2)
+        assert np.sqrt(np.nanmean(told.misses ** 2)) < 0.05
+        assert np.sqrt(np.nanmean(blind.misses ** 2)) > 0.3
+
+    def a_pass(self, late_by=0.0, attitude=(0.0, 0.0, 0.0), **geometry):
+        """Return where the gcps truly are on a pass *late_by* seconds late and so turned."""
+        geometry.setdefault("nadir_convention", "geodetic")
+        lons, lats, _ = compute_avhrr_gcps_lonlatalt(
+            self.GCPS, 55.37, attitude, self.STARTED + dt.timedelta(seconds=late_by), self.TLE, **geometry)
+        return lons, lats
+
+    def test_a_time_beyond_the_search_is_found_when_the_fit_is_told_where_to_look(self):
+        """The coarse match's shift centres the time search, which otherwise reaches seven seconds."""
+        fit = self.fit(self.a_pass(late_by=25.0), time_offset_guess=24.0, solve_for_pitch=False)
+
+        assert fit.time_offset == pytest.approx(25.0, abs=1e-2)
+
+    def test_a_time_offset_resting_on_its_bound_is_refused(self):
+        """A time the data cannot pin down would be paid for elsewhere, so it is refused instead."""
+        with pytest.raises(RuntimeError, match="did not settle"):
+            self.fit(self.a_pass(late_by=25.0), solve_for_pitch=False)
+
+    def test_a_trusted_clock_is_held_and_the_attitude_fitted_alone(self):
+        """Where the clock is known, the swath must not be slid along its track to fit."""
+        fit = self.fit(self.a_pass(attitude=(0.0, 0.0, self.YAWED_BY)), solve_for_time=False)
+
+        assert fit.time_offset == 0.0
+        assert fit.attitude[2] == pytest.approx(self.YAWED_BY, abs=1e-4)
+
+    def test_a_fit_not_asked_for_pitch_holds_it_at_zero(self):
+        """Time and pitch say the same thing along the track, so the one not wanted is pinned."""
+        fit = self.fit(self.a_pass(late_by=self.LATE_BY), solve_for_pitch=False)
+
+        assert fit.attitude[1] == 0.0
+        assert fit.time_offset == pytest.approx(self.LATE_BY, abs=1e-3)
+
+    def test_a_steered_swath_is_fitted_by_a_model_that_turns_with_it(self):
+        """A model that turns with the swath finds the attitude planted in it, and no more."""
+        fit = self.fit(self.a_pass(attitude=(0.0, 0.0, self.YAWED_BY), yaw_steering=True),
+                       yaw_steering=True, solve_for_time=False)
+
+        np.testing.assert_allclose(fit.attitude, (0.0, 0.0, self.YAWED_BY), atol=1e-4)
+
+    def test_the_fit_stands_on_the_nadir_it_is_given(self):
+        """Standing on the wrong nadir tilts the swath, and the fit takes that up as roll."""
+        refs = self.a_pass(attitude=(0.0, 0.0, self.YAWED_BY))
+        from pyorbital.geoloc_avhrr import fit_navigation
+
+        right = fit_navigation(self.GCPS, *refs, self.STARTED, self.TLE, 55.37,
+                               nadir_convention="geodetic", solve_for_time=False)
+        wrong = fit_navigation(self.GCPS, *refs, self.STARTED, self.TLE, 55.37,
+                               nadir_convention="geocentric", solve_for_time=False)
+
+        assert right.attitude[0] == pytest.approx(0.0, abs=1e-5)
+        assert abs(wrong.attitude[0]) > 1e-4
+
+    def test_the_distance_left_on_the_ground_is_kept_too(self):
+        """Products already quote the leftover distance in metres; the fit still has to supply it."""
+        rng = np.random.default_rng(3)
+        displaced = np.zeros_like(self.GCPS)
+        displaced[:, 1] = rng.normal(0.0, 0.3, len(self.GCPS))
+        displaced[7] = np.nan
+
+        fit = self.fit(self.references(displaced_by=displaced))
+
+        from pyorbital.geoloc_avhrr import compute_gcp_distances_to_reference_lonlats
+        settled = (fit.time_offset / 1e3, *fit.attitude)
+        kept = np.delete(np.arange(len(self.GCPS)), 7)
+        expected = compute_gcp_distances_to_reference_lonlats(
+            settled, self.GCPS[kept], self.STARTED, self.TLE, 55.37,
+            tuple(ref[kept] for ref in self.references(displaced_by=displaced)),
+            nadir_convention="geodetic")
+        assert fit.distances.shape == (len(self.GCPS),)
+        assert np.isnan(fit.distances[7])
+        np.testing.assert_allclose(fit.distances[kept], expected, rtol=1e-6)
+
+    def test_a_few_bad_matches_do_not_drag_the_good_ones(self):
+        """Two matches fifteen samples out must not move a fit that fifty-eight others agree on.
+
+        Squared misses let each point pull in proportion to how far out it is, so a pair
+        of confident mismatches -- a cloud edge, a coast repeated inside the search --
+        would push every good point half a pixel off to meet them part way.
+        """
+        bad = [3, 41]
+        displaced = np.zeros_like(self.GCPS)
+        displaced[bad] = [0.0, 15.0]
+
+        fit = self.fit(self.references(displaced_by=displaced))
+
+        # plain least squares lands 0.17 s off here; a convex robust loss still feels the
+        # bad pair at a capped strength, so it is held to a fifth of a line, not to zero
+        assert fit.time_offset == pytest.approx(self.LATE_BY, abs=3e-2)
+        np.testing.assert_allclose(np.delete(fit.misses, bad, axis=0), 0.0, atol=5e-2)
+        np.testing.assert_allclose(fit.misses[bad], [[0.0, -15.0]] * 2, atol=0.5)
+
+    def test_the_reported_uncertainty_matches_the_scatter_noise_causes(self):
+        """A fit says how far to trust it, and the figure has to be right, not merely present.
+
+        Forty passes are drawn with a third of a pixel of matching noise. The spread of
+        what they fit is the uncertainty a single pass really carries, and the one each
+        pass reports from its own misses has to agree with it.
+        """
+        rng = np.random.default_rng(0)
+        fits = [self.fit(self.references(displaced_by=rng.normal(0.0, 0.3, self.GCPS.shape)))
+                for _ in range(40)]
+
+        found = np.array([[fit.time_offset, *fit.attitude] for fit in fits])
+        reported = np.median([np.sqrt(np.diag(fit.covariance)) for fit in fits], axis=0)
+
+        np.testing.assert_allclose(reported, found.std(axis=0), rtol=0.35)
+
+    def test_a_held_parameter_carries_no_uncertainty(self):
+        """Holding the pitch at zero asserts it; reporting a spread for it would claim a measurement."""
+        rng = np.random.default_rng(1)
+
+        fit = self.fit(self.references(displaced_by=rng.normal(0.0, 0.3, self.GCPS.shape)),
+                       solve_for_pitch=False)
+
+        assert np.all(fit.covariance[2] == 0.0)
+        assert np.all(fit.covariance[:, 2] == 0.0)
+        assert np.all(np.diag(fit.covariance)[[0, 1, 3]] > 0.0)
+
+    def test_time_and_pitch_are_reported_as_trading_against_each_other(self):
+        """A pass rarely tells a late swath from a pitched one, and the fit has to say so.
+
+        The two exchange at about 2.25 seconds per degree; only the curvature across the
+        swath separates them. Their correlation is what tells a caller whether the split
+        it was handed means anything.
+        """
+        rng = np.random.default_rng(2)
+
+        fit = self.fit(self.references(displaced_by=rng.normal(0.0, 0.3, self.GCPS.shape)))
+
+        assert abs(fit.correlation[0, 2]) > 0.99
+        np.testing.assert_allclose(np.diag(fit.correlation), 1.0)
+
+    def test_the_fit_records_the_conventions_it_actually_used(self):
+        """A product has to say what it was fitted with, including what the config filled in.
+
+        Refitting a pass later, with a richer model, is only comparable if every choice
+        the first fit made can be reproduced; a convention left to the config would
+        otherwise be recorded as nothing at all.
+        """
+        from pyorbital.geoloc_avhrr import fit_navigation
+
+        with config.set(nadir_convention="geocentric", rotation_order="pitch_first"):
+            fit = fit_navigation(self.GCPS, *self.references(), self.STARTED, self.TLE, 55.37,
+                                 solve_for_pitch=False)
+
+        assert fit.settings == {
+            "solve_for_time": True,
+            "solve_for_pitch": False,
+            "time_offset_guess": 0.0,
+            "yaw_steering": False,
+            "nadir_convention": "geocentric",
+            "rotation_order": "pitch_first",
+            "max_scan_angle": 55.37,
+            "loss": "soft_l1",
+            "loss_scale": 1.0,
+            "residual_units": "swath pixels (lines, samples)",
+            "terrain_heights": False,
+        }
 
 
 def test_metimage_scan_geometry_shape():

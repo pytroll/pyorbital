@@ -59,7 +59,9 @@ def geodetic_lat(point, a=A, b=B):
         phi = geod_lat
         C = 1 / np.sqrt(1 - e2 * np.sin(phi)**2)
         geod_lat = np.arctan2(z + a * C * e2 * np.sin(phi), r)
-        if np.allclose(geod_lat, phi):
+        # A point with no position has no latitude either; it must not hold the
+        # others' convergence hostage, since NaN never compares close to itself.
+        if np.allclose(geod_lat, phi, equal_nan=True):
             return geod_lat
 
 

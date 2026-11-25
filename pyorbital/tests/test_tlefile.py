@@ -252,6 +252,13 @@ def test_check_is_platform_supported_existing(caplog):
     assert expected2 in logoutput_lines[1]
 
 
+def test_iss_platform_maps_to_norad_25544():
+    """ISS maps to NORAD catalogue number 25544 in the packaged platforms.txt."""
+    from pyorbital.tlefile import SATELLITES
+
+    assert SATELLITES["ISS"] == "25544"
+
+
 @pytest.mark.usefixtures("_mock_env_ppp_config_dir_missing")
 def test_check_is_platform_supported_unknown(caplog):
     """Test the function to check if an unknown  platform is supported on default."""
